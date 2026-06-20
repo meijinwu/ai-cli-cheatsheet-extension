@@ -15,6 +15,7 @@
     ["复制", "拷贝", "copy"],
     ["删除", "移除", "remove", "delete"],
     ["更新", "升级", "刷新", "update", "upgrade", "refresh"],
+    ["替换", "取代", "replace", "substitute"],
   ];
 
   function normalizeText(value) {
@@ -64,7 +65,13 @@
     const cmdCompact = compactText(options.displayCmd || item.cmd);
     const zh = normalizeText(item.zh);
     const en = normalizeText(item.en);
+    const keywords = normalizeText((item.keywords || []).join(" "));
     const context = normalizeText(item.context);
+    const examples = normalizeText((item.examples || []).flatMap((example) => [
+      example.value,
+      example.description,
+      ...Object.values(example.platformValues || {}),
+    ]).join(" "));
     const toolName = normalizeText(options.toolName);
     const categoryLabel = normalizeText(options.categoryLabel);
     let score = -1;
@@ -76,7 +83,9 @@
       else if (cmd.includes(term) || cmdCompact.includes(termCompact)) score = Math.max(score, 650);
       else if (zh.includes(term) || compactText(zh).includes(termCompact)) score = Math.max(score, 460);
       else if (en.includes(term) || compactText(en).includes(termCompact)) score = Math.max(score, 330);
+      else if (keywords.includes(term) || compactText(keywords).includes(termCompact)) score = Math.max(score, 260);
       else if (context.includes(term) || compactText(context).includes(termCompact)) score = Math.max(score, 220);
+      else if (examples.includes(term) || compactText(examples).includes(termCompact)) score = Math.max(score, 160);
       else if (toolName.includes(term) || compactText(toolName).includes(termCompact)) score = Math.max(score, 180);
       else if (categoryLabel.includes(term) || compactText(categoryLabel).includes(termCompact)) score = Math.max(score, 140);
     });
@@ -107,6 +116,16 @@
     return {
       command: platformCmds[normalizedPlatform] || item.cmd,
       usedFallback: Boolean(Object.keys(platformCmds).length && !platformCmds[normalizedPlatform]),
+      unsupported: Boolean(supported.length && !supported.includes(normalizedPlatform)),
+    };
+  }
+
+  function getPlatformExample(example, platform) {
+    const normalizedPlatform = ["mac", "windows", "linux"].includes(platform) ? platform : "mac";
+    const platformValues = example.platformValues || {};
+    const supported = Array.isArray(example.platforms) ? example.platforms : [];
+    return {
+      value: platformValues[normalizedPlatform] || example.value,
       unsupported: Boolean(supported.length && !supported.includes(normalizedPlatform)),
     };
   }
@@ -146,6 +165,7 @@
     splitQuery,
     scoreItem,
     getPlatformCommand,
+    getPlatformExample,
     updateRecent,
     rankItems,
     includesTerm,

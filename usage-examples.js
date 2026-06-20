@@ -1,0 +1,116 @@
+(function initUsageExamples(globalScope) {
+  "use strict";
+
+  globalScope.CHEATSHEET_ENRICHMENTS = {
+    "antigravity-cli": {
+      'agy -p / --print': { examples: [{ value: 'agy -p "解释这个项目的目录结构"', description: "非交互执行一次任务并把结果输出到终端" }] },
+      'agy --model "模型名"': { examples: [{ value: 'agy --model "Gemini 3.1 Pro"', description: "使用指定模型启动交互会话" }] },
+      "/model": { examples: [{ value: "/model", description: "在当前会话中打开模型选择界面" }] },
+      "/diff": { examples: [{ value: "/diff", description: "查看代理在工作区中产生的文件改动" }] },
+      "/rewind 或 /undo": { examples: [{ value: "/rewind", description: "选择较早的消息并回退会话状态" }] },
+      "/resume": { examples: [{ value: "/resume", description: "打开历史会话列表并恢复一次会话" }] },
+    },
+    "claude-code": {
+      "/compact [指令]": { examples: [{ value: "/compact 保留当前实现决策和未完成任务", description: "按指定重点压缩上下文，释放可用上下文空间" }] },
+      "/model [模型]": { examples: [{ value: "/model", description: "打开模型选择器并调整当前会话模型" }] },
+      "/resume [会话]": { examples: [{ value: "/resume", description: "打开会话选择器；也可以在后面填写会话名称或 ID" }] },
+      "/plan [描述]": { examples: [{ value: "/plan 重构登录模块并补充测试", description: "带着具体目标进入计划模式" }] },
+      "/review [PR]": { examples: [{ value: "/review 123", description: "审查编号为 123 的 Pull Request" }] },
+      "!（行首）": { examples: [{ value: "!git status", description: "在会话中执行 shell 命令，并把输出加入上下文" }] },
+    },
+    "codex": {
+      "/model": { examples: [{ value: "/model", description: "打开当前会话的模型与推理强度选择器" }] },
+      "/plan [提示]": { examples: [{ value: "/plan 为缓存模块设计迁移方案", description: "携带初始目标进入只读计划模式" }] },
+      "/review": { examples: [{ value: "/review", description: "审查当前工作区改动并指出正确性和测试问题" }] },
+      "/resume": { examples: [{ value: "/resume", description: "从已保存的会话列表中选择并恢复" }] },
+      'codex exec "任务"（别名 codex e）': { examples: [{ value: 'codex exec "运行测试并解释失败原因"', description: "非交互执行一次任务，适合脚本或 CI 使用" }] },
+      "codex exec --json": { examples: [{ value: 'codex exec --json "检查依赖安全问题"', description: "以 JSON 事件流输出执行过程，便于程序处理" }] },
+    },
+    "cursor": {
+      "Cmd+I": { examples: [{ value: "选中要修改的代码后按 Cmd/Ctrl+I，输入“提取为可复用函数”", description: "让 Agent 基于当前上下文直接修改代码", copyable: false }] },
+      "Cmd+L": { examples: [{ value: "按 Cmd/Ctrl+L 后询问“这个函数为什么会重复请求？”", description: "在 AI Chat 中分析当前代码", copyable: false }] },
+      "Cmd+K\u0000编辑器": { examples: [{ value: "选中一段代码，按 Cmd/Ctrl+K，输入“增加参数校验”", description: "对选中代码进行行内 AI 编辑", copyable: false }] },
+      "Cmd+K\u0000终端": { examples: [{ value: "在终端按 Cmd/Ctrl+K，输入“查找占用 3000 端口的进程”", description: "根据自然语言生成终端命令", copyable: false }] },
+      "Cmd+Shift+L": { examples: [{ value: "选中关键代码后按 Cmd/Ctrl+Shift+L，再到 Chat 中提问", description: "把选中代码加入 AI 对话上下文", copyable: false }] },
+      "Cmd+Enter\u0000Chat/Composer": { examples: [{ value: "输入问题后按 Cmd/Ctrl+Enter", description: "提交问题并搜索整个代码库作为上下文", copyable: false }] },
+    },
+    "gemini-cli": {
+      "/compress": { examples: [{ value: "/compress", description: "压缩当前对话上下文，适合长会话继续工作" }] },
+      "/model [manage|set]": { examples: [{ value: "/model set", description: "进入模型设置流程并选择当前使用的模型" }] },
+      "/resume": { examples: [{ value: "/resume", description: "浏览并恢复之前保存的会话" }] },
+      "/memory [show|refresh|list]": { examples: [{ value: "/memory show", description: "查看当前从 GEMINI.md 加载的记忆内容" }] },
+      "@路径": { examples: [{ value: "@src/auth.ts 解释登录流程", description: "把指定文件内容加入当前提示词" }] },
+      "!命令": { examples: [{ value: "!git status", description: "执行本地 shell 命令并显示结果" }] },
+    },
+    "git": {
+      "clone": { examples: [{ value: "git clone https://github.com/example/project.git", description: "把远程仓库克隆到当前目录" }] },
+      "add": { examples: [{ value: "git add src/app.js", description: "把指定文件的改动加入暂存区" }] },
+      "commit -m\u0000commit": { examples: [{ value: 'git commit -m "fix: handle empty input"', description: "使用一条提交说明创建提交" }] },
+      "reset --soft HEAD~1\u0000reset": { examples: [{ value: "git reset --soft HEAD~1", description: "撤销最近一次提交，但保留改动在暂存区" }] },
+      "switch -c\u0000switch": { examples: [{ value: "git switch -c feature/search", description: "创建并切换到 feature/search 分支" }] },
+      "push --force-with-lease\u0000push": { examples: [{ value: "git push --force-with-lease origin feature/search", description: "在远端分支未被他人更新时安全地强制推送", warning: "会重写远端历史，推送前确认分支和协作状态" }] },
+    },
+    "idea": {
+      "Double Shift": { examples: [{ value: "连续按两次 Shift，输入类名、文件名或动作名称", description: "从一个入口搜索整个项目和 IDE 功能", copyable: false }] },
+      "Cmd+Shift+A": { examples: [{ value: "按 Cmd+Shift+A（Win/Linux 为 Ctrl+Shift+A），输入“Reformat Code”", description: "搜索并执行 IDE 动作", copyable: false }] },
+      "Cmd+B": { examples: [{ value: "把光标放在方法调用上，按 Cmd/Ctrl+B", description: "跳转到方法或变量的声明位置", copyable: false }] },
+      "Alt+F7": { examples: [{ value: "把光标放在符号上按 Alt+F7", description: "查找该符号在整个项目中的使用位置", copyable: false }] },
+      "Shift+F6": { examples: [{ value: "选中变量或方法名后按 Shift+F6，输入新名称", description: "安全重命名并同步更新所有引用", copyable: false }] },
+      "Cmd+Alt+L": { examples: [{ value: "选中代码后按 Cmd+Alt+L（Win/Linux 为 Ctrl+Alt+L）", description: "按项目代码风格格式化选区", copyable: false }] },
+    },
+    "linux": {
+      "rm -rf": { examples: [{ value: "rm -rf ./build-temp", description: "递归删除示例临时目录且不再确认", warning: "不可恢复；执行前先用 ls 检查目标路径" }] },
+      "grep -r": { examples: [{ value: "grep -r \"TODO\" ./src", description: "递归查找 src 目录中包含 TODO 的行" }] },
+      "find . -name": { examples: [{ value: "find . -name \"*.log\"", description: "从当前目录递归查找所有 .log 文件" }] },
+      "tar -xzf": { examples: [{ value: "tar -xzf archive.tar.gz", description: "把 gzip 压缩的 tar 归档解压到当前目录" }] },
+      "sed": {
+        keywords: ["替换", "取代", "文本替换", "批量替换", "正则替换"],
+        examples: [
+          { value: "sed 's/旧文本/新文本/g' file.txt", description: "预览把每行所有“旧文本”替换为“新文本”的结果" },
+          {
+            value: "sed -i 's/旧文本/新文本/g' file.txt",
+            description: "直接修改文件中的匹配文本",
+            warning: "先运行不带 -i 的命令预览结果，并备份重要文件",
+            platformValues: {
+              mac: "sed -i '' 's/旧文本/新文本/g' file.txt",
+              linux: "sed -i 's/旧文本/新文本/g' file.txt",
+            },
+          },
+        ],
+      },
+      "awk": { examples: [{ value: "awk '{print $1}' access.log", description: "输出 access.log 每一行的第一列" }] },
+    },
+    "openclaw": {
+      "/new [model]": { examples: [{ value: "/new", description: "归档当前会话并开始一个全新会话" }] },
+      "/compact [instructions]": { examples: [{ value: "/compact 保留部署步骤和未解决问题", description: "按指定重点压缩当前会话上下文" }] },
+      "/model [name|#|status]": { examples: [{ value: "/model status", description: "查看当前会话正在使用的模型" }] },
+      "/context [list|detail|map|json]": { examples: [{ value: "/context detail", description: "查看当前上下文的详细组成" }] },
+      "/usage off|tokens|full|cost": { examples: [{ value: "/usage cost", description: "在回复底部显示费用信息" }] },
+      "/restart": { examples: [{ value: "/restart", description: "重启 OpenClaw 服务", warning: "会短暂中断当前服务连接" }] },
+    },
+    "opencode": {
+      "/new": { examples: [{ value: "/new", description: "清空当前上下文并开始新会话" }] },
+      "/compact": { examples: [{ value: "/compact", description: "压缩当前会话上下文以释放 token" }] },
+      "/undo": { examples: [{ value: "/undo", description: "撤销最后一条消息以及相关文件改动", warning: "需要在 Git 仓库中使用" }] },
+      "/sessions": { examples: [{ value: "/sessions", description: "列出历史会话并切换到其中一个" }] },
+      'opencode run "[prompt]"': { examples: [{ value: 'opencode run "检查测试失败的原因"', description: "非交互执行一次任务并输出结果" }] },
+      "opencode run -m [provider/model]": { examples: [{ value: 'opencode run -m anthropic/claude-sonnet "总结改动"', description: "指定 provider/model 执行一次任务" }] },
+    },
+    "typora": {
+      "Cmd+1": { examples: [{ value: "# 一级标题", description: "Markdown 一级标题的输入形式" }] },
+      "Cmd+B": { examples: [{ value: "**重要内容**", description: "Markdown 加粗文本的输入形式" }] },
+      "Cmd+K": { examples: [{ value: "[项目主页](https://example.com)", description: "Markdown 超链接的输入形式" }] },
+      "Cmd+Option+T": { examples: [{ value: "| 名称 | 状态 |\n| --- | --- |\n| 示例 | 完成 |", description: "一个两列表格的 Markdown 输入" }] },
+      "Cmd+Option+C": { examples: [{ value: "```js\nconsole.log('hello');\n```", description: "带语言标记的 JavaScript 代码块" }] },
+      "Cmd+/": { examples: [{ value: "按 Cmd+/（Win/Linux 为 Ctrl+/）", description: "在所见即所得和 Markdown 源代码模式之间切换", copyable: false }] },
+    },
+    "vs-code": {
+      "Cmd+Shift+P": { examples: [{ value: "按 Cmd+Shift+P（Win/Linux 为 Ctrl+Shift+P），输入“Format Document”", description: "搜索并执行编辑器命令", copyable: false }] },
+      "Cmd+P": { examples: [{ value: "按 Cmd/Ctrl+P，输入文件名的一部分", description: "按名称快速打开项目文件", copyable: false }] },
+      "Option+Down": { examples: [{ value: "把光标放在一行上，按 Option+Down（Win/Linux 为 Alt+Down）", description: "把当前行向下移动", copyable: false }] },
+      "Shift+Option+Down": { examples: [{ value: "按 Shift+Option+Down（Win/Linux 为 Shift+Alt+Down）", description: "复制当前行并插入到下一行", copyable: false }] },
+      "Cmd+D": { examples: [{ value: "选中一个变量名后连续按 Cmd/Ctrl+D", description: "逐个选中后续同名文本，便于同时编辑", copyable: false }] },
+      "Shift+Cmd+F": { examples: [{ value: "按 Shift+Cmd+F（Win/Linux 为 Ctrl+Shift+F），输入关键词", description: "在整个工作区跨文件搜索", copyable: false }] },
+    },
+  };
+}(typeof window !== "undefined" ? window : globalThis));

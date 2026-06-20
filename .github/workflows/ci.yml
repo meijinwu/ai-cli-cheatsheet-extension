@@ -19,6 +19,8 @@ jobs:
         run: |
           node --check popup.js
           node --check background.js
+          node --check product-core.js
+          node --check usage-examples.js
           find data -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Validate cheatsheet data
         run: |
