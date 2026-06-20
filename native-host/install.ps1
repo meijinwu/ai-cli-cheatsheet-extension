@@ -97,7 +97,7 @@ $BatchLines = @(
     "set `"AICLI_PROJECT_DIR=$ProjectDir`"",
     "`"$PythonExe`" `"$InstallDir\host.py`" %*"
 )
-$BatchLines | Set-Content -Path $RunBat -Encoding UTF8
+[IO.File]::WriteAllLines($RunBat, $BatchLines, [Text.UTF8Encoding]::new($false))
 Write-Host "✅ run.bat 已生成：$RunBat" -ForegroundColor Green
 
 # ── 6. 询问扩展 ID ───────────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ function Register-NativeHost {
         type            = "stdio"
         allowed_origins = @("chrome-extension://$ExtensionId/")
     } | ConvertTo-Json -Depth 3
-    $Manifest | Set-Content -Path $ManifestPath -Encoding UTF8
+    [IO.File]::WriteAllText($ManifestPath, $Manifest, [Text.UTF8Encoding]::new($false))
 
     $RegKey = "$RegPath\$HostName"
     New-Item -Path $RegKey -Force | Out-Null

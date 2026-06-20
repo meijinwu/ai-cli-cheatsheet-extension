@@ -53,6 +53,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
 
     const { tool, display_name, mode } = msg;
+    const validTool = typeof tool === 'string'
+      && tool.length <= 64
+      && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tool);
+    const validName = typeof display_name === 'string'
+      && display_name.trim().length > 0
+      && display_name.trim().length <= 100;
+    if (!validTool || !validName || !['add', 'update', 'remove'].includes(mode)) {
+      sendResponse({ ok: false, error: '任务参数无效。' });
+      return false;
+    }
     taskActive = true;
     startKeepalive();
     setSessionStatus({ running: true, tool, display_name, mode, startedAt: Date.now() });

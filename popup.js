@@ -1,7 +1,6 @@
 // popup.js — 读取 window.CHEATSHEET_DATA（由 data/*.js 注入），渲染可搜索/可筛选的列表
 
 const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "/ 命令", flag: "--flag" };
-const NATIVE_HOST_NAME = "com.aicli.cheatsheet_updater";
 const FAV_KEY = "favourites";
 
 let activeTool = "all";
@@ -38,6 +37,41 @@ function favKey(toolId, cmd) {
   return `${toolId}::${cmd}`;
 }
 
+function hashString(value) {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function itemId(toolId, item) {
+  return item.id || hashString(
+    `${toolId}\0${item.cat}\0${item.context || ""}\0${String(item.en).toLowerCase()}`
+  );
+}
+
+function itemFavKey(toolId, item) {
+  return favKey(toolId, itemId(toolId, item));
+}
+
+function migrateFavourites() {
+  let changed = false;
+  const data = getAllData();
+  Object.entries(data).forEach(([toolId, tool]) => {
+    (tool.items || []).forEach((item) => {
+      const legacyKey = favKey(toolId, item.cmd);
+      if (favourites.has(legacyKey)) {
+        favourites.delete(legacyKey);
+        favourites.add(itemFavKey(toolId, item));
+        changed = true;
+      }
+    });
+  });
+  if (changed) saveFavourites();
+}
+
 // ── 数据访问 ──────────────────────────────────────────────────────────────────────
 
 function getAllData() {
@@ -71,7 +105,7 @@ function toToolId(name) {
 function setUpdateStatus(text, kind) {
   const el = document.getElementById("updateStatus");
   el.textContent = text;
-  el.className = "show" + (kind ? " " + kind : "");
+  el.className = text ? "show" + (kind ? " " + kind : "") : "";
 }
 
 function setSearch(val) {
@@ -84,22 +118,32 @@ function setSearch(val) {
 
 let updateMode = "add";
 
-function handleTaskResult(response) {
+function currentButtonLabel() {
+  return {
+    add: "查询并写入",
+    update: "检查并更新",
+    remove: "确认移除",
+  }[updateMode] || "执行";
+}
+
+function resetUpdateButton() {
   const btn = document.getElementById("updateBtn");
   btn.disabled = false;
-  btn.textContent = "查询并写入";
+  btn.textContent = currentButtonLabel();
+}
+
+function handleTaskResult(response) {
+  resetUpdateButton();
   if (!response) {
     setUpdateStatus("没有收到任何响应，本地程序可能异常退出了。", "err");
     return;
   }
   if (response.ok) {
-    setUpdateStatus(
-      "✅ 完成！\n\n" +
-        (response.output || "（没有详细输出）") +
-        "\n\n正在自动重新加载插件，稍后重新打开面板即可看到新工具。",
-      "ok"
-    );
-    setTimeout(() => chrome.runtime.reload(), 1500);
+    const reloadText = response.changed
+      ? "\n\n正在重新加载插件，稍后重新打开面板即可看到变化。"
+      : "\n\n数据没有变化，无需重新加载。";
+    setUpdateStatus("✅ 完成！\n\n" + (response.output || "（没有详细输出）") + reloadText, "ok");
+    if (response.changed) setTimeout(() => chrome.runtime.reload(), 1500);
   } else {
     setUpdateStatus("❌ 失败：" + (response.error || "未知错误"), "err");
   }
@@ -108,6 +152,7 @@ function handleTaskResult(response) {
 function setupUpdateButton() {
   const btn = document.getElementById("updateBtn");
   const input = document.getElementById("updateTool");
+  const existingSelect = document.getElementById("existingTool");
   const modeBtns = document.querySelectorAll(".mode-btn");
 
   // Listen for task completion broadcast from background service worker
@@ -125,11 +170,9 @@ function setupUpdateButton() {
     update: "已收录的工具名，如 Claude Code",
     remove: "已收录的工具名，如 OpenCode",
   };
-  const BTN_LABELS = {
-    add:    "查询并写入",
-    update: "检查并更新",
-    remove: "确认移除",
-  };
+  existingSelect.innerHTML = getToolIds()
+    .map((id) => `<option value="${escapeHtml(id)}">${escapeHtml(getAllData()[id].meta.name)}</option>`)
+    .join("");
 
   modeBtns.forEach((mb) => {
     mb.addEventListener("click", () => {
@@ -138,25 +181,35 @@ function setupUpdateButton() {
       updateMode = mb.dataset.mode;
       input.placeholder = PLACEHOLDERS[updateMode] ?? PLACEHOLDERS.add;
       document.getElementById("updateHint").textContent = HINTS[updateMode] ?? "";
-      btn.textContent = BTN_LABELS[updateMode] ?? "执行";
+      input.hidden = updateMode !== "add";
+      existingSelect.hidden = updateMode === "add";
+      btn.textContent = currentButtonLabel();
+      setUpdateStatus("", null);
     });
   });
 
   btn.addEventListener("click", () => {
-    const displayName = input.value.trim();
-    if (!displayName) {
+    const selectedId = existingSelect.value;
+    const displayName = updateMode === "add"
+      ? input.value.trim()
+      : getAllData()[selectedId]?.meta?.name || "";
+    if (!displayName || (updateMode !== "add" && !selectedId)) {
       setUpdateStatus("请先输入工具名称", "err");
       return;
     }
 
-    const toolId = toToolId(displayName);
+    const toolId = updateMode === "add" ? toToolId(displayName) : selectedId;
 
-    if ((updateMode === "update" || updateMode === "remove") && !getAllData()[toolId]) {
-      setUpdateStatus(
-        `没有在已收录列表里找到「${displayName}」，如果是想新增这个工具，请切换到"➕ 新增工具"模式。`,
-        "err"
-      );
-      return;
+    if (updateMode === "add") {
+      const normalizedName = displayName.toLocaleLowerCase();
+      const duplicate = getToolIds().find((id) => {
+        const metaName = getAllData()[id]?.meta?.name || "";
+        return id === toolId || metaName.toLocaleLowerCase() === normalizedName;
+      });
+      if (duplicate) {
+        setUpdateStatus(`「${displayName}」已收录，请切换到“更新已有”模式。`, "err");
+        return;
+      }
     }
 
     const RUNNING_LABELS = {
@@ -177,8 +230,7 @@ function setupUpdateButton() {
       { action: "startTask", tool: toolId, display_name: displayName, mode: updateMode },
       (response) => {
         if (chrome.runtime.lastError) {
-          btn.disabled = false;
-          btn.textContent = "查询并写入";
+          resetUpdateButton();
           setUpdateStatus(
             "连接后台服务失败：" + chrome.runtime.lastError.message + "\n请重新加载插件后重试。",
             "err"
@@ -186,8 +238,7 @@ function setupUpdateButton() {
           return;
         }
         if (!response?.ok) {
-          btn.disabled = false;
-          btn.textContent = "查询并写入";
+          resetUpdateButton();
           setUpdateStatus("❌ " + (response?.error ?? "启动失败"), "err");
         }
         // ok + queued: stay in "running" state, result arrives via taskComplete message
@@ -266,7 +317,7 @@ function render() {
 
   function itemMatchesQuery(it) {
     if (!q) return true;
-    return (it.cmd + " " + it.en + " " + it.zh).toLowerCase().includes(q);
+    return (it.cmd + " " + it.en + " " + it.zh + " " + (it.context || "")).toLowerCase().includes(q);
   }
 
   function renderBlock(id, rows) {
@@ -278,11 +329,11 @@ function render() {
     block.className = "tool-block";
 
     const rowsHtml = rows.map((r) => {
-      const fk = favKey(id, r.cmd);
+      const fk = itemFavKey(id, r);
       const isFav = favourites.has(fk);
       return `
         <div class="row" tabindex="0">
-          <div class="cmd"><span class="dot" style="background:${color}"></span>${escapeHtml(r.cmd)}</div>
+          <div class="cmd"><span class="dot" style="background:${color}"></span>${escapeHtml(r.cmd)}${r.context ? `<span class="context">${escapeHtml(r.context)}</span>` : ""}</div>
           <div class="zh">${escapeHtml(r.zh)}</div>
           <div class="en">${escapeHtml(r.en)}</div>
           <div class="row-actions">
@@ -307,7 +358,7 @@ function render() {
       const tool = data[id];
       if (!tool?.items) return;
       const rows = tool.items.filter(
-        (it) => favourites.has(favKey(id, it.cmd)) && (!activeCat || it.cat === activeCat) && itemMatchesQuery(it)
+        (it) => favourites.has(itemFavKey(id, it)) && (!activeCat || it.cat === activeCat) && itemMatchesQuery(it)
       );
       renderBlock(id, rows);
     });
@@ -406,7 +457,27 @@ document.getElementById("main").addEventListener("keydown", (e) => {
 
 document.getElementById("search").addEventListener("input", render);
 
-document.addEventListener("DOMContentLoaded", () => {
+function loadCheatsheetData() {
+  const files = Array.isArray(window.CHEATSHEET_FILES) ? window.CHEATSHEET_FILES : [];
+  return Promise.all(files.map((toolId) => new Promise((resolve, reject) => {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(toolId)) {
+      reject(new Error(`非法数据文件 ID：${toolId}`));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = `data/${toolId}.js`;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`加载 data/${toolId}.js 失败`));
+    document.head.appendChild(script);
+  })));
+}
+
+async function initialize() {
+  try {
+    await loadCheatsheetData();
+  } catch (error) {
+    setUpdateStatus(error.message, "err");
+  }
   renderFilters();
   setupUpdateButton();
 
@@ -425,6 +496,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   loadFavourites(() => {
+    migrateFavourites();
     if (chrome?.storage?.local) {
       chrome.storage.local.get(["lastQuery"], (res) => {
         if (res.lastQuery) document.getElementById("search").value = res.lastQuery;
@@ -437,4 +509,6 @@ document.addEventListener("DOMContentLoaded", () => {
       render();
     }
   });
-});
+}
+
+document.addEventListener("DOMContentLoaded", initialize);

@@ -102,12 +102,22 @@ powershell -ExecutionPolicy Bypass -File native-host\install.ps1
 ```
 popup.html / popup.js     浏览器弹窗 UI
 data/*.js                 各工具数据（由 Claude Code 自动生成和维护）
+data/index.js             唯一的数据文件索引
 native-host/
-  host.py                 Native Messaging host，接收浏览器请求，调用 claude -p
+  host.py                 调用 claude -p，校验结构化 JSON 后原子写入数据
   install.sh              一次性安装脚本
 ```
 
-新增工具时，插件通过 Chrome Native Messaging API 调用本机 `claude -p`，Claude Code 自动搜索官方文档、生成 `data/<tool-id>.js`，并插入 `popup.html` 的 script 引用，完成后自动重载插件。
+新增工具时，插件通过 Chrome Native Messaging API 调用本机 `claude -p`。Claude Code 只返回结构化 JSON，Native Host 校验 ID、字段、重复项和写入路径后生成 `data/<tool-id>.js`，并原子更新 `data/index.js`。Claude Code 不直接编辑仓库文件。
+
+## 开发检查
+
+```bash
+node tools/validate-data.js
+python3 -m unittest discover -s tests -v
+```
+
+GitHub Actions 会同时执行 JavaScript 语法检查、数据 schema 校验和 Native Host 单元测试。
 
 ## 贡献
 

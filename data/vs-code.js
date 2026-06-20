@@ -34,8 +34,8 @@ window.CHEATSHEET_DATA["vs-code"] = {
     {cat:"shortcut", cmd:"Cmd+[", en:"Outdent Line", zh:"减少当前行缩进（Win/Linux 为 Ctrl+[）"},
     {cat:"shortcut", cmd:"Home", en:"Go to Beginning of Line", zh:"跳转到行首（Win/Linux 相同）"},
     {cat:"shortcut", cmd:"End", en:"Go to End of Line", zh:"跳转到行尾（Win/Linux 相同）"},
-    {cat:"shortcut", cmd:"Cmd+Up", en:"Go to Beginning of File", zh:"跳转到文件开头（Win/Linux 为 Ctrl+Home）"},
-    {cat:"shortcut", cmd:"Cmd+Down", en:"Go to End of File", zh:"跳转到文件末尾（Win/Linux 为 Ctrl+End）"},
+    {cat:"shortcut", cmd:"Cmd+Up", en:"Go to Beginning of File", zh:"跳转到文件开头（Win/Linux 为 Ctrl+Home）", context:"编辑器"},
+    {cat:"shortcut", cmd:"Cmd+Down", en:"Go to End of File", zh:"跳转到文件末尾（Win/Linux 为 Ctrl+End）", context:"编辑器"},
     {cat:"shortcut", cmd:"Ctrl+PgUp", en:"Scroll Line Up", zh:"向上滚动一行（Win/Linux 相同）"},
     {cat:"shortcut", cmd:"Ctrl+PgDn", en:"Scroll Line Down", zh:"向下滚动一行（Win/Linux 相同）"},
     {cat:"shortcut", cmd:"Cmd+PgUp", en:"Scroll Page Up", zh:"向上滚动一页（Win/Linux 为 Ctrl+PgUp）"},
@@ -149,8 +149,8 @@ window.CHEATSHEET_DATA["vs-code"] = {
     // ===== 集成终端 Integrated Terminal =====
     {cat:"shortcut", cmd:"Ctrl+`", en:"Show Integrated Terminal", zh:"显示/隐藏集成终端（Win/Linux 为 Ctrl+`）"},
     {cat:"shortcut", cmd:"Ctrl+Shift+`", en:"Create New Terminal", zh:"新建一个终端实例（Win/Linux 相同）"},
-    {cat:"shortcut", cmd:"Cmd+Up", en:"Scroll to Top", zh:"终端中滚动到顶部（Win/Linux 为 Ctrl+Home）"},
-    {cat:"shortcut", cmd:"Cmd+Down", en:"Scroll to Bottom", zh:"终端中滚动到底部（Win/Linux 为 Ctrl+End）"},
+    {cat:"shortcut", cmd:"Cmd+Up", en:"Scroll to Top", zh:"终端中滚动到顶部（Win/Linux 为 Ctrl+Home）", context:"集成终端"},
+    {cat:"shortcut", cmd:"Cmd+Down", en:"Scroll to Bottom", zh:"终端中滚动到底部（Win/Linux 为 Ctrl+End）", context:"集成终端"},
     {cat:"shortcut", cmd:"Cmd+Home", en:"Scroll to Top (Terminal)", zh:"终端中滚动到顶部（Win/Linux 为 Ctrl+Home）"},
     {cat:"shortcut", cmd:"Cmd+End", en:"Scroll to Bottom (Terminal)", zh:"终端中滚动到底部（Win/Linux 为 Ctrl+End）"},
   ]

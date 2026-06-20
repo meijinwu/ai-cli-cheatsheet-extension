@@ -60,8 +60,8 @@ chmod +x install.sh
 2. 选择"➕ 新增工具"或"🔄 更新已有"
 3. 在输入框填工具名，比如 `OpenCode` 或 `IntelliJ IDEA`
 4. 点"查询并写入"
-5. 等待1-3分钟（后台在调用 Claude Code 查文档、写文件，过程中你可以先关掉这个面板，不影响后台执行）
-6. 完成后会提示具体改了什么；去 `chrome://extensions/` 点一下这个插件的刷新图标，再重新打开面板，新工具就会出现在筛选列表里
+5. 等待1-3分钟（后台在调用 Claude Code 查文档并返回结构化数据，过程中可以关闭面板）
+6. 数据发生变化时插件会自动重新加载；稍后重新打开面板即可
 
 ### 关于 IDE 类工具（IntelliJ IDEA、VS Code 等）的特殊说明
 
@@ -83,7 +83,7 @@ chmod +x install.sh
 
 1. 在 `data/` 文件夹里新建一个文件，比如 `opencode.js`
 2. 参照同文件夹里 `SCHEMA.md` 的格式填入命令数据
-3. 在 `popup.html` 末尾按现有格式加一行 `<script src="data/opencode.js"></script>`
+3. 在 `data/index.js` 中加入 `opencode`
 4. 重新在 `chrome://extensions/` 页面点这个插件卡片上的刷新按钮即可生效，不需要重新安装
 
 （不需要再改 `popup.js`，它会自动扫描所有已加载的数据文件。）
