@@ -102,6 +102,34 @@ def ensure_script_tag(tool_id):
     return True
 
 
+def remove_script_tag(tool_id):
+    """Remove <script src="data/<tool_id>.js"> from popup.html."""
+    tag = f'<script src="data/{tool_id}.js"></script>'
+    try:
+        with open(POPUP_HTML, "r", encoding="utf-8") as f:
+            html = f.read()
+        if tag not in html:
+            return
+        new_html = re.sub(r'\n?' + re.escape(tag), '', html)
+        with open(POPUP_HTML, "w", encoding="utf-8") as f:
+            f.write(new_html)
+    except OSError:
+        pass
+
+
+def remove_tool(tool_id):
+    """Delete data/<tool_id>.js and remove its script tag from popup.html."""
+    data_file = os.path.join(DATA_DIR, f"{tool_id}.js")
+    if not os.path.exists(data_file):
+        return {"ok": False, "error": f"找不到 data/{tool_id}.js，该工具可能未收录或已被移除。"}
+    try:
+        os.remove(data_file)
+    except OSError as e:
+        return {"ok": False, "error": f"删除文件失败：{e}"}
+    remove_script_tag(tool_id)
+    return {"ok": True, "output": f"已移除工具 {tool_id}：\n• 已删除 data/{tool_id}.js\n• 已清理 popup.html 引用"}
+
+
 def existing_tools():
     """List already-bundled tool IDs to avoid color collisions in the prompt."""
     if not os.path.isdir(DATA_DIR):
@@ -198,6 +226,9 @@ def main():
         mode = message.get("mode", "update").strip()
         if not tool_id:
             send_message({"ok": False, "error": "没有指定工具名称"})
+            return
+        if mode == "remove":
+            send_message(remove_tool(tool_id))
             return
         send_message(run_claude_task(tool_id, display_name, mode))
         return
