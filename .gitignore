@@ -13,6 +13,7 @@ __pycache__/
 
 # Claude Code 本地配置（包含本机路径，不应提交）
 .claude/
+.aicli-pending/
 
 # 由 install.sh 生成，包含用户路径和 API 配置，不应提交
 # The actual run.sh lives in ~/Library/Application Support/aicli-cheatsheet/

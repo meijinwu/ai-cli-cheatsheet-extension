@@ -9,6 +9,11 @@ window.CHEATSHEET_DATA["antigravity-cli"] = {
     name: "Antigravity CLI",
     color: "#9b6bdf",
     source: "⚠️轻量版：官方公告+第三方实测整理，2026-06（非逐字核对官方文档，命令仍在快速变化中）",
+    sourceUrl: "https://developers.googleblog.com/",
+    updatedAt: "2026-06-20",
+    coverage: "官方公告与实测整理的常用子集，非完整官方清单",
+    platforms: ["mac", "windows", "linux"],
+    builtIn: true,
     order: 4
   },
   items: [

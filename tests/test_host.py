@@ -21,6 +21,10 @@ def valid_dataset(tool_id="sample"):
             "name": "Sample Tool",
             "color": "#123ABC",
             "source": "Official docs, 2026-06",
+            "sourceUrl": "https://example.com/docs",
+            "updatedAt": "2026-06-20",
+            "coverage": "Complete command list",
+            "platforms": ["mac", "windows", "linux"],
             "order": 9,
         },
         "items": [
@@ -72,9 +76,11 @@ class HostFileTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.data_dir = pathlib.Path(self.temp.name) / "data"
         self.data_dir.mkdir()
+        self.pending_dir = pathlib.Path(self.temp.name) / ".aicli-pending"
         self.patchers = [
             mock.patch.object(host, "DATA_DIR", str(self.data_dir)),
             mock.patch.object(host, "DATA_INDEX", str(self.data_dir / "index.js")),
+            mock.patch.object(host, "PENDING_DIR", str(self.pending_dir)),
         ]
         for patcher in self.patchers:
             patcher.start()
@@ -117,7 +123,7 @@ class HostFileTests(unittest.TestCase):
         with mock.patch.object(host, "CLAUDE_BIN", "/usr/bin/claude"), mock.patch.object(
             host, "PROJECT_DIR", self.temp.name
         ), mock.patch.object(host.subprocess, "run", return_value=completed) as run:
-            result = host.run_claude_task("sample", "Sample Tool", "add")
+            result = host.add_tool("sample", "Sample Tool")
         self.assertTrue(result["changed"])
         command = run.call_args.args[0]
         self.assertIn("plan", command)
@@ -134,7 +140,7 @@ class HostFileTests(unittest.TestCase):
             side_effect=host.subprocess.TimeoutExpired("claude", 900),
         ):
             with self.assertRaisesRegex(host.ValidationError, "超时"):
-                host.run_claude_task("sample", "Sample Tool", "add")
+                host.add_tool("sample", "Sample Tool")
         self.assertFalse((self.data_dir / "sample.js").exists())
 
     def test_invalid_claude_output_does_not_create_files(self):
@@ -143,8 +149,70 @@ class HostFileTests(unittest.TestCase):
             host, "PROJECT_DIR", self.temp.name
         ), mock.patch.object(host.subprocess, "run", return_value=completed):
             with self.assertRaisesRegex(host.ValidationError, "JSON"):
-                host.run_claude_task("sample", "Sample Tool", "add")
+                host.add_tool("sample", "Sample Tool")
         self.assertFalse((self.data_dir / "sample.js").exists())
+
+    def test_preview_apply_and_discard_update(self):
+        old_dataset = valid_dataset()
+        old_dataset["items"][0]["id"] = "stable-item"
+        target = self.data_dir / "sample.js"
+        target.write_text(host.render_data_file(old_dataset), encoding="utf-8")
+        new_dataset = valid_dataset()
+        new_dataset["items"][0].update(
+            {"id": "stable-item", "cmd": "Ctrl+Shift+K", "zh": "打开新命令"}
+        )
+        new_dataset["items"].append(
+            {"id": "new-item", "cat": "slash", "cmd": "/new", "en": "New command", "zh": "新命令"}
+        )
+        with mock.patch.object(
+            host, "run_claude_query", return_value=host.validate_dataset(new_dataset, "sample")
+        ):
+            preview = host.preview_update("sample", "Sample Tool")
+        self.assertTrue(preview["changed"])
+        self.assertEqual(preview["diff"]["counts"]["added"], 1)
+        self.assertEqual(preview["diff"]["counts"]["modified"], 1)
+        applied = host.apply_update(preview["pendingToken"])
+        self.assertTrue(applied["changed"])
+        self.assertIn("Ctrl+Shift+K", target.read_text(encoding="utf-8"))
+
+        with mock.patch.object(
+            host, "run_claude_query", return_value=host.validate_dataset(old_dataset, "sample")
+        ):
+            second_preview = host.preview_update("sample", "Sample Tool")
+        discarded = host.discard_update(second_preview["pendingToken"])
+        self.assertFalse(discarded["changed"])
+
+    def test_preview_matches_legacy_items_without_ids(self):
+        old_dataset = valid_dataset()
+        target = self.data_dir / "sample.js"
+        target.write_text(host.render_data_file(old_dataset), encoding="utf-8")
+        normalized_old = host.validate_dataset(old_dataset, "sample", require_structured_source=False)
+        new_dataset = valid_dataset()
+        new_dataset["items"][0].update(
+            {"id": normalized_old["items"][0]["id"], "zh": "修改后的说明"}
+        )
+        with mock.patch.object(
+            host, "run_claude_query", return_value=host.validate_dataset(new_dataset, "sample")
+        ):
+            preview = host.preview_update("sample", "Sample Tool")
+        self.assertEqual(preview["diff"]["counts"]["added"], 0)
+        self.assertEqual(preview["diff"]["counts"]["removed"], 0)
+        self.assertEqual(preview["diff"]["counts"]["modified"], 1)
+
+    def test_apply_rejects_changed_source_file(self):
+        old_dataset = valid_dataset()
+        old_dataset["items"][0]["id"] = "stable-item"
+        target = self.data_dir / "sample.js"
+        target.write_text(host.render_data_file(old_dataset), encoding="utf-8")
+        new_dataset = valid_dataset()
+        new_dataset["items"][0].update({"id": "stable-item", "cmd": "Ctrl+Shift+K"})
+        with mock.patch.object(
+            host, "run_claude_query", return_value=host.validate_dataset(new_dataset, "sample")
+        ):
+            preview = host.preview_update("sample", "Sample Tool")
+        target.write_text("externally changed", encoding="utf-8")
+        with self.assertRaisesRegex(host.ValidationError, "重新检查更新"):
+            host.apply_update(preview["pendingToken"])
 
 
 if __name__ == "__main__":

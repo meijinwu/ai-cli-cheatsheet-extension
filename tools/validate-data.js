@@ -57,6 +57,16 @@ for (const id of files) {
     }
   }
   if (!/^#[0-9a-fA-F]{6}$/.test(tool.meta?.color || "")) fail(`${id}: invalid color`);
+  if (tool.meta.sourceUrl !== undefined && !/^https:\/\/\S+$/.test(tool.meta.sourceUrl)) {
+    fail(`${id}: invalid sourceUrl`);
+  }
+  if (tool.meta.updatedAt !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(tool.meta.updatedAt)) {
+    fail(`${id}: invalid updatedAt`);
+  }
+  if (tool.meta.platforms !== undefined && (
+    !Array.isArray(tool.meta.platforms)
+    || tool.meta.platforms.some((platform) => !["mac", "windows", "linux"].includes(platform))
+  )) fail(`${id}: invalid platforms`);
   if (!Array.isArray(tool.items) || tool.items.length === 0) fail(`${id}: items must not be empty`);
 
   const duplicateKeys = new Set();
@@ -70,6 +80,16 @@ for (const id of files) {
     }
     if (item.context !== undefined && (typeof item.context !== "string" || !item.context.trim())) {
       fail(`${id}[${index}]: invalid context`);
+    }
+    if (item.platformCmds !== undefined) {
+      if (!item.platformCmds || typeof item.platformCmds !== "object" || Array.isArray(item.platformCmds)) {
+        fail(`${id}[${index}]: invalid platformCmds`);
+      }
+      for (const [platform, command] of Object.entries(item.platformCmds)) {
+        if (!["mac", "windows", "linux"].includes(platform) || typeof command !== "string" || !command.trim()) {
+          fail(`${id}[${index}]: invalid platformCmds.${platform}`);
+        }
+      }
     }
     const key = `${item.cat}\0${item.cmd.toLowerCase()}\0${(item.context || "").toLowerCase()}`;
     if (duplicateKeys.has(key)) fail(`${id}: duplicate ${item.cmd}; add distinct context values`);
