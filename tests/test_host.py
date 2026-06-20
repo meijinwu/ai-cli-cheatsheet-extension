@@ -57,14 +57,17 @@ class HostValidationTests(unittest.TestCase):
         second = host.validate_dataset(changed, "sample")
         self.assertEqual(first["items"][0]["id"], second["items"][0]["id"])
 
-    def test_duplicate_commands_require_context(self):
+    def test_duplicate_commands_are_deduplicated(self):
         payload = valid_dataset()
         payload["items"].append(dict(payload["items"][0], en="Other action"))
-        with self.assertRaises(host.ValidationError):
-            host.validate_dataset(payload, "sample")
+        # 同 cat/cmd/context 的重复条目被静默跳过，仅保留第一条
+        deduped = host.validate_dataset(payload, "sample")
+        self.assertEqual(len(deduped["items"]), 1)
+        # 填上不同的 context 后两条都保留
         payload["items"][0]["context"] = "editor"
         payload["items"][1]["context"] = "terminal"
-        host.validate_dataset(payload, "sample")
+        both = host.validate_dataset(payload, "sample")
+        self.assertEqual(len(both["items"]), 2)
 
     def test_extracts_claude_json_wrapper(self):
         wrapper = json.dumps({"result": json.dumps(valid_dataset())})
@@ -119,13 +122,17 @@ class HostFileTests(unittest.TestCase):
         mock_proc = mock.MagicMock()
         mock_proc.communicate.return_value = (stdout, "")
         mock_proc.returncode = 0
-        with mock.patch.object(host, "CLAUDE_BIN", "/usr/bin/claude"), mock.patch.object(
-            host, "PROJECT_DIR", self.temp.name
-        ), mock.patch.object(host.subprocess, "Popen", return_value=mock_proc) as popen:
+        # 强制 _call_api_direct 返回 None，走 claude 子进程回退路径（不依赖 CI 是否设置 token）
+        with mock.patch.object(host, "_call_api_direct", return_value=None), mock.patch.object(
+            host, "CLAUDE_BIN", "/usr/bin/claude"
+        ), mock.patch.object(host, "PROJECT_DIR", self.temp.name), mock.patch.object(
+            host.subprocess, "Popen", return_value=mock_proc
+        ) as popen:
             result = host.add_tool("sample", "Sample Tool")
         self.assertTrue(result["changed"])
         command = popen.call_args.args[0]
-        self.assertIn("plan", command)
+        self.assertIn("default", command)
+        self.assertNotIn("plan", command)
         self.assertNotIn("acceptEdits", command)
         self.assertTrue((self.data_dir / "sample.js").exists())
         self.assertTrue((self.data_dir / "index.js").exists())
@@ -136,9 +143,11 @@ class HostFileTests(unittest.TestCase):
             host.subprocess.TimeoutExpired("claude", 900),
             ("", ""),
         ]
-        with mock.patch.object(host, "CLAUDE_BIN", "/usr/bin/claude"), mock.patch.object(
-            host, "PROJECT_DIR", self.temp.name
-        ), mock.patch.object(host.subprocess, "Popen", return_value=mock_proc):
+        with mock.patch.object(host, "_call_api_direct", return_value=None), mock.patch.object(
+            host, "CLAUDE_BIN", "/usr/bin/claude"
+        ), mock.patch.object(host, "PROJECT_DIR", self.temp.name), mock.patch.object(
+            host.subprocess, "Popen", return_value=mock_proc
+        ):
             with self.assertRaisesRegex(host.ValidationError, "超时"):
                 host.add_tool("sample", "Sample Tool")
         self.assertFalse((self.data_dir / "sample.js").exists())
@@ -147,9 +156,11 @@ class HostFileTests(unittest.TestCase):
         mock_proc = mock.MagicMock()
         mock_proc.communicate.return_value = ("not json", "")
         mock_proc.returncode = 0
-        with mock.patch.object(host, "CLAUDE_BIN", "/usr/bin/claude"), mock.patch.object(
-            host, "PROJECT_DIR", self.temp.name
-        ), mock.patch.object(host.subprocess, "Popen", return_value=mock_proc):
+        with mock.patch.object(host, "_call_api_direct", return_value=None), mock.patch.object(
+            host, "CLAUDE_BIN", "/usr/bin/claude"
+        ), mock.patch.object(host, "PROJECT_DIR", self.temp.name), mock.patch.object(
+            host.subprocess, "Popen", return_value=mock_proc
+        ):
             with self.assertRaisesRegex(host.ValidationError, "JSON"):
                 host.add_tool("sample", "Sample Tool")
         self.assertFalse((self.data_dir / "sample.js").exists())

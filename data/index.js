@@ -5,9 +5,11 @@ window.CHEATSHEET_FILES = [
   "codex",
   "cursor",
   "gemini-cli",
+  "git",
   "idea",
   "linux",
   "openclaw",
   "opencode",
+  "typora",
   "vs-code"
 ];

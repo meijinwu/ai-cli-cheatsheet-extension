@@ -13,6 +13,7 @@ let enabledTools = new Set();
 let platform = detectPlatform();
 let pendingUpdate = null;
 let currentTaskMode = null;
+let _taskTimer = null;
 
 function detectPlatform() {
   const value = navigator.userAgentData?.platform || navigator.platform || "";
@@ -330,10 +331,30 @@ function renderPending() {
   document.getElementById("discardPending").addEventListener("click", () => runTask("discard_update", { token: pendingUpdate.pendingToken }));
 }
 
+function taskBaseMsg(mode) {
+  if (mode === "preview_update") return "正在查询官方文档并生成更新预览，关闭面板不会中断";
+  if (mode === "add_tool") return "正在查询官方文档并生成数据，关闭面板不会中断";
+  return "正在执行，请稍候";
+}
+
+function startTaskTimer(mode, startedAt) {
+  if (_taskTimer) clearInterval(_taskTimer);
+  const base = taskBaseMsg(mode);
+  _taskTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+    setStatus(`${base}… (${elapsed}s)`);
+  }, 1000);
+  setStatus(`${base}… (0s)`);
+}
+
+function stopTaskTimer() {
+  if (_taskTimer) { clearInterval(_taskTimer); _taskTimer = null; }
+}
+
 function runTask(mode, payload) {
   currentTaskMode = mode;
-  setStatus(mode === "preview_update" ? "正在查询官方文档并生成更新预览，关闭面板不会中断…" : "正在执行，请稍候…");
-  document.querySelectorAll("#manageView button").forEach((button) => { button.disabled = true; });
+  startTaskTimer(mode, Date.now());
+  document.querySelectorAll("#manageView button:not(#closeManage)").forEach((button) => { button.disabled = true; });
   chrome.runtime.sendMessage({ action: "startTask", mode, ...payload }, (response) => {
     if (chrome.runtime.lastError || !response?.ok) {
       finishTask({ ok: false, error: chrome.runtime.lastError?.message || response?.error || "启动失败" }, mode);
@@ -342,6 +363,7 @@ function runTask(mode, payload) {
 }
 
 async function finishTask(response, mode = currentTaskMode) {
+  stopTaskTimer();
   document.querySelectorAll("#manageView button").forEach((button) => { button.disabled = false; });
   if (!response?.ok) {
     setStatus(`❌ ${response?.error || "未知错误"}`, "err");
@@ -460,8 +482,8 @@ async function initialize() {
     if (chrome.runtime.lastError || !status) return;
     if (status.running) {
       currentTaskMode = status.mode;
-      setStatus("任务正在后台运行，关闭面板不会中断。");
-      document.querySelectorAll("#manageView button").forEach((button) => { button.disabled = true; });
+      startTaskTimer(status.mode, status.startedAt || Date.now());
+      document.querySelectorAll("#manageView button:not(#closeManage)").forEach((button) => { button.disabled = true; });
     } else if (status.result && status.finishedAt && Date.now() - status.finishedAt < 120000) {
       currentTaskMode = status.mode;
       finishTask(status.result, status.mode);
