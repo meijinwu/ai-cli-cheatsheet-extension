@@ -117,6 +117,15 @@ class HostFileTests(unittest.TestCase):
                 host.remove_tool("sample")
         self.assertEqual(target.read_text(encoding="utf-8"), "sample")
 
+    def test_remove_rejects_builtin_tool(self):
+        dataset = valid_dataset()
+        dataset["meta"]["builtIn"] = True
+        target = self.data_dir / "sample.js"
+        target.write_text(host.render_data_file(dataset), encoding="utf-8")
+        with self.assertRaisesRegex(host.ValidationError, "内置工具不可删除"):
+            host.remove_tool("sample")
+        self.assertTrue(target.exists())
+
     def test_add_uses_read_only_claude_and_writes_validated_files(self):
         stdout = json.dumps({"result": json.dumps(valid_dataset())})
         mock_proc = mock.MagicMock()
@@ -226,6 +235,32 @@ class HostFileTests(unittest.TestCase):
         target.write_text("externally changed", encoding="utf-8")
         with self.assertRaisesRegex(host.ValidationError, "重新检查更新"):
             host.apply_update(preview["pendingToken"])
+
+    def test_high_risk_update_requires_explicit_confirmation(self):
+        old_dataset = valid_dataset()
+        old_dataset["items"] = [
+            {
+                "id": f"item-{index}",
+                "cat": "slash",
+                "cmd": f"/cmd-{index}",
+                "en": f"Command {index}",
+                "zh": f"命令 {index}",
+            }
+            for index in range(12)
+        ]
+        target = self.data_dir / "sample.js"
+        target.write_text(host.render_data_file(old_dataset), encoding="utf-8")
+        new_dataset = valid_dataset()
+        new_dataset["items"][0]["id"] = "item-0"
+        with mock.patch.object(
+            host, "run_claude_query", return_value=host.validate_dataset(new_dataset, "sample")
+        ):
+            preview = host.preview_update("sample", "Sample Tool")
+        self.assertTrue(preview["diff"]["risks"])
+        with self.assertRaisesRegex(host.ValidationError, "高风险变化"):
+            host.apply_update(preview["pendingToken"])
+        applied = host.apply_update(preview["pendingToken"], confirm_risk=True)
+        self.assertTrue(applied["changed"])
 
 
 class HostApiTests(unittest.TestCase):

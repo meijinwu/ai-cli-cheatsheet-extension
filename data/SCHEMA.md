@@ -56,6 +56,7 @@ meta：
   coverage: "完整命令列表 / macOS 默认键位常用子集",    // 数据覆盖范围
   platforms: ["mac", "windows", "linux"],               // 覆盖平台
   builtIn: false,                                       // 内置数据为 true，自动新增为 false
+  verificationStatus: "web-assisted",                   // 可选：web-assisted / model-knowledge / manual
   order: 1,                  // 可选，控制在列表里的显示顺序，数字小的排前面，省略则按字母顺序排在最后
 }
 ```

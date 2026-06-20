@@ -2,8 +2,9 @@
 
 const CORE = window.CHEATSHEET_CORE;
 const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate"];
-const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "/ 命令", flag: "--flag" };
-const BUILTIN_IDS = new Set(["claude-code", "codex", "gemini-cli", "antigravity-cli", "opencode", "idea", "vs-code"]);
+const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "› 命令", flag: "⚑ 参数/选项" };
+const GROUP_INITIAL_LIMIT = 20;
+const SEARCH_INITIAL_LIMIT = 100;
 
 let activeTool = "all";
 let activeCat = null;
@@ -14,6 +15,8 @@ let platform = detectPlatform();
 let pendingUpdate = null;
 let currentTaskMode = null;
 let _taskTimer = null;
+let expandedTools = new Set();
+let searchLimit = SEARCH_INITIAL_LIMIT;
 
 function detectPlatform() {
   const value = navigator.userAgentData?.platform || navigator.platform || "";
@@ -32,6 +35,38 @@ function storageSet(values) {
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function highlightHtml(value, query) {
+  const text = String(value ?? "");
+  const tokens = CORE.splitQuery(query).flat().filter((term) => term.length >= 2);
+  if (!tokens.length) return escapeHtml(text);
+  const escaped = [...new Set(tokens)]
+    .sort((a, b) => b.length - a.length)
+    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const regex = new RegExp(`(${escaped.join("|")})`, "gi");
+  return text.split(regex).map((part, index) =>
+    index % 2 ? `<mark>${escapeHtml(part)}</mark>` : escapeHtml(part)
+  ).join("");
+}
+
+function showToast(text) {
+  const toast = document.getElementById("toast");
+  toast.textContent = text;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 1200);
+}
+
+function resetResultLimits() {
+  expandedTools = new Set();
+  searchLimit = SEARCH_INITIAL_LIMIT;
+}
+
+function freshnessLabel(updatedAt) {
+  const timestamp = Date.parse(`${updatedAt || ""}T00:00:00Z`);
+  if (!Number.isFinite(timestamp)) return "更新时间未知";
+  const days = Math.floor((Date.now() - timestamp) / 86400000);
+  return days > 180 ? `⚠ 已 ${days} 天未核对` : `${Math.max(0, days)} 天前核对`;
 }
 
 function getAllData() {
@@ -116,6 +151,7 @@ function renderFilters() {
   quick.innerHTML = quickItems.map(([id, label]) => `<button class="chip ${activeTool === id ? "active" : ""}" data-tool="${id}">${escapeHtml(label)}</button>`).join("");
   quick.querySelectorAll("[data-tool]").forEach((button) => button.addEventListener("click", () => {
     activeTool = button.dataset.tool;
+    resetResultLimits();
     renderFilters();
     render();
   }));
@@ -126,12 +162,14 @@ function renderFilters() {
   ).join("") + `<button id="clearFilters" class="chip filter-clear">清除筛选</button>`;
   categories.querySelectorAll("[data-cat]").forEach((button) => button.addEventListener("click", () => {
     activeCat = activeCat === button.dataset.cat ? null : button.dataset.cat;
+    resetResultLimits();
     renderFilters();
     render();
   }));
   document.getElementById("clearFilters").addEventListener("click", () => {
     activeTool = "all";
     activeCat = null;
+    resetResultLimits();
     document.getElementById("search").value = "";
     storageSet({ lastQuery: "" });
     renderFilters();
@@ -153,7 +191,15 @@ function collectEntries() {
       if (activeTool === "recent" && !recentKeys.has(key)) return;
       if (activeTool === "favourites" && !favourites.has(key)) return;
       const platformInfo = CORE.getPlatformCommand(item, platform);
-      entries.push({ toolId, itemId: itemId(toolId, item), item, displayCmd: platformInfo.command, platformInfo });
+      entries.push({
+        toolId,
+        itemId: itemId(toolId, item),
+        item,
+        displayCmd: platformInfo.command,
+        platformInfo,
+        toolName: data[toolId].meta.name,
+        categoryLabel: CAT_LABEL[item.cat],
+      });
     });
   });
   return entries;
@@ -164,13 +210,13 @@ function renderRow(entry, includeBadge = false) {
   const key = `${entry.toolId}::${entry.itemId}`;
   const note = entry.platformInfo.unsupported ? "当前平台未覆盖" : entry.platformInfo.usedFallback ? "使用通用写法" : "";
   return `<div class="row" tabindex="0" data-tool="${entry.toolId}" data-item="${entry.itemId}">
-    <div class="cmd"><span class="dot" style="background:${escapeHtml(tool.meta.color)}"></span>${escapeHtml(entry.displayCmd)}
+    <div class="cmd"><span class="dot" style="background:${escapeHtml(tool.meta.color)}"></span>${highlightHtml(entry.displayCmd, document.getElementById("search").value)}
       ${includeBadge ? `<span class="context">${escapeHtml(tool.meta.name)}</span>` : ""}
       ${entry.item.context ? `<span class="context">${escapeHtml(entry.item.context)}</span>` : ""}
       ${note ? `<span class="platform-note">${note}</span>` : ""}
     </div>
-    <div class="zh">${escapeHtml(entry.item.zh)}</div><div class="en">${escapeHtml(entry.item.en)}</div>
-    <div class="row-actions"><button class="act copy-btn" title="复制命令">⧉</button><button class="act fav-btn ${favourites.has(key) ? "fav-active" : ""}" title="收藏">${favourites.has(key) ? "♥" : "♡"}</button></div>
+    <div class="zh">${highlightHtml(entry.item.zh, document.getElementById("search").value)}</div><div class="en">${highlightHtml(entry.item.en, document.getElementById("search").value)}</div>
+    <div class="row-actions"><button class="act copy-btn" title="复制命令" aria-label="复制命令">⧉</button><button class="act fav-btn ${favourites.has(key) ? "fav-active" : ""}" title="收藏" aria-label="收藏">${favourites.has(key) ? "♥" : "♡"}</button></div>
   </div>`;
 }
 
@@ -189,11 +235,16 @@ function render() {
   let entries = collectEntries();
   const recentOrder = new Map(recents.map((item, index) => [`${item.toolId}::${item.itemId}`, index]));
   const ranked = CORE.rankItems(entries, query, { favourites, recents });
+  let relaxed = false;
+  if (query.trim() && !ranked.length && CORE.splitQuery(query).length > 1) {
+    ranked.push(...CORE.rankItems(entries, query, { favourites, recents, matchMode: "any" }));
+    relaxed = ranked.length > 0;
+  }
   if (activeTool === "recent" && !query.trim()) ranked.sort((a, b) =>
     (recentOrder.get(`${a.toolId}::${a.itemId}`) ?? 99) - (recentOrder.get(`${b.toolId}::${b.itemId}`) ?? 99)
   );
   entries = ranked;
-  document.getElementById("countBar").textContent = `共 ${entries.length} 条结果 · ${platform === "mac" ? "macOS" : platform === "windows" ? "Windows" : "Linux"}`;
+  document.getElementById("countBar").textContent = `共 ${entries.length} 条结果${relaxed ? " · 已放宽为任一关键词匹配" : ""} · ${platform === "mac" ? "macOS" : platform === "windows" ? "Windows" : "Linux"}`;
 
   if (!entries.length) {
     main.innerHTML = `<div class="empty">${activeTool === "recent" ? "还没有最近复制的命令" : activeTool === "favourites" ? "还没有收藏的命令" : "没有匹配结果，试试用途词，例如“清空”“模型”“历史”"}</div>`;
@@ -201,7 +252,9 @@ function render() {
   }
 
   if (query.trim() || activeTool === "recent" || activeTool === "favourites") {
-    main.innerHTML = entries.map((entry) => renderRow(entry, true)).join("");
+    const visible = entries.slice(0, searchLimit);
+    main.innerHTML = visible.map((entry) => renderRow(entry, true)).join("")
+      + (entries.length > visible.length ? `<button class="text-btn more-btn" data-more-results>继续显示（剩余 ${entries.length - visible.length} 条）</button>` : "");
   } else {
     const grouped = new Map();
     entries.forEach((entry) => {
@@ -210,7 +263,11 @@ function render() {
     });
     main.innerHTML = [...grouped].map(([toolId, rows]) => {
       const tool = getAllData()[toolId];
-      return `<section><div class="section-title"><span class="badge" style="background:${escapeHtml(tool.meta.color)}">${escapeHtml(tool.meta.name)}</span><span class="count">${rows.length} 条</span><button class="source-toggle" data-source="${toolId}">来源与更新时间 ▾</button></div>${sourceCard(toolId)}${rows.map((entry) => renderRow(entry)).join("")}</section>`;
+      const visible = expandedTools.has(toolId) ? rows : rows.slice(0, GROUP_INITIAL_LIMIT);
+      const more = rows.length > visible.length
+        ? `<button class="text-btn more-btn" data-expand="${toolId}">展开剩余 ${rows.length - visible.length} 条</button>`
+        : "";
+      return `<section><div class="section-title"><span class="badge" style="background:${escapeHtml(tool.meta.color)}">${escapeHtml(tool.meta.name)}</span><span class="count">${rows.length} 条</span><button class="source-toggle" data-source="${toolId}">来源与更新时间 ▾</button></div>${sourceCard(toolId)}${visible.map((entry) => renderRow(entry)).join("")}${more}</section>`;
     }).join("");
   }
 }
@@ -222,11 +279,13 @@ function findEntry(toolId, itemIdValue) {
 
 function bindHomeEvents() {
   document.getElementById("search").addEventListener("input", (event) => {
+    resetResultLimits();
     storageSet({ lastQuery: event.target.value });
     render();
   });
   document.getElementById("clearSearch").addEventListener("click", () => {
     document.getElementById("search").value = "";
+    resetResultLimits();
     storageSet({ lastQuery: "" });
     render();
   });
@@ -238,21 +297,35 @@ function bindHomeEvents() {
       document.getElementById(`source-${sourceButton.dataset.source}`)?.classList.toggle("show");
       return;
     }
+    const expandButton = event.target.closest("[data-expand]");
+    if (expandButton) {
+      expandedTools.add(expandButton.dataset.expand);
+      render();
+      return;
+    }
+    if (event.target.closest("[data-more-results]")) {
+      searchLimit += SEARCH_INITIAL_LIMIT;
+      render();
+      return;
+    }
     const row = event.target.closest(".row");
     if (!row) return;
     const entry = findEntry(row.dataset.tool, row.dataset.item);
     if (!entry) return;
     const key = `${entry.toolId}::${entry.itemId}`;
-    if (event.target.closest(".copy-btn")) {
+    if (!event.target.closest(".fav-btn")) {
       const copyButton = event.target.closest(".copy-btn");
       const command = CORE.getPlatformCommand(entry.item, platform).command;
       await navigator.clipboard.writeText(command);
       recents = CORE.updateRecent(recents, { toolId: entry.toolId, itemId: entry.itemId, command }, 20);
       await storageSet({ recentCopies: recents });
-      copyButton.textContent = "✓";
-      setTimeout(() => {
-        if (copyButton.isConnected) copyButton.textContent = "⧉";
-      }, 1000);
+      showToast(`已复制：${command}`);
+      if (copyButton) {
+        copyButton.textContent = "✓";
+        setTimeout(() => {
+          if (copyButton.isConnected) copyButton.textContent = "⧉";
+        }, 1000);
+      }
       return;
     }
     if (event.target.closest(".fav-btn")) {
@@ -271,6 +344,26 @@ function bindHomeEvents() {
     else return;
     event.preventDefault();
   });
+  document.addEventListener("keydown", (event) => {
+    const search = document.getElementById("search");
+    const homeActive = document.getElementById("homeView").classList.contains("active");
+    if (!homeActive) return;
+    if ((event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k"))
+      && document.activeElement !== search) {
+      search.focus();
+      search.select();
+      event.preventDefault();
+    } else if (event.key === "Escape") {
+      if (search.value) {
+        search.value = "";
+        resetResultLimits();
+        storageSet({ lastQuery: "" });
+        render();
+      } else {
+        search.blur();
+      }
+    }
+  });
 }
 
 function setStatus(text, kind = "") {
@@ -284,9 +377,14 @@ function renderManage() {
   const tools = document.getElementById("manageTools");
   tools.innerHTML = getToolIds().map((toolId) => {
     const meta = getAllData()[toolId].meta;
-    const canDelete = !meta.builtIn && !BUILTIN_IDS.has(toolId);
+    const canDelete = !meta.builtIn;
+    const verification = meta.verificationStatus === "web-assisted"
+      ? "生成时允许联网辅助"
+      : meta.verificationStatus === "model-knowledge"
+        ? "模型知识生成，待人工核验"
+        : "来源状态未标注";
     return `<div class="tool-card"><div class="tool-title"><input type="checkbox" data-enabled="${toolId}" ${enabledTools.has(toolId) ? "checked" : ""}><label>${escapeHtml(meta.name)}</label></div>
-      <div class="meta">${escapeHtml(meta.coverage || meta.source)}<br>更新：${escapeHtml(meta.updatedAt || "未标注")}${meta.sourceUrl ? ` · <a href="${escapeHtml(meta.sourceUrl)}" target="_blank">官方来源</a>` : ""}</div>
+      <div class="meta">${escapeHtml(meta.coverage || meta.source)}<br>更新：${escapeHtml(meta.updatedAt || "未标注")}（${escapeHtml(freshnessLabel(meta.updatedAt))}） · <span class="verify">${escapeHtml(verification)}</span>${meta.sourceUrl ? ` · <a href="${escapeHtml(meta.sourceUrl)}" target="_blank">官方来源</a>` : ""}</div>
       <div class="tool-actions"><button class="text-btn" data-update="${toolId}">检查更新</button>${canDelete ? `<button class="text-btn danger" data-remove="${toolId}">删除</button>` : `<span class="meta">内置工具可隐藏，不可删除</span>`}</div></div>`;
   }).join("");
   tools.querySelectorAll("[data-enabled]").forEach((checkbox) => checkbox.addEventListener("change", async () => {
@@ -317,6 +415,7 @@ function renderPending() {
     return;
   }
   const counts = pendingUpdate.diff?.counts || {};
+  const risks = pendingUpdate.diff?.risks || [];
   const detailRows = [
     ...(pendingUpdate.diff?.added || []).map((item) => `＋ ${item.cmd} · ${item.zh}`),
     ...(pendingUpdate.diff?.modified || []).map((item) => `≈ ${item.before} → ${item.after}`),
@@ -326,14 +425,22 @@ function renderPending() {
   panel.innerHTML = `<h2>发现 ${escapeHtml(getAllData()[pendingUpdate.toolId]?.meta.name || pendingUpdate.toolId)} 更新</h2>
     <div class="diff-summary"><div class="diff-stat"><strong>${counts.added || 0}</strong>新增</div><div class="diff-stat"><strong>${counts.modified || 0}</strong>修改</div><div class="diff-stat"><strong>${counts.removed || 0}</strong>删除</div><div class="diff-stat"><strong>${counts.meta || 0}</strong>元数据</div></div>
     <div class="diff-list">${detailRows.length ? detailRows.map((row) => `<div>${escapeHtml(row)}</div>`).join("") : "<div>仅来源或更新时间发生变化</div>"}</div>
-    <div class="diff-actions"><button id="applyPending" class="text-btn primary">应用更新</button><button id="discardPending" class="text-btn">放弃</button></div>`;
-  document.getElementById("applyPending").addEventListener("click", () => runTask("apply_update", { token: pendingUpdate.pendingToken }));
+    ${risks.length ? `<label class="warning">${risks.map(escapeHtml).join("<br>")}<br><input id="confirmRisk" type="checkbox"> 我已核对上述高风险变化</label>` : ""}
+    <div class="diff-actions"><button id="applyPending" class="text-btn primary" ${risks.length ? "disabled" : ""}>应用更新</button><button id="discardPending" class="text-btn">放弃</button></div>`;
+  const confirmRisk = document.getElementById("confirmRisk");
+  if (confirmRisk) confirmRisk.addEventListener("change", () => {
+    document.getElementById("applyPending").disabled = !confirmRisk.checked;
+  });
+  document.getElementById("applyPending").addEventListener("click", () => runTask("apply_update", {
+    token: pendingUpdate.pendingToken,
+    confirm_risk: Boolean(confirmRisk?.checked),
+  }));
   document.getElementById("discardPending").addEventListener("click", () => runTask("discard_update", { token: pendingUpdate.pendingToken }));
 }
 
 function taskBaseMsg(mode) {
-  if (mode === "preview_update") return "正在查询官方文档并生成更新预览，关闭面板不会中断";
-  if (mode === "add_tool") return "正在查询官方文档并生成数据，关闭面板不会中断";
+  if (mode === "preview_update") return "正在整理数据并生成更新预览，关闭面板不会中断";
+  if (mode === "add_tool") return "正在整理并生成工具数据，关闭面板不会中断";
   return "正在执行，请稍候";
 }
 

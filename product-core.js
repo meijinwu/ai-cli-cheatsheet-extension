@@ -47,23 +47,26 @@
     return [...terms];
   }
 
+  function splitQuery(query) {
+    const normalized = normalizeText(query);
+    if (!normalized) return [];
+    return normalized.split(/\s+/).filter(Boolean).map(expandQuery);
+  }
+
   function includesTerm(value, terms) {
     const normalized = normalizeText(value);
     const compact = compactText(value);
     return terms.some((term) => normalized.includes(term) || compact.includes(compactText(term)));
   }
 
-  function scoreItem(item, query, options = {}) {
-    const terms = expandQuery(query);
-    if (!terms.length) {
-      return (options.isFavourite ? 30 : 0) + Math.max(0, 20 - (options.recentRank ?? 20));
-    }
-
+  function scoreTermGroup(item, terms, options = {}) {
     const cmd = normalizeText(options.displayCmd || item.cmd);
     const cmdCompact = compactText(options.displayCmd || item.cmd);
     const zh = normalizeText(item.zh);
     const en = normalizeText(item.en);
     const context = normalizeText(item.context);
+    const toolName = normalizeText(options.toolName);
+    const categoryLabel = normalizeText(options.categoryLabel);
     let score = -1;
 
     terms.forEach((term) => {
@@ -74,9 +77,24 @@
       else if (zh.includes(term) || compactText(zh).includes(termCompact)) score = Math.max(score, 460);
       else if (en.includes(term) || compactText(en).includes(termCompact)) score = Math.max(score, 330);
       else if (context.includes(term) || compactText(context).includes(termCompact)) score = Math.max(score, 220);
+      else if (toolName.includes(term) || compactText(toolName).includes(termCompact)) score = Math.max(score, 180);
+      else if (categoryLabel.includes(term) || compactText(categoryLabel).includes(termCompact)) score = Math.max(score, 140);
     });
+    return score;
+  }
 
-    if (score < 0) return -1;
+  function scoreItem(item, query, options = {}) {
+    const groups = splitQuery(query);
+    if (!groups.length) {
+      return (options.isFavourite ? 30 : 0) + Math.max(0, 20 - (options.recentRank ?? 20));
+    }
+
+    const scores = groups.map((terms) => scoreTermGroup(item, terms, options));
+    const matched = scores.filter((score) => score >= 0);
+    if (options.matchMode !== "any" && matched.length !== groups.length) return -1;
+    if (!matched.length) return -1;
+    let score = matched.reduce((total, value) => total + value, 0);
+    if (matched.length === groups.length && groups.length > 1) score += groups.length * 75;
     if (options.isFavourite) score += 35;
     if (Number.isInteger(options.recentRank)) score += Math.max(5, 30 - options.recentRank);
     return score;
@@ -109,8 +127,11 @@
         const key = `${entry.toolId}::${entry.itemId}`;
         const score = scoreItem(entry.item, query, {
           displayCmd: entry.displayCmd,
+          toolName: entry.toolName,
+          categoryLabel: entry.categoryLabel,
           isFavourite: options.favourites?.has(key),
           recentRank: recentMap.get(key),
+          matchMode: options.matchMode,
         });
         return { ...entry, score, originalIndex };
       })
@@ -122,6 +143,7 @@
     SYNONYM_GROUPS,
     normalizeText,
     expandQuery,
+    splitQuery,
     scoreItem,
     getPlatformCommand,
     updateRecent,
