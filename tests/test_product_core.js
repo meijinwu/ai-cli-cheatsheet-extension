@@ -54,6 +54,22 @@ const recent = core.updateRecent(
 );
 assert.deepStrictEqual(recent.map((item) => item.itemId), ["new", "old"]);
 
+// 归一化记忆化：同一输入多次调用结果稳定，且与未缓存的等价形式一致。
+assert.strictEqual(core.normalizeText("  Clear  Conversation  "), "clear conversation");
+assert.strictEqual(core.normalizeText("Cmd_K"), "cmd-k");
+assert.strictEqual(
+  core.normalizeText("/Clear"),
+  core.normalizeText("/Clear"),
+  "Repeated normalization must be stable"
+);
+
+// 评分分层关系锁定：精确 > 前缀 > 包含；命令命中 > 中文 > 英文 > 上下文。
+const tierItem = { cat: "slash", cmd: "/clear", en: "Clear conversation", zh: "清空对话", context: "会话" };
+assert(core.scoreItem(tierItem, "/clear") > core.scoreItem(tierItem, "/cle"), "exact > prefix");
+assert(core.scoreItem(tierItem, "/cle") > core.scoreItem(tierItem, "lear"), "prefix > contains");
+assert(core.scoreItem(tierItem, "对话") > core.scoreItem(tierItem, "conversation"), "zh > en");
+assert(core.scoreItem(tierItem, "conversation") > core.scoreItem(tierItem, "会话"), "en > context");
+
 const ranked = core.rankItems([
   { toolId: "a", itemId: "1", item: baseItem, displayCmd: "/clear" },
   {
