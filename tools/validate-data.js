@@ -63,6 +63,10 @@ for (const id of files) {
   if (tool.meta.updatedAt !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(tool.meta.updatedAt)) {
     fail(`${id}: invalid updatedAt`);
   }
+  if (tool.meta.verificationStatus !== undefined
+    && !["web-assisted", "model-knowledge", "manual"].includes(tool.meta.verificationStatus)) {
+    fail(`${id}: invalid verificationStatus`);
+  }
   if (tool.meta.platforms !== undefined && (
     !Array.isArray(tool.meta.platforms)
     || tool.meta.platforms.some((platform) => !["mac", "windows", "linux"].includes(platform))

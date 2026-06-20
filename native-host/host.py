@@ -159,7 +159,11 @@ def validate_request(message):
         token = message.get("token", "")
         if not isinstance(token, str) or not re.fullmatch(r"[a-f0-9]{32}", token):
             raise ValidationError("待处理更新 token 无效")
-        return {"action": action, "token": token}
+        return {
+            "action": action,
+            "token": token,
+            "confirm_risk": action == "apply_update" and message.get("confirm_risk") is True,
+        }
 
     tool_id = validate_tool_id(message.get("tool", ""))
     display_name = message.get("display_name", tool_id)
@@ -259,6 +263,11 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         "source": checked_text(meta.get("source"), "meta.source"),
         "builtIn": bool(meta.get("builtIn", False)),
     }
+    verification_status = meta.get("verificationStatus")
+    if verification_status is not None:
+        if verification_status not in {"web-assisted", "model-knowledge", "manual"}:
+            raise ValidationError("meta.verificationStatus 非法")
+        clean_meta["verificationStatus"] = verification_status
     source_url = checked_text(meta.get("sourceUrl"), "meta.sourceUrl", required=False)
     updated_at = checked_text(meta.get("updatedAt"), "meta.updatedAt", required=False)
     coverage = checked_text(meta.get("coverage"), "meta.coverage", required=False)
@@ -544,7 +553,9 @@ def run_claude_query(tool_id, display_name, mode):
     # 优先直接调用 API，完全绕过 claude -p 的技能/计划模式系统
     api_text = _call_api_direct(prompt)
     if api_text is not None:
-        return validate_dataset(extract_json_output(api_text), tool_id)
+        dataset = validate_dataset(extract_json_output(api_text), tool_id)
+        dataset["meta"]["verificationStatus"] = "model-knowledge"
+        return dataset
 
     if not CLAUDE_BIN:
         raise ValidationError(
@@ -588,7 +599,9 @@ def run_claude_query(tool_id, display_name, mode):
         error = stderr.strip()[:2000] or "claude 命令执行失败"
         raise ValidationError(error)
 
-    return validate_dataset(extract_json_output(stdout), tool_id)
+    dataset = validate_dataset(extract_json_output(stdout), tool_id)
+    dataset["meta"]["verificationStatus"] = "web-assisted"
+    return dataset
 
 
 def file_sha256(path):
@@ -635,6 +648,20 @@ def build_dataset_diff(old_dataset, new_dataset):
         for key in new_dataset["meta"]
         if old_dataset.get("meta", {}).get(key) != new_dataset["meta"].get(key)
     }
+    old_count = len(old_dataset.get("items", []))
+    new_count = len(new_dataset.get("items", []))
+    removed_count = len(removed)
+    risks = []
+    if old_count and (removed_count >= 10 or removed_count / old_count >= 0.25):
+        risks.append(f"删除 {removed_count} 条，占原数据的 {removed_count / old_count:.0%}")
+    if old_count and new_count < old_count * 0.7:
+        risks.append(f"总条目从 {old_count} 降至 {new_count}，降幅超过 30%")
+    old_host = urllib.parse.urlparse(old_dataset.get("meta", {}).get("sourceUrl", "")).hostname
+    new_host = urllib.parse.urlparse(new_dataset.get("meta", {}).get("sourceUrl", "")).hostname
+    if old_host and new_host and old_host != new_host:
+        risks.append(f"官方来源域名从 {old_host} 变为 {new_host}")
+    if old_dataset.get("meta", {}).get("builtIn") != new_dataset.get("meta", {}).get("builtIn"):
+        risks.append("内置工具标记发生变化")
 
     def summarize(items):
         return [
@@ -661,6 +688,7 @@ def build_dataset_diff(old_dataset, new_dataset):
         ],
         "removed": summarize(removed),
         "metaChanges": meta_changes,
+        "risks": risks,
     }
 
 
@@ -714,6 +742,7 @@ def add_tool(tool_id, display_name):
 def preview_update(tool_id, display_name):
     old_dataset = load_existing_dataset(tool_id)
     new_dataset = run_claude_query(tool_id, display_name, "update")
+    new_dataset["meta"]["builtIn"] = old_dataset["meta"].get("builtIn", False)
     diff = build_dataset_diff(old_dataset, new_dataset)
     changed = any(diff["counts"].values())
     if not changed:
@@ -751,12 +780,14 @@ def load_pending(token):
     return path, payload
 
 
-def apply_update(token):
+def apply_update(token, confirm_risk=False):
     path, payload = load_pending(token)
     data_path = tool_data_path(payload["toolId"])
     if file_sha256(data_path) != payload.get("oldHash"):
         raise ValidationError("原数据已发生变化，请重新检查更新")
     dataset = validate_dataset(payload.get("dataset"), payload["toolId"])
+    if payload.get("diff", {}).get("risks") and not confirm_risk:
+        raise ValidationError("该更新包含高风险变化，请核对并确认后再应用")
     atomic_write(data_path, render_data_file(dataset))
     os.unlink(path)
     return {"ok": True, "changed": True, "output": "更新已应用", "toolId": payload["toolId"]}
@@ -774,6 +805,8 @@ def remove_tool(tool_id):
         raise ValidationError(f"找不到 data/{tool_id}.js")
     with open(data_path, "r", encoding="utf-8") as handle:
         old_content = handle.read()
+    if re.search(r"""["']?builtIn["']?\s*:\s*true\b""", old_content):
+        raise ValidationError("内置工具不可删除，可以在管理页隐藏")
     os.unlink(data_path)
     try:
         write_data_index()
@@ -796,7 +829,7 @@ def handle_message(message):
     if request["action"] == "preview_update":
         return preview_update(request["tool"], request["display_name"])
     if request["action"] == "apply_update":
-        return apply_update(request["token"])
+        return apply_update(request["token"], request["confirm_risk"])
     if request["action"] == "discard_update":
         return discard_update(request["token"])
     if request["action"] == "remove_tool":

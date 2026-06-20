@@ -14,6 +14,10 @@ const baseItem = {
 assert(core.scoreItem(baseItem, "/clear") > core.scoreItem(baseItem, "clear"));
 assert(core.scoreItem(baseItem, "重置") > 0, "Chinese synonym should match clear/reset");
 assert(core.scoreItem(baseItem, "会话") > 0, "Context should be searchable");
+assert(core.scoreItem(baseItem, "清空 会话") > 0, "All query tokens should match");
+assert.strictEqual(core.scoreItem(baseItem, "清空 模型"), -1, "Missing query tokens should reject by default");
+assert(core.scoreItem(baseItem, "清空 模型", { matchMode: "any" }) > 0, "Relaxed search should match any token");
+assert(core.scoreItem(baseItem, "codex", { toolName: "Codex CLI" }) > 0, "Tool name should be searchable");
 
 const platform = core.getPlatformCommand({
   cmd: "Cmd+P",
