@@ -51,6 +51,9 @@ const enrichmentFile = path.join(root, "usage-examples.js");
 vm.runInContext(fs.readFileSync(enrichmentFile, "utf8"), context, { filename: enrichmentFile });
 for (const [toolId, enrichments] of Object.entries(context.window.CHEATSHEET_ENRICHMENTS || {})) {
   if (!data[toolId]) fail(`usage-examples.js: unknown tool ${toolId}`);
+  if (Object.keys(enrichments).length < 10) {
+    fail(`usage-examples.js: ${toolId} must keep at least 10 curated entries`);
+  }
   for (const [lookup, enrichment] of Object.entries(enrichments)) {
     const [command, itemContext = ""] = lookup.split("\0");
     const item = data[toolId].items.find((candidate) =>
