@@ -3,9 +3,11 @@ window.CHEATSHEET_FILES = [
   "antigravity-cli",
   "claude-code",
   "codex",
+  "cursor",
   "gemini-cli",
   "idea",
   "linux",
+  "openclaw",
   "opencode",
   "vs-code"
 ];

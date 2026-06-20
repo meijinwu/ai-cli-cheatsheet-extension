@@ -115,39 +115,41 @@ class HostFileTests(unittest.TestCase):
         self.assertEqual(target.read_text(encoding="utf-8"), "sample")
 
     def test_add_uses_read_only_claude_and_writes_validated_files(self):
-        completed = types.SimpleNamespace(
-            returncode=0,
-            stdout=json.dumps({"result": json.dumps(valid_dataset())}),
-            stderr="",
-        )
+        stdout = json.dumps({"result": json.dumps(valid_dataset())})
+        mock_proc = mock.MagicMock()
+        mock_proc.communicate.return_value = (stdout, "")
+        mock_proc.returncode = 0
         with mock.patch.object(host, "CLAUDE_BIN", "/usr/bin/claude"), mock.patch.object(
             host, "PROJECT_DIR", self.temp.name
-        ), mock.patch.object(host.subprocess, "run", return_value=completed) as run:
+        ), mock.patch.object(host.subprocess, "Popen", return_value=mock_proc) as popen:
             result = host.add_tool("sample", "Sample Tool")
         self.assertTrue(result["changed"])
-        command = run.call_args.args[0]
+        command = popen.call_args.args[0]
         self.assertIn("plan", command)
         self.assertNotIn("acceptEdits", command)
         self.assertTrue((self.data_dir / "sample.js").exists())
         self.assertTrue((self.data_dir / "index.js").exists())
 
     def test_timeout_does_not_create_files(self):
+        mock_proc = mock.MagicMock()
+        mock_proc.communicate.side_effect = [
+            host.subprocess.TimeoutExpired("claude", 900),
+            ("", ""),
+        ]
         with mock.patch.object(host, "CLAUDE_BIN", "/usr/bin/claude"), mock.patch.object(
             host, "PROJECT_DIR", self.temp.name
-        ), mock.patch.object(
-            host.subprocess,
-            "run",
-            side_effect=host.subprocess.TimeoutExpired("claude", 900),
-        ):
+        ), mock.patch.object(host.subprocess, "Popen", return_value=mock_proc):
             with self.assertRaisesRegex(host.ValidationError, "超时"):
                 host.add_tool("sample", "Sample Tool")
         self.assertFalse((self.data_dir / "sample.js").exists())
 
     def test_invalid_claude_output_does_not_create_files(self):
-        completed = types.SimpleNamespace(returncode=0, stdout="not json", stderr="")
+        mock_proc = mock.MagicMock()
+        mock_proc.communicate.return_value = ("not json", "")
+        mock_proc.returncode = 0
         with mock.patch.object(host, "CLAUDE_BIN", "/usr/bin/claude"), mock.patch.object(
             host, "PROJECT_DIR", self.temp.name
-        ), mock.patch.object(host.subprocess, "run", return_value=completed):
+        ), mock.patch.object(host.subprocess, "Popen", return_value=mock_proc):
             with self.assertRaisesRegex(host.ValidationError, "JSON"):
                 host.add_tool("sample", "Sample Tool")
         self.assertFalse((self.data_dir / "sample.js").exists())
