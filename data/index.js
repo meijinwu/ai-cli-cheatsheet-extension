@@ -5,6 +5,7 @@ window.CHEATSHEET_FILES = [
   "codex",
   "gemini-cli",
   "idea",
+  "linux",
   "opencode",
   "vs-code"
 ];
