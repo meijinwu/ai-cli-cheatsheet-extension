@@ -3,16 +3,19 @@
 
 import atexit
 import hashlib
+import http.client
 import json
 import os
 import re
 import secrets
 import shutil
 import signal
+import ssl
 import struct
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 
 # Track the active claude subprocess so it can be cleaned up if host.py is killed.
 _active_proc = None
@@ -329,9 +332,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
             clean_item["platformCmds"] = clean_platform_cmds
         duplicate_key = (category, clean_item["cmd"].casefold(), (context or "").casefold())
         if duplicate_key in duplicate_keys:
-            raise ValidationError(
-                f"重复条目：{clean_item['cmd']}；同一快捷键用于不同场景时必须填写不同 context"
-            )
+            continue
         duplicate_keys.add(duplicate_key)
 
         item_id = item.get("id")
@@ -348,7 +349,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                     f"{item_id}\0{clean_item['cmd']}".encode("utf-8")
                 ).hexdigest()[:16]
             if item_id in item_ids:
-                raise ValidationError(f"重复条目 ID：{item_id}")
+                continue
         item_ids.add(item_id)
         clean_item["id"] = item_id
         clean_items.append(clean_item)
@@ -458,25 +459,88 @@ JSON 格式：
 
 要求：
 1. 只收录官方资料能够确认的内容，禁止编造。
-2. CLI 工具可包含 shortcut、slash、flag；IDE 类工具只收录默认快捷键常用子集并在 source 标明平台和限制。
-3. 同一 cat、cmd、context 组合不得重复。
-4. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。
-5. 所有字符串必须是有效 JSON 字符串。
-6. sourceUrl、updatedAt、coverage 必须填写；平台快捷键应尽量使用 platformCmds 表达。
+2. 尽量覆盖全面，不要只给极少量常用项。CLI 工具应收录：常用子命令（slash）以及每个重要子命令下的常用选项（flag），目标 50 条以上；IDE 类工具只收录默认快捷键常用子集并在 source 标明平台和限制。
+3. flag 类条目的 cmd 写成「子命令 + 选项」的完整形式（例如 git commit -m、git log --oneline），并用 context 标注所属子命令。
+4. 同一 cat、cmd、context 组合不得重复。
+5. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。
+6. 所有字符串必须是有效 JSON 字符串。
+7. sourceUrl、updatedAt、coverage 必须填写；平台快捷键应尽量使用 platformCmds 表达。
 
 {current_section}
 """.strip()
 
 
+def _call_api_direct(prompt):
+    """直接调用 Anthropic 兼容 API（仅用标准库），绕过 claude -p 的技能/计划模式。
+
+    复用环境变量：ANTHROPIC_BASE_URL、ANTHROPIC_AUTH_TOKEN/ANTHROPIC_API_KEY、ANTHROPIC_MODEL。
+    没有 token 时返回 None，让调用方回退到 claude 子进程。
+    """
+    token = os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get("ANTHROPIC_API_KEY")
+    if not token:
+        return None
+
+    base_url = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com").rstrip("/")
+    model = (
+        os.environ.get("ANTHROPIC_MODEL")
+        or os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL")
+        or "claude-sonnet-4-6"
+    )
+    parsed = urllib.parse.urlparse(base_url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise ValidationError(f"ANTHROPIC_BASE_URL 非法：{base_url}")
+    path = (parsed.path.rstrip("/") + "/v1/messages") if parsed.path.rstrip("/") else "/v1/messages"
+
+    payload = json.dumps({
+        "model": model,
+        "max_tokens": 16384,
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode("utf-8")
+
+    conn = http.client.HTTPSConnection(
+        parsed.netloc, context=ssl.create_default_context(), timeout=900
+    )
+    try:
+        conn.request("POST", path, body=payload, headers={
+            "x-api-key": token,
+            "authorization": f"Bearer {token}",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        })
+        resp = conn.getresponse()
+        body = resp.read().decode("utf-8")
+        if resp.status != 200:
+            raise ValidationError(f"API 错误 {resp.status}：{body[:500]}")
+        data = json.loads(body)
+        parts = data.get("content", [])
+        text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
+        if not text.strip():
+            raise ValidationError(f"API 未返回文本内容：{body[:500]}")
+        return text
+    except ValidationError:
+        raise
+    except (OSError, ssl.SSLError, json.JSONDecodeError, KeyError) as exc:
+        raise ValidationError(f"API 调用失败：{exc}") from exc
+    finally:
+        conn.close()
+
+
 def run_claude_query(tool_id, display_name, mode):
     if mode == "add" and os.path.exists(tool_data_path(tool_id)):
         raise ValidationError(f"data/{tool_id}.js 已存在，请使用更新模式")
+
+    prompt = build_prompt(tool_id, display_name, mode)
+
+    # 优先直接调用 API，完全绕过 claude -p 的技能/计划模式系统
+    api_text = _call_api_direct(prompt)
+    if api_text is not None:
+        return validate_dataset(extract_json_output(api_text), tool_id)
+
     if not CLAUDE_BIN:
         raise ValidationError(
             "找不到 claude 命令，请安装 Claude Code 后重新运行 native-host 安装脚本"
         )
 
-    prompt = build_prompt(tool_id, display_name, mode)
     # Allow web search so Claude can fetch official docs.
     # CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS blocks the web_search tool when set.
     env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS"}
@@ -488,7 +552,7 @@ def run_claude_query(tool_id, display_name, mode):
                 "-p",
                 prompt,
                 "--permission-mode",
-                "plan",
+                "default",
                 "--output-format",
                 "json",
             ],

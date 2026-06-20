@@ -18,3 +18,6 @@ __pycache__/
 # 由 install.sh 生成，包含用户路径和 API 配置，不应提交
 # The actual run.sh lives in ~/Library/Application Support/aicli-cheatsheet/
 # native-host/run.sh in this repo is just a placeholder/documentation
+
+# API 密钥文件（install.sh 生成在安装目录，兜底防止误放入仓库）
+credentials.env
