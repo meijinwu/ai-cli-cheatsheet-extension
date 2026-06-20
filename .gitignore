@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Debug / local logs
+*.log
+
+# Claude Code 本地配置（包含本机路径，不应提交）
+.claude/
+
+# 由 install.sh 生成，包含用户路径和 API 配置，不应提交
+# The actual run.sh lives in ~/Library/Application Support/aicli-cheatsheet/
+# native-host/run.sh in this repo is just a placeholder/documentation

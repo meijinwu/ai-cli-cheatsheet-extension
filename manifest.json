@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "AI CLI 速查表",
+  "short_name": "AI CLI速查",
+  "description": "Claude Code / Codex CLI / Gemini CLI / Antigravity CLI 命令与快捷键中英对照速查，点击图标即可查询，纯本地无需联网",
+  "version": "1.1.0",
+  "permissions": ["nativeMessaging", "storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AI CLI 速查表"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

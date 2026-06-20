@@ -1,0 +1,9 @@
+{
+  "name": "com.aicli.cheatsheet_updater",
+  "description": "AI CLI 速查表插件的本地更新桥接程序",
+  "path": "__HOST_SCRIPT_PATH__",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://__EXTENSION_ID__/"
+  ]
+}
