@@ -354,18 +354,20 @@ def extract_json_output(stdout):
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError:
-        match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
-        if not match:
+        match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        if match:
+            text = match.group(1)
+        else:
             start, end = text.find("{"), text.rfind("}")
             if start < 0 or end <= start:
-                raise ValidationError("Claude 没有返回有效 JSON")
+                preview = text[:300].replace("\n", " ")
+                raise ValidationError(f"Claude 没有返回有效 JSON，实际输出：{preview}")
             text = text[start : end + 1]
-        else:
-            text = match.group(1)
         try:
             parsed = json.loads(text)
         except json.JSONDecodeError as exc:
-            raise ValidationError("Claude 返回的 JSON 无法解析") from exc
+            preview = text[:300].replace("\n", " ")
+            raise ValidationError(f"Claude 返回的 JSON 无法解析：{preview}") from exc
 
     if isinstance(parsed, dict) and "result" in parsed and not {"meta", "items"} <= parsed.keys():
         result = parsed["result"]
@@ -448,6 +450,9 @@ def run_claude_query(tool_id, display_name, mode):
         )
 
     prompt = build_prompt(tool_id, display_name, mode)
+    # Allow web search so Claude can fetch official docs.
+    # CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS blocks the web_search tool when set.
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS"}
     try:
         result = subprocess.run(
             [
@@ -464,6 +469,7 @@ def run_claude_query(tool_id, display_name, mode):
             text=True,
             timeout=900,
             check=False,
+            env=env,
         )
     except subprocess.TimeoutExpired as exc:
         raise ValidationError("执行超时（超过 15 分钟）") from exc
