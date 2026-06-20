@@ -8,16 +8,21 @@ window.CHEATSHEET_DATA["idea"] = {
     name: "IntelliJ IDEA",
     color: "#F59E0B",
     source: "官方文档 jetbrains.com/help/idea，整理于 2026-06（⚠️ 仅收录 macOS 默认键位方案常用子集，完整列表请查官方 Keymap Reference）",
+    sourceUrl: "https://www.jetbrains.com/help/idea/mastering-keyboard-shortcuts.html",
+    updatedAt: "2026-06-20",
+    coverage: "macOS 默认键位常用子集，Windows/Linux 差异见条目说明",
+    platforms: ["mac", "windows", "linux"],
+    builtIn: true,
     order: 6
   },
   items: [
     // ===== 全局搜索 Global Search =====
     {cat:"shortcut", cmd:"Double Shift", en:"Search Everywhere", zh:"全局搜索——文件名、类、方法、IDE 动作均可（最常用入口）（Win/Linux 相同）"},
-    {cat:"shortcut", cmd:"Cmd+Shift+A", en:"Find Action", zh:"搜索 IDE 命令/动作，相当于命令面板（Win/Linux 为 Ctrl+Shift+A）"},
-    {cat:"shortcut", cmd:"Cmd+O", en:"Go to Class", zh:"按名称跳转到类（支持驼峰缩写模糊搜索）（Win/Linux 为 Ctrl+N）"},
-    {cat:"shortcut", cmd:"Cmd+Shift+O", en:"Go to File", zh:"按名称跳转到任意文件（Win/Linux 为 Ctrl+Shift+N）"},
-    {cat:"shortcut", cmd:"Cmd+Alt+O", en:"Go to Symbol", zh:"跳转到任意符号（方法、变量、字段等）（Win/Linux 为 Ctrl+Alt+Shift+N）"},
-    {cat:"shortcut", cmd:"Cmd+E", en:"Recent Files", zh:"查看最近打开的文件列表并快速切换（Win/Linux 为 Ctrl+E）"},
+    {cat:"shortcut", cmd:"Cmd+Shift+A", platformCmds:{mac:"Cmd+Shift+A",windows:"Ctrl+Shift+A",linux:"Ctrl+Shift+A"}, en:"Find Action", zh:"搜索 IDE 命令/动作，相当于命令面板（Win/Linux 为 Ctrl+Shift+A）"},
+    {cat:"shortcut", cmd:"Cmd+O", platformCmds:{mac:"Cmd+O",windows:"Ctrl+N",linux:"Ctrl+N"}, en:"Go to Class", zh:"按名称跳转到类（支持驼峰缩写模糊搜索）（Win/Linux 为 Ctrl+N）"},
+    {cat:"shortcut", cmd:"Cmd+Shift+O", platformCmds:{mac:"Cmd+Shift+O",windows:"Ctrl+Shift+N",linux:"Ctrl+Shift+N"}, en:"Go to File", zh:"按名称跳转到任意文件（Win/Linux 为 Ctrl+Shift+N）"},
+    {cat:"shortcut", cmd:"Cmd+Alt+O", platformCmds:{mac:"Cmd+Alt+O",windows:"Ctrl+Alt+Shift+N",linux:"Ctrl+Alt+Shift+N"}, en:"Go to Symbol", zh:"跳转到任意符号（方法、变量、字段等）（Win/Linux 为 Ctrl+Alt+Shift+N）"},
+    {cat:"shortcut", cmd:"Cmd+E", platformCmds:{mac:"Cmd+E",windows:"Ctrl+E",linux:"Ctrl+E"}, en:"Recent Files", zh:"查看最近打开的文件列表并快速切换（Win/Linux 为 Ctrl+E）"},
     {cat:"shortcut", cmd:"Cmd+Shift+E", en:"Recent Locations", zh:"查看最近浏览过的代码位置（Win/Linux 为 Ctrl+Shift+E）"},
     {cat:"shortcut", cmd:"Ctrl+Tab", en:"Switcher", zh:"快速切换打开的文件和工具窗口（Win/Linux 相同）"},
 

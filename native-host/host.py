@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import struct
 import subprocess
@@ -12,8 +13,14 @@ import sys
 import tempfile
 
 
-HOST_ACTIONS = {"ping", "update_tool"}
-TOOL_MODES = {"add", "update", "remove"}
+HOST_ACTIONS = {
+    "ping",
+    "add_tool",
+    "preview_update",
+    "apply_update",
+    "discard_update",
+    "remove_tool",
+}
 TOOL_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 VALID_CATEGORIES = {"shortcut", "slash", "flag"}
@@ -52,12 +59,14 @@ def find_claude_binary():
 
 
 CLAUDE_BIN = find_claude_binary()
+NODE_BIN = shutil.which("node")
 PROJECT_DIR = os.path.realpath(
     os.environ.get("AICLI_PROJECT_DIR")
     or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
 DATA_DIR = os.path.realpath(os.path.join(PROJECT_DIR, "data"))
 DATA_INDEX = os.path.join(DATA_DIR, "index.js")
+PENDING_DIR = os.path.realpath(os.path.join(PROJECT_DIR, ".aicli-pending"))
 
 
 class ValidationError(ValueError):
@@ -116,21 +125,23 @@ def validate_request(message):
     if action == "ping":
         return {"action": "ping"}
 
+    if action in {"apply_update", "discard_update"}:
+        token = message.get("token", "")
+        if not isinstance(token, str) or not re.fullmatch(r"[a-f0-9]{32}", token):
+            raise ValidationError("待处理更新 token 无效")
+        return {"action": action, "token": token}
+
     tool_id = validate_tool_id(message.get("tool", ""))
     display_name = message.get("display_name", tool_id)
-    mode = message.get("mode", "update")
     if not isinstance(display_name, str) or not display_name.strip():
         raise ValidationError("工具名称不能为空")
     display_name = display_name.strip()
     if len(display_name) > 100:
         raise ValidationError("工具名称最长 100 个字符")
-    if mode not in TOOL_MODES:
-        raise ValidationError("mode 只能是 add、update 或 remove")
     return {
         "action": action,
         "tool": tool_id,
         "display_name": display_name,
-        "mode": mode,
     }
 
 
@@ -198,7 +209,7 @@ def stable_item_id(tool_id, item):
     return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
 
 
-def validate_dataset(payload, expected_tool_id):
+def validate_dataset(payload, expected_tool_id, require_structured_source=True):
     if not isinstance(payload, dict):
         raise ValidationError("Claude 返回的数据必须是 JSON 对象")
     meta = payload.get("meta")
@@ -216,7 +227,32 @@ def validate_dataset(payload, expected_tool_id):
         "name": checked_text(meta.get("name"), "meta.name"),
         "color": checked_text(meta.get("color"), "meta.color"),
         "source": checked_text(meta.get("source"), "meta.source"),
+        "builtIn": bool(meta.get("builtIn", False)),
     }
+    source_url = checked_text(meta.get("sourceUrl"), "meta.sourceUrl", required=False)
+    updated_at = checked_text(meta.get("updatedAt"), "meta.updatedAt", required=False)
+    coverage = checked_text(meta.get("coverage"), "meta.coverage", required=False)
+    platforms = meta.get("platforms")
+    if require_structured_source and not all([source_url, updated_at, coverage]):
+        raise ValidationError("新生成的数据必须包含 meta.sourceUrl、meta.updatedAt 和 meta.coverage")
+    if source_url:
+        if not re.fullmatch(r"https://[^\s]+", source_url):
+            raise ValidationError("meta.sourceUrl 必须是 HTTPS URL")
+        clean_meta["sourceUrl"] = source_url
+    if updated_at:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", updated_at):
+            raise ValidationError("meta.updatedAt 必须是 YYYY-MM-DD")
+        clean_meta["updatedAt"] = updated_at
+    if coverage:
+        clean_meta["coverage"] = coverage
+    if platforms is not None:
+        if (
+            not isinstance(platforms, list)
+            or not platforms
+            or any(platform not in {"mac", "windows", "linux"} for platform in platforms)
+        ):
+            raise ValidationError("meta.platforms 只能包含 mac、windows、linux")
+        clean_meta["platforms"] = list(dict.fromkeys(platforms))
     if not COLOR_RE.fullmatch(clean_meta["color"]):
         raise ValidationError("meta.color 必须是 #RRGGBB 格式")
     order = meta.get("order")
@@ -243,6 +279,27 @@ def validate_dataset(payload, expected_tool_id):
         context = checked_text(item.get("context"), f"items[{index}].context", required=False)
         if context:
             clean_item["context"] = context
+        item_platforms = item.get("platforms")
+        if item_platforms is not None:
+            if (
+                not isinstance(item_platforms, list)
+                or not item_platforms
+                or any(platform not in {"mac", "windows", "linux"} for platform in item_platforms)
+            ):
+                raise ValidationError(f"items[{index}].platforms 非法")
+            clean_item["platforms"] = list(dict.fromkeys(item_platforms))
+        platform_cmds = item.get("platformCmds")
+        if platform_cmds is not None:
+            if not isinstance(platform_cmds, dict) or not platform_cmds:
+                raise ValidationError(f"items[{index}].platformCmds 必须是非空对象")
+            clean_platform_cmds = {}
+            for platform, command in platform_cmds.items():
+                if platform not in {"mac", "windows", "linux"}:
+                    raise ValidationError(f"items[{index}].platformCmds 平台非法")
+                clean_platform_cmds[platform] = checked_text(
+                    command, f"items[{index}].platformCmds.{platform}"
+                )
+            clean_item["platformCmds"] = clean_platform_cmds
         duplicate_key = (category, clean_item["cmd"].casefold(), (context or "").casefold())
         if duplicate_key in duplicate_keys:
             raise ValidationError(
@@ -348,6 +405,11 @@ JSON 格式：
     "name": "官方完整名称",
     "color": "#RRGGBB",
     "source": "官方来源与整理日期",
+    "sourceUrl": "https://官方文档地址",
+    "updatedAt": "YYYY-MM-DD",
+    "coverage": "完整命令列表或常用子集说明",
+    "platforms": ["mac", "windows", "linux"],
+    "builtIn": false,
     "order": 999
   }},
   "items": [
@@ -357,7 +419,9 @@ JSON 格式：
       "cmd": "实际命令或快捷键",
       "en": "简短英文说明",
       "zh": "清晰中文说明",
-      "context": "可选；相同 cmd 在不同场景出现时必须填写"
+      "context": "可选；相同 cmd 在不同场景出现时必须填写",
+      "platforms": ["可选；mac/windows/linux"],
+      "platformCmds": {{"mac": "可选的平台专属命令"}}
     }}
   ],
   "summary": "一句话说明数据变化"
@@ -369,12 +433,13 @@ JSON 格式：
 3. 同一 cat、cmd、context 组合不得重复。
 4. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。
 5. 所有字符串必须是有效 JSON 字符串。
+6. sourceUrl、updatedAt、coverage 必须填写；平台快捷键应尽量使用 platformCmds 表达。
 
 {current_section}
 """.strip()
 
 
-def run_claude_task(tool_id, display_name, mode):
+def run_claude_query(tool_id, display_name, mode):
     if mode == "add" and os.path.exists(tool_data_path(tool_id)):
         raise ValidationError(f"data/{tool_id}.js 已存在，请使用更新模式")
     if not CLAUDE_BIN:
@@ -409,29 +474,184 @@ def run_claude_task(tool_id, display_name, mode):
         error = result.stderr.strip()[:2000] or "claude 命令执行失败"
         raise ValidationError(error)
 
-    dataset = validate_dataset(extract_json_output(result.stdout), tool_id)
+    return validate_dataset(extract_json_output(result.stdout), tool_id)
+
+
+def file_sha256(path):
+    if not os.path.exists(path):
+        return None
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def pending_path(token):
+    if not isinstance(token, str) or not re.fullmatch(r"[a-f0-9]{32}", token):
+        raise ValidationError("待处理更新 token 无效")
+    real_pending_dir = os.path.realpath(PENDING_DIR)
+    os.makedirs(real_pending_dir, exist_ok=True)
+    path = os.path.realpath(os.path.join(real_pending_dir, f"{token}.json"))
+    if os.path.dirname(path) != real_pending_dir:
+        raise ValidationError("非法的待处理更新路径")
+    return path
+
+
+def item_signature(item):
+    return {
+        key: item.get(key)
+        for key in ("cat", "cmd", "en", "zh", "context", "platforms", "platformCmds")
+        if key in item
+    }
+
+
+def build_dataset_diff(old_dataset, new_dataset):
+    old_items = {item["id"]: item for item in old_dataset.get("items", []) if item.get("id")}
+    new_items = {item["id"]: item for item in new_dataset.get("items", []) if item.get("id")}
+    added = [new_items[item_id] for item_id in new_items.keys() - old_items.keys()]
+    removed = [old_items[item_id] for item_id in old_items.keys() - new_items.keys()]
+    modified = [
+        {"before": old_items[item_id], "after": new_items[item_id]}
+        for item_id in new_items.keys() & old_items.keys()
+        if item_signature(old_items[item_id]) != item_signature(new_items[item_id])
+    ]
+    meta_changes = {
+        key: {"before": old_dataset.get("meta", {}).get(key), "after": new_dataset["meta"].get(key)}
+        for key in new_dataset["meta"]
+        if old_dataset.get("meta", {}).get(key) != new_dataset["meta"].get(key)
+    }
+
+    def summarize(items):
+        return [
+            {"id": item.get("id"), "cmd": item.get("cmd"), "zh": item.get("zh")}
+            for item in items[:12]
+        ]
+
+    return {
+        "counts": {
+            "added": len(added),
+            "modified": len(modified),
+            "removed": len(removed),
+            "meta": len(meta_changes),
+        },
+        "added": summarize(added),
+        "modified": [
+            {
+                "id": change["after"].get("id"),
+                "before": change["before"].get("cmd"),
+                "after": change["after"].get("cmd"),
+                "zh": change["after"].get("zh"),
+            }
+            for change in modified[:12]
+        ],
+        "removed": summarize(removed),
+        "metaChanges": meta_changes,
+    }
+
+
+def load_existing_dataset(tool_id):
     data_path = tool_data_path(tool_id)
-    old_content = None
-    if os.path.exists(data_path):
-        with open(data_path, "r", encoding="utf-8") as handle:
-            old_content = handle.read()
+    if not os.path.exists(data_path):
+        raise ValidationError(f"找不到 data/{tool_id}.js")
+    if not NODE_BIN:
+        raise ValidationError("找不到 node 命令，无法读取当前数据用于差异比较")
+    script = (
+        "global.window={};"
+        "require(process.argv[1]);"
+        "const id=process.argv[2];"
+        "process.stdout.write(JSON.stringify(global.window.CHEATSHEET_DATA[id]));"
+    )
+    try:
+        result = subprocess.run(
+            [NODE_BIN, "-e", script, data_path, tool_id],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise ValidationError(result.stderr.strip() or f"无法解析 data/{tool_id}.js")
+        dataset = json.loads(result.stdout)
+        return validate_dataset(dataset, tool_id, require_structured_source=False)
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+        raise ValidationError(f"无法解析 data/{tool_id}.js") from exc
+
+
+def add_tool(tool_id, display_name):
+    if os.path.exists(tool_data_path(tool_id)):
+        raise ValidationError(f"data/{tool_id}.js 已存在，请使用更新模式")
+    dataset = run_claude_query(tool_id, display_name, "add")
+    data_path = tool_data_path(tool_id)
     new_content = render_data_file(dataset)
-    changed = old_content != new_content
-    if changed:
-        atomic_write(data_path, new_content)
-        try:
-            write_data_index()
-        except Exception:
-            if old_content is None:
-                os.unlink(data_path)
-            else:
-                atomic_write(data_path, old_content)
-            raise
+    atomic_write(data_path, new_content)
+    try:
+        write_data_index()
+    except Exception:
+        os.unlink(data_path)
+        raise
     return {
         "ok": True,
-        "changed": changed,
+        "changed": True,
         "output": dataset["summary"] or f"已校验 {len(dataset['items'])} 条数据",
     }
+
+
+def preview_update(tool_id, display_name):
+    old_dataset = load_existing_dataset(tool_id)
+    new_dataset = run_claude_query(tool_id, display_name, "update")
+    diff = build_dataset_diff(old_dataset, new_dataset)
+    changed = any(diff["counts"].values())
+    if not changed:
+        return {"ok": True, "changed": False, "diff": diff, "output": "数据没有变化"}
+    token = secrets.token_hex(16)
+    payload = {
+        "token": token,
+        "toolId": tool_id,
+        "oldHash": file_sha256(tool_data_path(tool_id)),
+        "dataset": new_dataset,
+        "diff": diff,
+    }
+    atomic_write(pending_path(token), json.dumps(payload, ensure_ascii=False, indent=2))
+    return {
+        "ok": True,
+        "changed": True,
+        "pendingToken": token,
+        "toolId": tool_id,
+        "diff": diff,
+        "output": new_dataset["summary"] or "发现可用更新",
+    }
+
+
+def load_pending(token):
+    path = pending_path(token)
+    if not os.path.exists(path):
+        raise ValidationError("待处理更新不存在或已过期")
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValidationError("待处理更新无法读取") from exc
+    if payload.get("token") != token:
+        raise ValidationError("待处理更新 token 不匹配")
+    return path, payload
+
+
+def apply_update(token):
+    path, payload = load_pending(token)
+    data_path = tool_data_path(payload["toolId"])
+    if file_sha256(data_path) != payload.get("oldHash"):
+        raise ValidationError("原数据已发生变化，请重新检查更新")
+    dataset = validate_dataset(payload.get("dataset"), payload["toolId"])
+    atomic_write(data_path, render_data_file(dataset))
+    os.unlink(path)
+    return {"ok": True, "changed": True, "output": "更新已应用", "toolId": payload["toolId"]}
+
+
+def discard_update(token):
+    path, payload = load_pending(token)
+    os.unlink(path)
+    return {"ok": True, "changed": False, "output": "已放弃本次更新", "toolId": payload["toolId"]}
 
 
 def remove_tool(tool_id):
@@ -457,13 +677,17 @@ def handle_message(message):
     request = validate_request(message)
     if request["action"] == "ping":
         return {"ok": True, "pong": True}
-    if request["mode"] == "remove":
+    if request["action"] == "add_tool":
+        return add_tool(request["tool"], request["display_name"])
+    if request["action"] == "preview_update":
+        return preview_update(request["tool"], request["display_name"])
+    if request["action"] == "apply_update":
+        return apply_update(request["token"])
+    if request["action"] == "discard_update":
+        return discard_update(request["token"])
+    if request["action"] == "remove_tool":
         return remove_tool(request["tool"])
-    return run_claude_task(
-        request["tool"],
-        request["display_name"],
-        request["mode"],
-    )
+    raise ValidationError(f"未知的 action: {request['action']}")
 
 
 def main():

@@ -8,15 +8,20 @@ window.CHEATSHEET_DATA["vs-code"] = {
     name: "VS Code",
     color: "#007ACC",
     source: "官方文档 code.visualstudio.com/docs/configure/keybindings，整理于 2026-06（⚠️ 仅收录 macOS 默认键位常用子集，完整列表请查官方 Keybindings 文档）",
+    sourceUrl: "https://code.visualstudio.com/docs/configure/keybindings",
+    updatedAt: "2026-06-20",
+    coverage: "macOS 默认键位常用子集，Windows/Linux 差异见条目说明",
+    platforms: ["mac", "windows", "linux"],
+    builtIn: true,
     order: 7
   },
   items: [
     // ===== 全局 General =====
-    {cat:"shortcut", cmd:"Cmd+Shift+P", en:"Show Command Palette", zh:"打开命令面板，搜索并执行所有 IDE 命令（最常用入口）（Win/Linux 为 Ctrl+Shift+P）"},
-    {cat:"shortcut", cmd:"Cmd+P", en:"Quick Open", zh:"按名称快速打开文件（Win/Linux 为 Ctrl+P）"},
-    {cat:"shortcut", cmd:"Cmd+Shift+N", en:"New Window", zh:"新建 VS Code 窗口（Win/Linux 为 Ctrl+Shift+N）"},
-    {cat:"shortcut", cmd:"Cmd+W", en:"Close Window", zh:"关闭当前窗口/实例（Win/Linux 为 Ctrl+W）"},
-    {cat:"shortcut", cmd:"Cmd+,", en:"User Settings", zh:"打开用户设置（Win/Linux 为 Ctrl+,）"},
+    {cat:"shortcut", cmd:"Cmd+Shift+P", platformCmds:{mac:"Cmd+Shift+P",windows:"Ctrl+Shift+P",linux:"Ctrl+Shift+P"}, en:"Show Command Palette", zh:"打开命令面板，搜索并执行所有 IDE 命令（最常用入口）（Win/Linux 为 Ctrl+Shift+P）"},
+    {cat:"shortcut", cmd:"Cmd+P", platformCmds:{mac:"Cmd+P",windows:"Ctrl+P",linux:"Ctrl+P"}, en:"Quick Open", zh:"按名称快速打开文件（Win/Linux 为 Ctrl+P）"},
+    {cat:"shortcut", cmd:"Cmd+Shift+N", platformCmds:{mac:"Cmd+Shift+N",windows:"Ctrl+Shift+N",linux:"Ctrl+Shift+N"}, en:"New Window", zh:"新建 VS Code 窗口（Win/Linux 为 Ctrl+Shift+N）"},
+    {cat:"shortcut", cmd:"Cmd+W", platformCmds:{mac:"Cmd+W",windows:"Ctrl+W",linux:"Ctrl+W"}, en:"Close Window", zh:"关闭当前窗口/实例（Win/Linux 为 Ctrl+W）"},
+    {cat:"shortcut", cmd:"Cmd+,", platformCmds:{mac:"Cmd+,",windows:"Ctrl+,",linux:"Ctrl+,"}, en:"User Settings", zh:"打开用户设置（Win/Linux 为 Ctrl+,）"},
     {cat:"shortcut", cmd:"Cmd+K Cmd+S", en:"Keyboard Shortcuts", zh:"打开快捷键设置页面（Win/Linux 为 Ctrl+K Ctrl+S）"},
 
     // ===== 基础编辑 Basic Editing =====

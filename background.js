@@ -52,20 +52,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return false;
     }
 
-    const { tool, display_name, mode } = msg;
+    const { tool, display_name, mode, token } = msg;
+    const tokenMode = ['apply_update', 'discard_update'].includes(mode);
+    const validToken = typeof token === 'string' && /^[a-f0-9]{32}$/.test(token);
     const validTool = typeof tool === 'string'
       && tool.length <= 64
       && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tool);
     const validName = typeof display_name === 'string'
       && display_name.trim().length > 0
       && display_name.trim().length <= 100;
-    if (!validTool || !validName || !['add', 'update', 'remove'].includes(mode)) {
+    const validMode = ['add_tool', 'preview_update', 'apply_update', 'discard_update', 'remove_tool']
+      .includes(mode);
+    if (!validMode || (tokenMode ? !validToken : (!validTool || !validName))) {
       sendResponse({ ok: false, error: '任务参数无效。' });
       return false;
     }
     taskActive = true;
     startKeepalive();
-    setSessionStatus({ running: true, tool, display_name, mode, startedAt: Date.now() });
+    setSessionStatus({ running: true, tool, display_name, mode, token, startedAt: Date.now() });
 
     // Ack immediately so popup can update its UI without waiting for the task
     sendResponse({ ok: true, queued: true });
@@ -77,7 +81,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       stopKeepalive();
       nativePort.disconnect();
       nativePort = null;
-      setSessionStatus({ running: false, result: response, finishedAt: Date.now() });
+      setSessionStatus({ running: false, result: response, mode, finishedAt: Date.now() });
       broadcastCompletion(response);
     });
 
@@ -89,11 +93,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const errMsg = chrome.runtime.lastError?.message
         ?? '连接本地更新程序失败。请确认已运行安装脚本并完全重启浏览器。';
       const response = { ok: false, error: errMsg };
-      setSessionStatus({ running: false, result: response, finishedAt: Date.now() });
+      setSessionStatus({ running: false, result: response, mode, finishedAt: Date.now() });
       broadcastCompletion(response);
     });
 
-    nativePort.postMessage({ action: 'update_tool', tool, display_name, mode });
+    nativePort.postMessage({ action: mode, tool, display_name, token });
     return false;
   }
 });

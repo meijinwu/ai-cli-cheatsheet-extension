@@ -8,6 +8,11 @@ window.CHEATSHEET_DATA["gemini-cli"] = {
     name: "Gemini CLI",
     color: "#4c8bf5",
     source: "官方文档 geminicli.com，整理于 2026-06（⚠️免费层即将被Antigravity CLI取代，详见官方公告）",
+    sourceUrl: "https://geminicli.com/docs/",
+    updatedAt: "2026-06-20",
+    coverage: "官方交互快捷键与斜杠命令；产品状态可能变化",
+    platforms: ["mac", "windows", "linux"],
+    builtIn: true,
     order: 3
   },
   items: [

@@ -34,7 +34,13 @@
   cmd: "实际命令或快捷键文本",
   en: "英文官方说明（简短）",
   zh: "中文说明（讲清楚用途，不是字面翻译）",
-  context: "编辑器 / 集成终端"             // 可选；相同 cmd 在不同场景出现时必填
+  context: "编辑器 / 集成终端",            // 可选；相同 cmd 在不同场景出现时必填
+  platforms: ["mac", "windows", "linux"],  // 可选；条目适用平台
+  platformCmds: {                          // 可选；平台专属命令或快捷键
+    mac: "Cmd+P",
+    windows: "Ctrl+P",
+    linux: "Ctrl+P"
+  }
 }
 ```
 
@@ -45,6 +51,11 @@ meta：
   name: "Claude Code",       // 显示名
   color: "#d97757",          // 主题色（十六进制），界面自动套用，挑一个和已有工具明显不同的颜色
   source: "官方文档 docs.claude.com，整理于 2026-06",  // 数据来源+时间，如果是非官方/未逐字核对/IDE类工具的子集，要明确写清楚限制
+  sourceUrl: "https://docs.example.com/reference",     // 官方来源，必须是 HTTPS
+  updatedAt: "2026-06-20",                             // 最后核对日期，YYYY-MM-DD
+  coverage: "完整命令列表 / macOS 默认键位常用子集",    // 数据覆盖范围
+  platforms: ["mac", "windows", "linux"],               // 覆盖平台
+  builtIn: false,                                       // 内置数据为 true，自动新增为 false
   order: 1,                  // 可选，控制在列表里的显示顺序，数字小的排前面，省略则按字母顺序排在最后
 }
 ```

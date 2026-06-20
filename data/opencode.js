@@ -6,6 +6,11 @@ window.CHEATSHEET_DATA["opencode"] = {
     name: "OpenCode",
     color: "#e8445a",
     source: "官方文档 opencode.ai/docs，整理于 2026-06",
+    sourceUrl: "https://opencode.ai/docs/",
+    updatedAt: "2026-06-20",
+    coverage: "官方 TUI、CLI 与快捷键文档",
+    platforms: ["mac", "windows", "linux"],
+    builtIn: true,
     order: 5
   },
   items: [

@@ -21,6 +21,8 @@ jobs:
           node --check background.js
           find data -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Validate cheatsheet data
-        run: node tools/validate-data.js
+        run: |
+          node tools/validate-data.js
+          node tests/test_product_core.js
       - name: Run native host tests
         run: python -m unittest discover -s tests -v
