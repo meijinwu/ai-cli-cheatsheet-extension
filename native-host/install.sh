@@ -70,6 +70,23 @@ echo "正在部署到：$INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
 cp "$SCRIPT_DIR/host.py" "$INSTALL_DIR/host.py"
 chmod 700 "$INSTALL_DIR" "$INSTALL_DIR/host.py"
+echo "✅ host.py 已更新"
+
+# 已有安装时，询问是否只更新 host.py、跳过重新配置
+if [ -f "$INSTALL_DIR/run.sh" ]; then
+  echo ""
+  echo "检测到已有安装（$INSTALL_DIR/run.sh）。"
+  read -rp "仅更新 host.py，保留现有配置？[Y/n]: " UPDATE_ONLY
+  UPDATE_ONLY="${UPDATE_ONLY:-Y}"
+  if [[ "$UPDATE_ONLY" =~ ^[Yy]$ ]]; then
+    echo ""
+    echo "=== 更新完成 ==="
+    echo ""
+    echo "请完全退出浏览器（Cmd+Q），重新打开后即可使用更新后的功能。"
+    exit 0
+  fi
+  echo "继续重新配置…"
+fi
 
 # ── 3. 配置 claude 调用方式 ────────────────────────────────────────────────────
 
