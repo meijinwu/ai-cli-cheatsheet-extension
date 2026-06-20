@@ -5,6 +5,7 @@ const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", 
 const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "› 命令", flag: "⚑ 参数/选项" };
 const GROUP_INITIAL_LIMIT = 20;
 const SEARCH_INITIAL_LIMIT = 100;
+const SEARCH_DEBOUNCE_MS = 120;
 
 let activeTool = "all";
 let activeCat = null;
@@ -35,6 +36,14 @@ function storageSet(values) {
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function debounce(fn, delay) {
+  let timer = null;
+  return (...args) => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => { timer = null; fn(...args); }, delay);
+  };
 }
 
 function highlightHtml(value, query) {
@@ -205,17 +214,17 @@ function collectEntries() {
   return entries;
 }
 
-function renderRow(entry, includeBadge = false) {
+function renderRow(entry, query, includeBadge = false) {
   const tool = getAllData()[entry.toolId];
   const key = `${entry.toolId}::${entry.itemId}`;
   const note = entry.platformInfo.unsupported ? "当前平台未覆盖" : entry.platformInfo.usedFallback ? "使用通用写法" : "";
   return `<div class="row" tabindex="0" data-tool="${entry.toolId}" data-item="${entry.itemId}">
-    <div class="cmd"><span class="dot" style="background:${escapeHtml(tool.meta.color)}"></span>${highlightHtml(entry.displayCmd, document.getElementById("search").value)}
+    <div class="cmd"><span class="dot" style="background:${escapeHtml(tool.meta.color)}"></span>${highlightHtml(entry.displayCmd, query)}
       ${includeBadge ? `<span class="context">${escapeHtml(tool.meta.name)}</span>` : ""}
       ${entry.item.context ? `<span class="context">${escapeHtml(entry.item.context)}</span>` : ""}
       ${note ? `<span class="platform-note">${note}</span>` : ""}
     </div>
-    <div class="zh">${highlightHtml(entry.item.zh, document.getElementById("search").value)}</div><div class="en">${highlightHtml(entry.item.en, document.getElementById("search").value)}</div>
+    <div class="zh">${highlightHtml(entry.item.zh, query)}</div><div class="en">${highlightHtml(entry.item.en, query)}</div>
     <div class="row-actions"><button class="act copy-btn" title="复制命令" aria-label="复制命令">⧉</button><button class="act fav-btn ${favourites.has(key) ? "fav-active" : ""}" title="收藏" aria-label="收藏">${favourites.has(key) ? "♥" : "♡"}</button></div>
   </div>`;
 }
@@ -253,7 +262,7 @@ function render() {
 
   if (query.trim() || activeTool === "recent" || activeTool === "favourites") {
     const visible = entries.slice(0, searchLimit);
-    main.innerHTML = visible.map((entry) => renderRow(entry, true)).join("")
+    main.innerHTML = visible.map((entry) => renderRow(entry, query, true)).join("")
       + (entries.length > visible.length ? `<button class="text-btn more-btn" data-more-results>继续显示（剩余 ${entries.length - visible.length} 条）</button>` : "");
   } else {
     const grouped = new Map();
@@ -267,7 +276,7 @@ function render() {
       const more = rows.length > visible.length
         ? `<button class="text-btn more-btn" data-expand="${toolId}">展开剩余 ${rows.length - visible.length} 条</button>`
         : "";
-      return `<section><div class="section-title"><span class="badge" style="background:${escapeHtml(tool.meta.color)}">${escapeHtml(tool.meta.name)}</span><span class="count">${rows.length} 条</span><button class="source-toggle" data-source="${toolId}">来源与更新时间 ▾</button></div>${sourceCard(toolId)}${visible.map((entry) => renderRow(entry)).join("")}${more}</section>`;
+      return `<section><div class="section-title"><span class="badge" style="background:${escapeHtml(tool.meta.color)}">${escapeHtml(tool.meta.name)}</span><span class="count">${rows.length} 条</span><button class="source-toggle" data-source="${toolId}">来源与更新时间 ▾</button></div>${sourceCard(toolId)}${visible.map((entry) => renderRow(entry, query)).join("")}${more}</section>`;
     }).join("");
   }
 }
@@ -278,10 +287,11 @@ function findEntry(toolId, itemIdValue) {
 }
 
 function bindHomeEvents() {
+  const debouncedRender = debounce(render, SEARCH_DEBOUNCE_MS);
   document.getElementById("search").addEventListener("input", (event) => {
     resetResultLimits();
     storageSet({ lastQuery: event.target.value });
-    render();
+    debouncedRender();
   });
   document.getElementById("clearSearch").addEventListener("click", () => {
     document.getElementById("search").value = "";
