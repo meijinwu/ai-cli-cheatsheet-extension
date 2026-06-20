@@ -113,6 +113,16 @@ chmod +x install.sh
    powershell -ExecutionPolicy Bypass -File native-host\install.ps1   # Windows
    ```
 
+### 拉取仓库更新后，记得同步本地 host.py
+
+实际运行的 `host.py` 是安装脚本复制到安装目录（macOS/Linux 为 `~/Library/Application Support/aicli-cheatsheet/`）的副本，**不是仓库里的文件**。所以 `git pull` 拿到 host.py 的新逻辑后，需要重新运行一次安装脚本来同步：
+
+```bash
+bash native-host/install.sh   # 检测到已有安装时，可选「仅更新 host.py，保留现有配置」
+```
+
+否则浏览器调用的仍是旧版本，仓库改动不会生效。
+
 ### 如何更新 API 配置（换 DeepSeek / 官方 Claude）
 
 直接重新运行安装脚本，它会重新生成 `run.sh` / `run.bat`，覆盖之前的配置。

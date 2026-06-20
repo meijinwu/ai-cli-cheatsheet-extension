@@ -294,6 +294,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
     clean_items = []
     duplicate_keys = set()
     item_ids = set()
+    dropped = 0
     for index, item in enumerate(items):
         if not isinstance(item, dict):
             raise ValidationError(f"items[{index}] 必须是对象")
@@ -332,6 +333,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
             clean_item["platformCmds"] = clean_platform_cmds
         duplicate_key = (category, clean_item["cmd"].casefold(), (context or "").casefold())
         if duplicate_key in duplicate_keys:
+            dropped += 1
             continue
         duplicate_keys.add(duplicate_key)
 
@@ -349,6 +351,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                     f"{item_id}\0{clean_item['cmd']}".encode("utf-8")
                 ).hexdigest()[:16]
             if item_id in item_ids:
+                dropped += 1
                 continue
         item_ids.add(item_id)
         clean_item["id"] = item_id
@@ -356,10 +359,13 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
 
     if not clean_items:
         raise ValidationError("items 不能为空")
+    summary = checked_text(payload.get("summary", ""), "summary", required=False) or ""
+    if dropped > 0:
+        summary = (summary + f"（已自动去重 {dropped} 条）").strip()
     return {
         "meta": clean_meta,
         "items": clean_items,
-        "summary": checked_text(payload.get("summary", ""), "summary", required=False) or "",
+        "summary": summary,
     }
 
 
@@ -422,8 +428,8 @@ def build_prompt(tool_id, display_name, mode):
         else ""
     )
     return f"""
-你正在为浏览器扩展{operation}「{display_name}」的数据。请查询并核对官方文档。
-你不能编辑或创建任何文件。最终只输出一个 JSON 对象，不要 Markdown，不要解释。
+你正在为浏览器扩展{operation}「{display_name}」的数据。基于你已知的官方文档与训练知识整理，确保命令准确、宁可少收录也不要编造。
+只输出一个 JSON 对象，不要 Markdown，不要解释，不要任何前缀文字。
 
 目标工具 ID：{tool_id}
 已有工具 ID：{existing}
@@ -512,6 +518,10 @@ def _call_api_direct(prompt):
         if resp.status != 200:
             raise ValidationError(f"API 错误 {resp.status}：{body[:500]}")
         data = json.loads(body)
+        if data.get("stop_reason") == "max_tokens":
+            raise ValidationError(
+                "生成内容过长被截断（已达 max_tokens 上限），请重试或拆分该工具的命令范围"
+            )
         parts = data.get("content", [])
         text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
         if not text.strip():

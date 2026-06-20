@@ -228,5 +228,62 @@ class HostFileTests(unittest.TestCase):
             host.apply_update(preview["pendingToken"])
 
 
+class HostApiTests(unittest.TestCase):
+    def _fake_conn(self, status, body):
+        conn = mock.MagicMock()
+        resp = mock.MagicMock()
+        resp.status = status
+        resp.read.return_value = body.encode("utf-8")
+        conn.getresponse.return_value = resp
+        return conn
+
+    def test_returns_none_without_token(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertIsNone(host._call_api_direct("prompt"))
+
+    def test_success_returns_text_and_uses_base_url(self):
+        body = json.dumps(
+            {"stop_reason": "end_turn", "content": [{"type": "text", "text": '{"ok": true}'}]}
+        )
+        conn = self._fake_conn(200, body)
+        env = {
+            "ANTHROPIC_AUTH_TOKEN": "tok-123",
+            "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+            "ANTHROPIC_MODEL": "deepseek-v4-pro",
+        }
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            host.http.client, "HTTPSConnection", return_value=conn
+        ) as conn_cls:
+            text = host._call_api_direct("prompt")
+        self.assertEqual(text, '{"ok": true}')
+        self.assertEqual(conn_cls.call_args.args[0], "api.deepseek.com")
+        method, path = conn.request.call_args.args[0], conn.request.call_args.args[1]
+        self.assertEqual(method, "POST")
+        self.assertTrue(path.endswith("/v1/messages"))
+        self.assertIn("/anthropic/", path)
+        self.assertEqual(conn.request.call_args.kwargs["headers"]["x-api-key"], "tok-123")
+
+    def test_raises_on_truncation(self):
+        body = json.dumps(
+            {"stop_reason": "max_tokens", "content": [{"type": "text", "text": "{partial"}]}
+        )
+        conn = self._fake_conn(200, body)
+        env = {"ANTHROPIC_AUTH_TOKEN": "tok", "ANTHROPIC_BASE_URL": "https://api.anthropic.com"}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            host.http.client, "HTTPSConnection", return_value=conn
+        ):
+            with self.assertRaisesRegex(host.ValidationError, "截断"):
+                host._call_api_direct("prompt")
+
+    def test_raises_on_http_error(self):
+        conn = self._fake_conn(401, '{"error":"unauthorized"}')
+        env = {"ANTHROPIC_API_KEY": "tok", "ANTHROPIC_BASE_URL": "https://api.anthropic.com"}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            host.http.client, "HTTPSConnection", return_value=conn
+        ):
+            with self.assertRaisesRegex(host.ValidationError, "API 错误"):
+                host._call_api_direct("prompt")
+
+
 if __name__ == "__main__":
     unittest.main()
