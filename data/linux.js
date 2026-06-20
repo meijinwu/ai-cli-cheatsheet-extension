@@ -615,7 +615,7 @@ window.CHEATSHEET_DATA["linux"] = {
       "cat": "flag",
       "cmd": "sed",
       "en": "Stream editor for filtering and transforming text",
-      "zh": "流编辑器，用于过滤和转换文本",
+      "zh": "流编辑器，用于过滤、转换和替换文本",
       "platforms": [
         "linux",
         "mac"

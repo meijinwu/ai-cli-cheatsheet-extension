@@ -73,6 +73,37 @@ class HostValidationTests(unittest.TestCase):
         wrapper = json.dumps({"result": json.dumps(valid_dataset())})
         self.assertEqual(host.extract_json_output(wrapper)["meta"]["id"], "sample")
 
+    def test_validates_keywords_examples_and_quality_warning(self):
+        payload = valid_dataset()
+        payload["items"][0].update({
+            "keywords": ["命令面板", "打开命令"],
+            "examples": [{
+                "value": "Ctrl+K",
+                "description": "打开命令面板",
+                "copyable": False,
+                "platformValues": {"mac": "Cmd+K", "windows": "Ctrl+K"},
+            }],
+        })
+        dataset = host.validate_dataset(payload, "sample")
+        self.assertEqual(dataset["items"][0]["keywords"], ["命令面板", "打开命令"])
+        self.assertEqual(dataset["items"][0]["examples"][0]["platformValues"]["mac"], "Cmd+K")
+        self.assertFalse(dataset["qualityWarnings"])
+
+    def test_rejects_invalid_example_structure(self):
+        payload = valid_dataset()
+        payload["items"][0]["examples"] = [{"value": "", "description": "空命令"}]
+        with self.assertRaisesRegex(host.ValidationError, "value"):
+            host.validate_dataset(payload, "sample")
+
+    def test_warns_when_example_coverage_is_low(self):
+        payload = valid_dataset()
+        payload["items"] = [
+            dict(payload["items"][0], cmd=f"Ctrl+{index}", en=f"Command {index}")
+            for index in range(6)
+        ]
+        dataset = host.validate_dataset(payload, "sample")
+        self.assertIn("示例覆盖不足", dataset["qualityWarnings"][0])
+
 
 class HostFileTests(unittest.TestCase):
     def setUp(self):
@@ -220,6 +251,27 @@ class HostFileTests(unittest.TestCase):
         self.assertEqual(preview["diff"]["counts"]["added"], 0)
         self.assertEqual(preview["diff"]["counts"]["removed"], 0)
         self.assertEqual(preview["diff"]["counts"]["modified"], 1)
+
+    def test_preview_preserves_existing_examples(self):
+        old_dataset = valid_dataset()
+        old_dataset["items"][0].update({
+            "id": "stable-item",
+            "keywords": ["命令面板"],
+            "examples": [{"value": "Ctrl+K", "description": "打开命令", "copyable": False}],
+        })
+        target = self.data_dir / "sample.js"
+        target.write_text(host.render_data_file(old_dataset), encoding="utf-8")
+        new_dataset = valid_dataset()
+        new_dataset["items"][0]["id"] = "stable-item"
+        new_dataset["items"][0]["zh"] = "打开命令面板"
+        with mock.patch.object(
+            host, "run_claude_query", return_value=host.validate_dataset(new_dataset, "sample")
+        ):
+            preview = host.preview_update("sample", "Sample Tool")
+        _, pending = host.load_pending(preview["pendingToken"])
+        item = pending["dataset"]["items"][0]
+        self.assertEqual(item["keywords"], ["命令面板"])
+        self.assertEqual(item["examples"][0]["value"], "Ctrl+K")
 
     def test_apply_rejects_changed_source_file(self):
         old_dataset = valid_dataset()

@@ -58,6 +58,8 @@ RESERVED_TOOL_IDS = {"index"}
 MAX_MESSAGE_BYTES = 1024 * 1024
 MAX_ITEMS = 2000
 MAX_FIELD_LENGTH = 4000
+MAX_KEYWORDS = 20
+MAX_EXAMPLES = 3
 
 
 def find_claude_binary():
@@ -319,6 +321,79 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         context = checked_text(item.get("context"), f"items[{index}].context", required=False)
         if context:
             clean_item["context"] = context
+        keywords = item.get("keywords")
+        if keywords is not None:
+            if not isinstance(keywords, list) or len(keywords) > MAX_KEYWORDS:
+                raise ValidationError(f"items[{index}].keywords 最多包含 {MAX_KEYWORDS} 个字符串")
+            clean_keywords = []
+            for keyword_index, keyword in enumerate(keywords):
+                keyword = checked_text(keyword, f"items[{index}].keywords[{keyword_index}]")
+                if keyword not in clean_keywords:
+                    clean_keywords.append(keyword)
+            if clean_keywords:
+                clean_item["keywords"] = clean_keywords
+        examples = item.get("examples")
+        if examples is not None:
+            if not isinstance(examples, list) or not examples or len(examples) > MAX_EXAMPLES:
+                raise ValidationError(f"items[{index}].examples 必须包含 1 到 {MAX_EXAMPLES} 个示例")
+            clean_examples = []
+            for example_index, example in enumerate(examples):
+                if not isinstance(example, dict):
+                    raise ValidationError(f"items[{index}].examples[{example_index}] 必须是对象")
+                clean_example = {
+                    "value": checked_text(
+                        example.get("value"), f"items[{index}].examples[{example_index}].value"
+                    ),
+                    "description": checked_text(
+                        example.get("description"),
+                        f"items[{index}].examples[{example_index}].description",
+                    ),
+                    "copyable": example.get("copyable", True),
+                }
+                if not isinstance(clean_example["copyable"], bool):
+                    raise ValidationError(
+                        f"items[{index}].examples[{example_index}].copyable 必须是布尔值"
+                    )
+                warning = checked_text(
+                    example.get("warning"),
+                    f"items[{index}].examples[{example_index}].warning",
+                    required=False,
+                )
+                if warning:
+                    clean_example["warning"] = warning
+                example_platforms = example.get("platforms")
+                if example_platforms is not None:
+                    if (
+                        not isinstance(example_platforms, list)
+                        or not example_platforms
+                        or any(
+                            example_platform not in {"mac", "windows", "linux"}
+                            for example_platform in example_platforms
+                        )
+                    ):
+                        raise ValidationError(
+                            f"items[{index}].examples[{example_index}].platforms 非法"
+                        )
+                    clean_example["platforms"] = list(dict.fromkeys(example_platforms))
+                platform_values = example.get("platformValues")
+                if platform_values is not None:
+                    if not isinstance(platform_values, dict) or not platform_values:
+                        raise ValidationError(
+                            f"items[{index}].examples[{example_index}].platformValues 必须是非空对象"
+                        )
+                    clean_values = {}
+                    for example_platform, value in platform_values.items():
+                        if example_platform not in {"mac", "windows", "linux"}:
+                            raise ValidationError(
+                                f"items[{index}].examples[{example_index}].platformValues 平台非法"
+                            )
+                        clean_values[example_platform] = checked_text(
+                            value,
+                            f"items[{index}].examples[{example_index}].platformValues.{example_platform}",
+                        )
+                    clean_example["platformValues"] = clean_values
+                clean_examples.append(clean_example)
+            clean_item["examples"] = clean_examples
         item_platforms = item.get("platforms")
         if item_platforms is not None:
             if (
@@ -371,11 +446,27 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
     summary = checked_text(payload.get("summary", ""), "summary", required=False) or ""
     if dropped > 0:
         summary = (summary + f"（已自动去重 {dropped} 条）").strip()
-    return {
+    dataset = {
         "meta": clean_meta,
         "items": clean_items,
         "summary": summary,
     }
+    dataset["qualityWarnings"] = build_quality_warnings(dataset)
+    return dataset
+
+
+def build_quality_warnings(dataset, previous_dataset=None):
+    items = dataset.get("items", [])
+    covered = sum(1 for item in items if item.get("examples"))
+    expected = min(6, len(items))
+    warnings = []
+    if covered < expected:
+        warnings.append(f"示例覆盖不足：当前 {covered} 条，建议至少 {expected} 条")
+    if previous_dataset is not None:
+        previous_covered = sum(1 for item in previous_dataset.get("items", []) if item.get("examples"))
+        if covered < previous_covered:
+            warnings.append(f"示例覆盖从 {previous_covered} 条降至 {covered} 条")
+    return warnings
 
 
 def render_data_file(dataset):
@@ -465,6 +556,17 @@ JSON 格式：
       "en": "简短英文说明",
       "zh": "清晰中文说明",
       "context": "可选；相同 cmd 在不同场景出现时必须填写",
+      "keywords": ["可选；用户常用的用途词，最多20个"],
+      "examples": [
+        {{
+          "value": "具体命令、Markdown输入或操作步骤",
+          "description": "中文说明执行后会发生什么",
+          "copyable": true,
+          "warning": "可选；危险操作或注意事项",
+          "platforms": ["可选；mac/windows/linux"],
+          "platformValues": {{"mac": "可选的平台专属示例"}}
+        }}
+      ],
       "platforms": ["可选；mac/windows/linux"],
       "platformCmds": {{"mac": "可选的平台专属命令"}}
     }}
@@ -480,6 +582,9 @@ JSON 格式：
 5. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。
 6. 所有字符串必须是有效 JSON 字符串。
 7. sourceUrl、updatedAt、coverage 必须填写；平台快捷键应尽量使用 platformCmds 表达。
+8. 至少为 6 个不同的高频条目提供 examples；不足 6 条时全部提供。每条最多 3 个示例。
+9. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；Markdown 工具示例提供可复制输入。
+10. 更新时保留已有 keywords 和 examples，并为新增高频条目补充示例。
 
 {current_section}
 """.strip()
@@ -628,9 +733,25 @@ def pending_path(token):
 def item_signature(item):
     return {
         key: item.get(key)
-        for key in ("cat", "cmd", "en", "zh", "context", "platforms", "platformCmds")
+        for key in (
+            "cat", "cmd", "en", "zh", "context", "keywords", "examples",
+            "platforms", "platformCmds",
+        )
         if key in item
     }
+
+
+def preserve_existing_enrichment(old_dataset, new_dataset):
+    old_items = {item.get("id"): item for item in old_dataset.get("items", []) if item.get("id")}
+    for item in new_dataset.get("items", []):
+        old_item = old_items.get(item.get("id"))
+        if not old_item:
+            continue
+        for field in ("keywords", "examples"):
+            if old_item.get(field) and not item.get(field):
+                item[field] = old_item[field]
+    new_dataset["qualityWarnings"] = build_quality_warnings(new_dataset, old_dataset)
+    return new_dataset
 
 
 def build_dataset_diff(old_dataset, new_dataset):
@@ -736,6 +857,7 @@ def add_tool(tool_id, display_name):
         "ok": True,
         "changed": True,
         "output": dataset["summary"] or f"已校验 {len(dataset['items'])} 条数据",
+        "qualityWarnings": dataset.get("qualityWarnings", []),
     }
 
 
@@ -743,10 +865,18 @@ def preview_update(tool_id, display_name):
     old_dataset = load_existing_dataset(tool_id)
     new_dataset = run_claude_query(tool_id, display_name, "update")
     new_dataset["meta"]["builtIn"] = old_dataset["meta"].get("builtIn", False)
+    new_dataset = preserve_existing_enrichment(old_dataset, new_dataset)
     diff = build_dataset_diff(old_dataset, new_dataset)
+    diff["qualityWarnings"] = new_dataset.get("qualityWarnings", [])
     changed = any(diff["counts"].values())
     if not changed:
-        return {"ok": True, "changed": False, "diff": diff, "output": "数据没有变化"}
+        return {
+            "ok": True,
+            "changed": False,
+            "diff": diff,
+            "qualityWarnings": new_dataset.get("qualityWarnings", []),
+            "output": "数据没有变化",
+        }
     token = secrets.token_hex(16)
     payload = {
         "token": token,
@@ -762,6 +892,7 @@ def preview_update(tool_id, display_name):
         "pendingToken": token,
         "toolId": tool_id,
         "diff": diff,
+        "qualityWarnings": new_dataset.get("qualityWarnings", []),
         "output": new_dataset["summary"] or "发现可用更新",
     }
 
@@ -790,7 +921,13 @@ def apply_update(token, confirm_risk=False):
         raise ValidationError("该更新包含高风险变化，请核对并确认后再应用")
     atomic_write(data_path, render_data_file(dataset))
     os.unlink(path)
-    return {"ok": True, "changed": True, "output": "更新已应用", "toolId": payload["toolId"]}
+    return {
+        "ok": True,
+        "changed": True,
+        "output": "更新已应用",
+        "toolId": payload["toolId"],
+        "qualityWarnings": dataset.get("qualityWarnings", []),
+    }
 
 
 def discard_update(token):

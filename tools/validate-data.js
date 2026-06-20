@@ -47,6 +47,21 @@ for (const id of files) {
 }
 
 const data = context.window.CHEATSHEET_DATA || {};
+const enrichmentFile = path.join(root, "usage-examples.js");
+vm.runInContext(fs.readFileSync(enrichmentFile, "utf8"), context, { filename: enrichmentFile });
+for (const [toolId, enrichments] of Object.entries(context.window.CHEATSHEET_ENRICHMENTS || {})) {
+  if (!data[toolId]) fail(`usage-examples.js: unknown tool ${toolId}`);
+  for (const [lookup, enrichment] of Object.entries(enrichments)) {
+    const [command, itemContext = ""] = lookup.split("\0");
+    const item = data[toolId].items.find((candidate) =>
+      candidate.cmd === command && (candidate.context || "") === itemContext
+    );
+    if (!item) fail(`usage-examples.js: missing target ${toolId} ${command} (${itemContext})`);
+    if (!item.keywords && enrichment.keywords) item.keywords = enrichment.keywords;
+    if (!item.examples && enrichment.examples) item.examples = enrichment.examples;
+  }
+}
+
 for (const id of files) {
   const tool = data[id];
   if (!tool || typeof tool !== "object") fail(`${id}: missing dataset`);
@@ -84,6 +99,47 @@ for (const id of files) {
     }
     if (item.context !== undefined && (typeof item.context !== "string" || !item.context.trim())) {
       fail(`${id}[${index}]: invalid context`);
+    }
+    if (item.keywords !== undefined) {
+      if (!Array.isArray(item.keywords) || item.keywords.length > 20
+        || item.keywords.some((keyword) => typeof keyword !== "string" || !keyword.trim())) {
+        fail(`${id}[${index}]: invalid keywords`);
+      }
+    }
+    if (item.examples !== undefined) {
+      if (!Array.isArray(item.examples) || item.examples.length === 0 || item.examples.length > 3) {
+        fail(`${id}[${index}]: invalid examples`);
+      }
+      item.examples.forEach((example, exampleIndex) => {
+        if (!example || typeof example !== "object" || Array.isArray(example)
+          || typeof example.value !== "string" || !example.value.trim()
+          || typeof example.description !== "string" || !example.description.trim()) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: invalid example`);
+        }
+        if (example.copyable !== undefined && typeof example.copyable !== "boolean") {
+          fail(`${id}[${index}].examples[${exampleIndex}]: invalid copyable`);
+        }
+        if (example.warning !== undefined && (typeof example.warning !== "string" || !example.warning.trim())) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: invalid warning`);
+        }
+        if (example.platforms !== undefined && (
+          !Array.isArray(example.platforms)
+          || !example.platforms.length
+          || example.platforms.some((value) => !["mac", "windows", "linux"].includes(value))
+        )) fail(`${id}[${index}].examples[${exampleIndex}]: invalid platforms`);
+        if (example.platformValues !== undefined) {
+          if (!example.platformValues || typeof example.platformValues !== "object"
+            || Array.isArray(example.platformValues) || !Object.keys(example.platformValues).length) {
+            fail(`${id}[${index}].examples[${exampleIndex}]: invalid platformValues`);
+          }
+          for (const [examplePlatform, value] of Object.entries(example.platformValues)) {
+            if (!["mac", "windows", "linux"].includes(examplePlatform)
+              || typeof value !== "string" || !value.trim()) {
+              fail(`${id}[${index}].examples[${exampleIndex}]: invalid platformValues.${examplePlatform}`);
+            }
+          }
+        }
+      });
     }
     if (item.platformCmds !== undefined) {
       if (!item.platformCmds || typeof item.platformCmds !== "object" || Array.isArray(item.platformCmds)) {

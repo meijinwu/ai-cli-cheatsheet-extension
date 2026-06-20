@@ -1,7 +1,7 @@
 "use strict";
 
 const CORE = window.CHEATSHEET_CORE;
-const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate"];
+const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate", "lastQualityWarnings"];
 const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "› 命令", flag: "⚑ 参数/选项" };
 const GROUP_INITIAL_LIMIT = 20;
 const SEARCH_INITIAL_LIMIT = 100;
@@ -17,6 +17,7 @@ let pendingUpdate = null;
 let currentTaskMode = null;
 let _taskTimer = null;
 let expandedTools = new Set();
+let expandedExamples = new Set();
 let searchLimit = SEARCH_INITIAL_LIMIT;
 
 function detectPlatform() {
@@ -80,6 +81,21 @@ function freshnessLabel(updatedAt) {
 
 function getAllData() {
   return window.CHEATSHEET_DATA || {};
+}
+
+function applyCuratedEnrichments() {
+  Object.entries(window.CHEATSHEET_ENRICHMENTS || {}).forEach(([toolId, enrichments]) => {
+    const items = getAllData()[toolId]?.items || [];
+    Object.entries(enrichments).forEach(([lookup, enrichment]) => {
+      const [cmd, context = ""] = lookup.split("\0");
+      const item = items.find((candidate) =>
+        candidate.cmd === cmd && (candidate.context || "") === context
+      );
+      if (!item) return;
+      if (!item.keywords && enrichment.keywords) item.keywords = enrichment.keywords;
+      if (!item.examples && enrichment.examples) item.examples = enrichment.examples;
+    });
+  });
 }
 
 function getToolIds() {
@@ -217,16 +233,30 @@ function collectEntries() {
 function renderRow(entry, query, includeBadge = false) {
   const tool = getAllData()[entry.toolId];
   const key = `${entry.toolId}::${entry.itemId}`;
+  const examples = (entry.item.examples || []).map((example, index) => ({
+    ...example,
+    index,
+    platformInfo: CORE.getPlatformExample(example, platform),
+  })).filter((example) => !example.platformInfo.unsupported);
+  const examplesOpen = expandedExamples.has(key);
   const note = entry.platformInfo.unsupported ? "当前平台未覆盖" : entry.platformInfo.usedFallback ? "使用通用写法" : "";
-  return `<div class="row" tabindex="0" data-tool="${entry.toolId}" data-item="${entry.itemId}">
+  const examplesHtml = examplesOpen ? `<div class="examples">${examples.map((example) => `
+    <div class="example">
+      <div class="example-value">${highlightHtml(example.platformInfo.value, query)}</div>
+      <div class="example-desc">${highlightHtml(example.description, query)}</div>
+      ${example.warning ? `<div class="example-warning">⚠ ${escapeHtml(example.warning)}</div>` : ""}
+      ${example.copyable !== false ? `<button class="act example-copy" data-example="${example.index}" title="复制示例" aria-label="复制示例">⧉</button>` : ""}
+    </div>`).join("")}</div>` : "";
+  return `<div class="entry-wrap"><div class="row" tabindex="0" data-tool="${entry.toolId}" data-item="${entry.itemId}">
     <div class="cmd"><span class="dot" style="background:${escapeHtml(tool.meta.color)}"></span>${highlightHtml(entry.displayCmd, query)}
       ${includeBadge ? `<span class="context">${escapeHtml(tool.meta.name)}</span>` : ""}
       ${entry.item.context ? `<span class="context">${escapeHtml(entry.item.context)}</span>` : ""}
       ${note ? `<span class="platform-note">${note}</span>` : ""}
     </div>
     <div class="zh">${highlightHtml(entry.item.zh, query)}</div><div class="en">${highlightHtml(entry.item.en, query)}</div>
+    ${examples.length ? `<button class="usage-toggle" aria-expanded="${examplesOpen}" data-usage>${examplesOpen ? "收起用法" : `用法 ${examples.length}`}</button>` : ""}
     <div class="row-actions"><button class="act copy-btn" title="复制命令" aria-label="复制命令">⧉</button><button class="act fav-btn ${favourites.has(key) ? "fav-active" : ""}" title="收藏" aria-label="收藏">${favourites.has(key) ? "♥" : "♡"}</button></div>
-  </div>`;
+  </div>${examplesHtml}</div>`;
 }
 
 function sourceCard(toolId) {
@@ -319,10 +349,26 @@ function bindHomeEvents() {
       return;
     }
     const row = event.target.closest(".row");
-    if (!row) return;
-    const entry = findEntry(row.dataset.tool, row.dataset.item);
+    const entryWrap = event.target.closest(".entry-wrap");
+    if (!row && !entryWrap) return;
+    const entryRow = row || entryWrap.querySelector(".row");
+    const entry = findEntry(entryRow.dataset.tool, entryRow.dataset.item);
     if (!entry) return;
     const key = `${entry.toolId}::${entry.itemId}`;
+    const exampleButton = event.target.closest("[data-example]");
+    if (exampleButton) {
+      const example = entry.item.examples?.[Number(exampleButton.dataset.example)];
+      if (!example) return;
+      const value = CORE.getPlatformExample(example, platform).value;
+      await navigator.clipboard.writeText(value);
+      showToast(`已复制示例：${value}`);
+      return;
+    }
+    if (event.target.closest("[data-usage]")) {
+      expandedExamples.has(key) ? expandedExamples.delete(key) : expandedExamples.add(key);
+      render();
+      return;
+    }
     if (!event.target.closest(".fav-btn")) {
       const copyButton = event.target.closest(".copy-btn");
       const command = CORE.getPlatformCommand(entry.item, platform).command;
@@ -426,6 +472,7 @@ function renderPending() {
   }
   const counts = pendingUpdate.diff?.counts || {};
   const risks = pendingUpdate.diff?.risks || [];
+  const qualityWarnings = pendingUpdate.qualityWarnings || pendingUpdate.diff?.qualityWarnings || [];
   const detailRows = [
     ...(pendingUpdate.diff?.added || []).map((item) => `＋ ${item.cmd} · ${item.zh}`),
     ...(pendingUpdate.diff?.modified || []).map((item) => `≈ ${item.before} → ${item.after}`),
@@ -435,6 +482,7 @@ function renderPending() {
   panel.innerHTML = `<h2>发现 ${escapeHtml(getAllData()[pendingUpdate.toolId]?.meta.name || pendingUpdate.toolId)} 更新</h2>
     <div class="diff-summary"><div class="diff-stat"><strong>${counts.added || 0}</strong>新增</div><div class="diff-stat"><strong>${counts.modified || 0}</strong>修改</div><div class="diff-stat"><strong>${counts.removed || 0}</strong>删除</div><div class="diff-stat"><strong>${counts.meta || 0}</strong>元数据</div></div>
     <div class="diff-list">${detailRows.length ? detailRows.map((row) => `<div>${escapeHtml(row)}</div>`).join("") : "<div>仅来源或更新时间发生变化</div>"}</div>
+    ${qualityWarnings.length ? `<div class="quality-warning">${qualityWarnings.map(escapeHtml).join("<br>")}</div>` : ""}
     ${risks.length ? `<label class="warning">${risks.map(escapeHtml).join("<br>")}<br><input id="confirmRisk" type="checkbox"> 我已核对上述高风险变化</label>` : ""}
     <div class="diff-actions"><button id="applyPending" class="text-btn primary" ${risks.length ? "disabled" : ""}>应用更新</button><button id="discardPending" class="text-btn">放弃</button></div>`;
   const confirmRisk = document.getElementById("confirmRisk");
@@ -489,7 +537,7 @@ async function finishTask(response, mode = currentTaskMode) {
   if (mode === "preview_update" && response.pendingToken) {
     pendingUpdate = response;
     await storageSet({ pendingUpdate });
-    setStatus(response.output || "发现可用更新", "ok");
+    setStatus(`${response.output || "发现可用更新"}${response.qualityWarnings?.length ? `\n⚠ ${response.qualityWarnings.join("\n⚠ ")}` : ""}`, "ok");
     renderPending();
     return;
   }
@@ -504,7 +552,14 @@ async function finishTask(response, mode = currentTaskMode) {
     pendingUpdate = null;
     await storageSet({ pendingUpdate: null });
   }
-  setStatus(`✅ ${response.output || "完成"}${response.changed ? "\n正在重新加载扩展…" : ""}`, "ok");
+  if (response.changed) {
+    await storageSet({
+      lastQualityWarnings: response.qualityWarnings?.length
+        ? { messages: response.qualityWarnings, createdAt: Date.now() }
+        : null,
+    });
+  }
+  setStatus(`✅ ${response.output || "完成"}${response.qualityWarnings?.length ? `\n⚠ ${response.qualityWarnings.join("\n⚠ ")}` : ""}${response.changed ? "\n正在重新加载扩展…" : ""}`, "ok");
   if (response.changed) setTimeout(() => chrome.runtime.reload(), 900);
 }
 
@@ -572,6 +627,7 @@ function bindOnboarding() {
 async function initialize() {
   try {
     await loadCheatsheetData();
+    applyCuratedEnrichments();
   } catch (error) {
     document.getElementById("main").innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
     return;
@@ -591,6 +647,10 @@ async function initialize() {
   renderFilters();
   render();
   renderManage();
+  if (stored.lastQualityWarnings?.messages?.length
+    && Date.now() - (stored.lastQualityWarnings.createdAt || 0) < 86400000) {
+    setStatus(`⚠ ${stored.lastQualityWarnings.messages.join("\n⚠ ")}`, "warn");
+  }
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message.action === "taskComplete") finishTask(message.response);

@@ -15,6 +15,7 @@
     ["复制", "拷贝", "copy"],
     ["删除", "移除", "remove", "delete"],
     ["更新", "升级", "刷新", "update", "upgrade", "refresh"],
+    ["替换", "取代", "replace", "substitute"],
   ];
 
   // 评分分层：精确 > 前缀 > 包含 > 中文 > 英文 > 上下文 > 工具名 > 分类，
@@ -25,8 +26,10 @@
     CONTAINS: 650,
     ZH: 460,
     EN: 330,
+    KEYWORDS: 260,
     CONTEXT: 220,
     TOOL_NAME: 180,
+    EXAMPLES: 160,
     CATEGORY: 140,
     MULTI_TERM_BONUS: 75,
     FAVOURITE_BONUS: 35,
@@ -108,7 +111,13 @@
     const cmdCompact = compactText(options.displayCmd || item.cmd);
     const zh = normalizeText(item.zh);
     const en = normalizeText(item.en);
+    const keywords = normalizeText((item.keywords || []).join(" "));
     const context = normalizeText(item.context);
+    const examples = normalizeText((item.examples || []).flatMap((example) => [
+      example.value,
+      example.description,
+      ...Object.values(example.platformValues || {}),
+    ]).join(" "));
     const toolName = normalizeText(options.toolName);
     const categoryLabel = normalizeText(options.categoryLabel);
     let score = -1;
@@ -120,8 +129,10 @@
       else if (cmd.includes(term) || cmdCompact.includes(termCompact)) score = Math.max(score, SCORE.CONTAINS);
       else if (zh.includes(term) || compactText(zh).includes(termCompact)) score = Math.max(score, SCORE.ZH);
       else if (en.includes(term) || compactText(en).includes(termCompact)) score = Math.max(score, SCORE.EN);
+      else if (keywords.includes(term) || compactText(keywords).includes(termCompact)) score = Math.max(score, SCORE.KEYWORDS);
       else if (context.includes(term) || compactText(context).includes(termCompact)) score = Math.max(score, SCORE.CONTEXT);
       else if (toolName.includes(term) || compactText(toolName).includes(termCompact)) score = Math.max(score, SCORE.TOOL_NAME);
+      else if (examples.includes(term) || compactText(examples).includes(termCompact)) score = Math.max(score, SCORE.EXAMPLES);
       else if (categoryLabel.includes(term) || compactText(categoryLabel).includes(termCompact)) score = Math.max(score, SCORE.CATEGORY);
     });
     return score;
@@ -177,6 +188,22 @@
   }
 
   /**
+   * 解析示例在指定平台下应展示的内容。
+   * @param {{ value: string, platformValues?: Record<string, string>, platforms?: string[] }} example
+   * @param {string} platform
+   * @returns {{ value: string, unsupported: boolean }}
+   */
+  function getPlatformExample(example, platform) {
+    const normalizedPlatform = ["mac", "windows", "linux"].includes(platform) ? platform : "mac";
+    const platformValues = example.platformValues || {};
+    const supported = Array.isArray(example.platforms) ? example.platforms : [];
+    return {
+      value: platformValues[normalizedPlatform] || example.value,
+      unsupported: Boolean(supported.length && !supported.includes(normalizedPlatform)),
+    };
+  }
+
+  /**
    * 将一次复制记录置顶并去重，返回新的最近列表（不可变）。
    * @param {Array<{ toolId: string, itemId: string, copiedAt?: number }>} recents
    * @param {{ toolId: string, itemId: string, copiedAt?: number }} entry
@@ -226,6 +253,7 @@
     splitQuery,
     scoreItem,
     getPlatformCommand,
+    getPlatformExample,
     updateRecent,
     rankItems,
     includesTerm,

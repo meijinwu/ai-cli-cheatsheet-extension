@@ -3,7 +3,7 @@
   "name": "AI CLI 速查表",
   "short_name": "AI CLI速查",
   "description": "Claude Code / Codex CLI / Gemini CLI / Antigravity CLI 命令与快捷键中英对照速查，点击图标即可查询，纯本地无需联网",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "background": { "service_worker": "background.js" },
   "permissions": ["nativeMessaging", "storage", "alarms"],
   "action": {

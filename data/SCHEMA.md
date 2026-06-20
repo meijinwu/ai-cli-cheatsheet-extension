@@ -35,6 +35,20 @@
   en: "英文官方说明（简短）",
   zh: "中文说明（讲清楚用途，不是字面翻译）",
   context: "编辑器 / 集成终端",            // 可选；相同 cmd 在不同场景出现时必填
+  keywords: ["替换", "批量替换"],          // 可选；用户常用语义词，最多 20 个
+  examples: [                              // 可选；最多 3 个
+    {
+      value: "sed 's/旧文本/新文本/g' file.txt",
+      description: "把输出中的所有“旧文本”替换为“新文本”",
+      copyable: true,                       // 可选，默认 true
+      warning: "先去掉 -i 预览结果",        // 可选
+      platforms: ["mac", "linux"],          // 可选
+      platformValues: {                     // 可选；平台专属示例
+        mac: "sed -i '' 's/旧/新/g' file.txt",
+        linux: "sed -i 's/旧/新/g' file.txt"
+      }
+    }
+  ],
   platforms: ["mac", "windows", "linux"],  // 可选；条目适用平台
   platformCmds: {                          // 可选；平台专属命令或快捷键
     mac: "Cmd+P",
@@ -65,6 +79,8 @@ meta：
 
 - 新增模式：先判断是 CLI 类还是 IDE 类，按上面对应的规则处理
 - 更新模式：保留原有未变化的条目，不要整份重写丢失细节
+- 新增工具至少为 6 个高频条目提供 examples；不足 6 条时全部提供。CLI 提供可执行命令，IDE 提供操作场景
+- examples 不足不会阻止写入，但会产生质量警告；结构错误仍会拒绝
 - 严禁编造没有查到的命令或快捷键；查不到就如实少收录，不要为了凑数量编内容
 - Claude 只返回结构化 JSON；Native Host 校验后负责生成 JS 和原子写入
 - `meta.id` 必须与文件名一致；同一 `cat + cmd + context` 不能重复
