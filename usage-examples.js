@@ -524,8 +524,14 @@
         const lookup = `${item.cmd}\0${item.context || ""}`;
         const legacyLookup = item.cmd;
         const existing = byLookup.get(lookup) || byLookup.get(legacyLookup) || {};
+        const docUrl = tool.meta && tool.meta.sourceUrl;
         const examples = (existing.examples || item.examples || [deriveExample(toolId, tool, item)])
-          .map(normalizeCuratedExample);
+          .map(normalizeCuratedExample)
+          // 人工/官方示例若未自带链接，默认挂上该工具已验证的文档地址（meta.sourceUrl），便于核验；
+          // AI 派生示例不冒充权威来源，保持无链接。
+          .map((example) => (example.sourceType !== "ai-derived" && !example.sourceUrl && docUrl)
+            ? { ...example, sourceUrl: docUrl }
+            : example);
         const keywords = existing.keywords || item.keywords || deriveKeywords(item);
         byLookup.set(lookup, { ...existing, keywords, examples });
         if (lookup !== legacyLookup && byLookup.get(legacyLookup) === existing) byLookup.delete(legacyLookup);

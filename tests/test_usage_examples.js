@@ -35,6 +35,12 @@ for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
           !/(?:^|\s)(级别|条件|名称|路径|模型|命令|问题|会话|目标|描述|指令|文件名|模式|提示)(?=\s|$)/.test(bare),
           `${toolId} ${item.cmd}: value leaks CJK placeholder type-name -> ${example.value}`
         );
+      } else {
+        // 人工/官方示例必须带可核验的文档链接（https）。
+        assert(
+          /^https:\/\/\S+$/.test(example.sourceUrl || ""),
+          `${toolId} ${item.cmd}: curated example must carry an https sourceUrl`
+        );
       }
       sourceCounts[example.sourceType] += 1;
       exampleCount += 1;
