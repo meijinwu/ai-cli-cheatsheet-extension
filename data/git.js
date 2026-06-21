@@ -20,20 +20,6 @@ window.CHEATSHEET_DATA["git"] = {
     "order": 999,
     "sources": [
       {
-        "id": "git-docs",
-        "title": "Git command reference",
-        "url": "https://git-scm.com/docs",
-        "kind": "official-doc",
-        "maintainer": "Git project",
-        "evidenceTier": "first-party",
-        "lastVerifiedAt": "2026-06-21",
-        "purposes": [
-          "command-existence",
-          "option-semantics",
-          "examples"
-        ]
-      },
-      {
         "id": "git-init",
         "registryId": "git-docs",
         "title": "git-init documentation",
@@ -42,6 +28,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-init",
+        "pageTitle": "git-init documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -57,6 +46,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-clone",
+        "pageTitle": "git-clone documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -72,6 +64,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-add",
+        "pageTitle": "git-add documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -87,6 +82,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-commit",
+        "pageTitle": "git-commit documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -102,6 +100,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-status",
+        "pageTitle": "git-status documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -117,6 +118,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-diff",
+        "pageTitle": "git-diff documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -132,6 +136,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-reset",
+        "pageTitle": "git-reset documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -147,6 +154,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-revert",
+        "pageTitle": "git-revert documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -162,6 +172,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-restore",
+        "pageTitle": "git-restore documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -177,6 +190,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-reflog",
+        "pageTitle": "git-reflog documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -192,6 +208,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-worktree",
+        "pageTitle": "git-worktree documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -207,6 +226,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-rm",
+        "pageTitle": "git-rm documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -222,6 +244,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-mv",
+        "pageTitle": "git-mv documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -237,6 +262,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-branch",
+        "pageTitle": "git-branch documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -252,6 +280,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-checkout",
+        "pageTitle": "git-checkout documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -267,6 +298,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-switch",
+        "pageTitle": "git-switch documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -282,6 +316,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-merge",
+        "pageTitle": "git-merge documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -297,6 +334,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-rebase",
+        "pageTitle": "git-rebase documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -312,6 +352,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-cherry-pick",
+        "pageTitle": "git-cherry-pick documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -327,6 +370,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-stash",
+        "pageTitle": "git-stash documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -342,6 +388,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-remote",
+        "pageTitle": "git-remote documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -357,6 +406,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-fetch",
+        "pageTitle": "git-fetch documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -372,6 +424,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-pull",
+        "pageTitle": "git-pull documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -387,6 +442,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-push",
+        "pageTitle": "git-push documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -402,6 +460,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-log",
+        "pageTitle": "git-log documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -417,6 +478,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-show",
+        "pageTitle": "git-show documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -432,6 +496,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-tag",
+        "pageTitle": "git-tag documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -447,6 +514,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-blame",
+        "pageTitle": "git-blame documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -462,6 +532,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-config",
+        "pageTitle": "git-config documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -477,6 +550,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-bisect",
+        "pageTitle": "git-bisect documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -492,6 +568,9 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-clean",
+        "pageTitle": "git-clean documentation",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -507,6 +586,28 @@ window.CHEATSHEET_DATA["git"] = {
         "maintainer": "Git project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs/git-grep",
+        "pageTitle": "git-grep documentation",
+        "checkedAt": "2026-06-21",
+        "purposes": [
+          "command-existence",
+          "option-semantics",
+          "examples"
+        ]
+      }
+    ],
+    "references": [
+      {
+        "id": "git-docs",
+        "title": "Git command reference",
+        "url": "https://git-scm.com/docs",
+        "kind": "official-doc",
+        "maintainer": "Git project",
+        "evidenceTier": "first-party",
+        "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://git-scm.com/docs",
+        "pageTitle": "Git command reference",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -523,8 +624,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "初始化一个新的 Git 仓库",
       "id": "git-init",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-init"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-init",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-init",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -534,8 +643,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "克隆仓库到新目录",
       "id": "git-clone",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-clone"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-clone",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-clone",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -545,8 +662,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "将文件内容添加到暂存区",
       "id": "git-add",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-add"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-add",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-add",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -556,8 +681,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "记录仓库的更改",
       "id": "git-commit",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-commit"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-commit",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-commit",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -568,8 +701,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "commit",
       "id": "git-commit-m",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-commit"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-commit",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-commit",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -580,8 +721,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "commit",
       "id": "git-commit-amend",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-commit"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-commit",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-commit",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -592,8 +741,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "commit",
       "id": "git-commit-amend-no-edit",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-commit"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-commit",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-commit",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -603,8 +760,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "显示工作区状态",
       "id": "git-status",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-status"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-status",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-status",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -615,8 +780,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "status",
       "id": "git-status-s",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-status"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-status",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-status",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -627,8 +800,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "status",
       "id": "git-status-b",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-status"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-status",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-status",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -638,8 +819,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "显示提交之间、提交与工作树等之间的更改",
       "id": "git-diff",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-diff"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-diff",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-diff",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -650,8 +839,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "diff",
       "id": "git-diff-staged",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-diff"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-diff",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-diff",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -662,8 +859,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "diff",
       "id": "git-diff-head",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-diff"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-diff",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-diff",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -673,8 +878,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "将当前 HEAD 重置到指定状态",
       "id": "git-reset",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-reset"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-reset",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-reset",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -685,8 +898,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "reset",
       "id": "git-reset-soft",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-reset"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-reset",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-reset",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -697,8 +918,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "reset",
       "id": "git-reset-hard",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-reset"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-reset",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-reset",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -709,8 +938,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "reset",
       "id": "git-reset-file",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-reset"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-reset",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-reset",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -720,8 +957,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "撤销指定提交：生成一个反向提交来抵消其改动，不改写历史",
       "id": "git-revert",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-revert"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-revert",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-revert",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -732,8 +977,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "revert",
       "id": "git-revert-no-edit",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-revert"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-revert",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-revert",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -744,8 +997,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "revert",
       "id": "git-revert-no-commit",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-revert"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-revert",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-revert",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -756,8 +1017,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "revert",
       "id": "git-revert-continue",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-revert"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-revert",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-revert",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -768,8 +1037,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "revert",
       "id": "git-revert-abort",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-revert"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-revert",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-revert",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -779,8 +1056,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "恢复工作区文件：把文件还原到指定来源的内容（取代旧的 checkout -- 用法）",
       "id": "git-restore",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-restore"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-restore",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-restore",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -791,8 +1076,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "restore",
       "id": "git-restore-staged",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-restore"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-restore",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-restore",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -803,8 +1096,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "restore",
       "id": "git-restore-source",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-restore"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-restore",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-restore",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -814,8 +1115,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "查看 HEAD 和分支的引用日志：找回丢失的提交、误删分支或 reset 前的状态",
       "id": "git-reflog",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-reflog"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-reflog",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-reflog",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -826,8 +1135,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "reflog",
       "id": "git-reflog-show",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-reflog"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-reflog",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-reflog",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -837,8 +1154,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "管理多个工作树：在不同目录同时检出多个分支，互不干扰",
       "id": "git-worktree",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-worktree"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-worktree",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-worktree",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -849,8 +1174,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "worktree",
       "id": "git-worktree-add",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-worktree"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-worktree",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-worktree",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -861,8 +1194,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "worktree",
       "id": "git-worktree-list",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-worktree"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-worktree",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-worktree",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -873,8 +1214,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "worktree",
       "id": "git-worktree-remove",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-worktree"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-worktree",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-worktree",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -884,8 +1233,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "从工作树和索引中删除文件",
       "id": "git-rm",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-rm"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-rm",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-rm",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -896,8 +1253,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "rm",
       "id": "git-rm-cached",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-rm"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-rm",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-rm",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -907,8 +1272,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "移动或重命名文件、目录或符号链接",
       "id": "git-mv",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-mv"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-mv",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-mv",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -918,8 +1291,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "列出、创建或删除分支",
       "id": "git-branch",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-branch"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-branch",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-branch",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -930,8 +1311,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "branch",
       "id": "git-branch-d",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-branch"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-branch",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-branch",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -942,8 +1331,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "branch",
       "id": "git-branch-a",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-branch"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-branch",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-branch",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -954,8 +1351,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "branch",
       "id": "git-branch-r",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-branch"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-branch",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-branch",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -965,8 +1370,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "切换分支或恢复工作树文件",
       "id": "git-checkout",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-checkout"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-checkout",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-checkout",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -977,8 +1390,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "checkout",
       "id": "git-checkout-b",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-checkout"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-checkout",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-checkout",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -989,8 +1410,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "checkout",
       "id": "git-checkout-file",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-checkout"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-checkout",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-checkout",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1000,8 +1429,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "切换分支",
       "id": "git-switch",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-switch"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-switch",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-switch",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1012,8 +1449,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "switch",
       "id": "git-switch-c",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-switch"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-switch",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-switch",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1024,8 +1469,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "switch",
       "id": "git-switch-dash",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-switch"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-switch",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-switch",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1035,8 +1488,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "合并两个或更多的开发历史",
       "id": "git-merge",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-merge"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-merge",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-merge",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1047,8 +1508,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "merge",
       "id": "git-merge-no-ff",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-merge"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-merge",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-merge",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1059,8 +1528,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "merge",
       "id": "git-merge-abort",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-merge"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-merge",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-merge",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1070,8 +1547,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "将提交重新应用到另一个基端",
       "id": "git-rebase",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-rebase"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-rebase",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-rebase",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1082,8 +1567,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "rebase",
       "id": "git-rebase-i",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-rebase"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-rebase",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-rebase",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1094,8 +1587,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "rebase",
       "id": "git-rebase-continue",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-rebase"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-rebase",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-rebase",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1106,8 +1607,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "rebase",
       "id": "git-rebase-abort",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-rebase"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-rebase",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-rebase",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1117,8 +1626,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "应用现有提交的更改",
       "id": "git-cherry-pick",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-cherry-pick"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-cherry-pick",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-cherry-pick",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1129,8 +1646,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "cherry-pick",
       "id": "git-cherry-pick-continue",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-cherry-pick"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-cherry-pick",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-cherry-pick",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1141,8 +1666,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "cherry-pick",
       "id": "git-cherry-pick-abort",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-cherry-pick"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-cherry-pick",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-cherry-pick",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1152,8 +1685,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "储藏工作目录中的更改",
       "id": "git-stash",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-stash"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-stash",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-stash",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1164,8 +1705,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "stash",
       "id": "git-stash-pop",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-stash"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-stash",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-stash",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1176,8 +1725,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "stash",
       "id": "git-stash-list",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-stash"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-stash",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-stash",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1188,8 +1745,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "stash",
       "id": "git-stash-drop",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-stash"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-stash",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-stash",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1199,8 +1764,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "管理跟踪的仓库集合",
       "id": "git-remote",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-remote"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-remote",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-remote",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1211,8 +1784,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "remote",
       "id": "git-remote-v",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-remote"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-remote",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-remote",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1223,8 +1804,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "remote",
       "id": "git-remote-add",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-remote"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-remote",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-remote",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1235,8 +1824,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "remote",
       "id": "git-remote-remove",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-remote"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-remote",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-remote",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1246,8 +1843,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "从另一个仓库下载对象和引用",
       "id": "git-fetch",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-fetch"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-fetch",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-fetch",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1258,8 +1863,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "fetch",
       "id": "git-fetch-all",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-fetch"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-fetch",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-fetch",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1269,8 +1882,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "从另一个仓库获取并整合",
       "id": "git-pull",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-pull"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-pull",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-pull",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1281,8 +1902,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "pull",
       "id": "git-pull-rebase",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-pull"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-pull",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-pull",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1292,8 +1921,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "更新远程引用及相关对象",
       "id": "git-push",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-push"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-push",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-push",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1304,8 +1941,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "push",
       "id": "git-push-u",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-push"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-push",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-push",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1316,8 +1961,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "push",
       "id": "git-push-force",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-push"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-push",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-push",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1328,8 +1981,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "push",
       "id": "git-push-force-with-lease",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-push"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-push",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-push",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1339,8 +2000,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "显示提交日志",
       "id": "git-log",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-log"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-log",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-log",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1351,8 +2020,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "log",
       "id": "git-log-oneline",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-log"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-log",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-log",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1363,8 +2040,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "log",
       "id": "git-log-graph",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-log"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-log",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-log",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1375,8 +2060,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "log",
       "id": "git-log-p",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-log"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-log",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-log",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1387,8 +2080,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "log",
       "id": "git-log-author",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-log"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-log",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-log",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1398,8 +2099,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "显示各种类型的对象",
       "id": "git-show",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-show"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-show",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-show",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1410,8 +2119,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "show",
       "id": "git-show-commit",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-show"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-show",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-show",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1421,8 +2138,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "创建、列出、删除或验证标签对象",
       "id": "git-tag",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-tag"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-tag",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-tag",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1433,8 +2158,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "tag",
       "id": "git-tag-a",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-tag"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-tag",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-tag",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1445,8 +2178,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "tag",
       "id": "git-tag-d",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-tag"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-tag",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-tag",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1456,8 +2197,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "显示文件每行的最后修改版本和作者",
       "id": "git-blame",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-blame"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-blame",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-blame",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1468,8 +2217,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "blame",
       "id": "git-blame-L",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-blame"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-blame",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-blame",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1479,8 +2236,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "获取和设置仓库或全局选项",
       "id": "git-config",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-config"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-config",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-config",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1491,8 +2256,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "config",
       "id": "git-config-global",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-config"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-config",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-config",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1503,8 +2276,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "config",
       "id": "git-config-list",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-config"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-config",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-config",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1514,8 +2295,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "使用二分查找找出引入错误的提交",
       "id": "git-bisect",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-bisect"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-bisect",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-bisect",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1526,8 +2315,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "bisect",
       "id": "git-bisect-start",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-bisect"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-bisect",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-bisect",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1537,8 +2334,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "从工作树中删除未跟踪的文件",
       "id": "git-clean",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-clean"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-clean",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-clean",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1549,8 +2354,16 @@ window.CHEATSHEET_DATA["git"] = {
       "context": "clean",
       "id": "git-clean-n",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-clean"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-clean",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-clean",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1560,8 +2373,16 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "打印匹配模式的行",
       "id": "git-grep",
       "evidenceStatus": "verified",
-      "sourceIds": [
-        "git-grep"
+      "evidenceRefs": [
+        {
+          "sourceId": "git-grep",
+          "claims": [
+            "existence",
+            "semantics"
+          ],
+          "locator": "https://git-scm.com/docs/git-grep",
+          "checkedAt": "2026-06-21"
+        }
       ]
     }
   ]

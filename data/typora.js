@@ -25,6 +25,9 @@ window.CHEATSHEET_DATA["typora"] = {
         "maintainer": "Typora",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://support.typora.io/Shortcut-Keys/",
+        "pageTitle": "Typora shortcut keys",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics"
@@ -44,9 +47,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+N"
       },
       "id": "417f39e8659d5290",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 New File）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -60,9 +70,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+N"
       },
       "id": "bc6bb96ca92c1882",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 New Window）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -76,9 +93,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+O"
       },
       "id": "c70d6815af282143",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Open）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -92,9 +116,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+P"
       },
       "id": "cc4229c2d76059f9",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Open Quickly）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -108,9 +139,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+T"
       },
       "id": "6ef6b20bd47f1ad5",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Reopen Closed File）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -124,9 +162,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+S"
       },
       "id": "0fb7315bb64bf0cf",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Save）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -140,9 +185,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+S"
       },
       "id": "c5a706b54d1b01a8",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Save As / Duplicate）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -156,9 +208,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+,"
       },
       "id": "24e974bc64d8dbae",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Preferences）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -172,9 +231,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+W"
       },
       "id": "10b5542160f83a12",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Close）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -183,9 +249,16 @@ window.CHEATSHEET_DATA["typora"] = {
       "en": "New Paragraph",
       "zh": "插入新段落",
       "id": "dd6eaa83ec27ba7f",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 New Paragraph）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -194,9 +267,16 @@ window.CHEATSHEET_DATA["typora"] = {
       "en": "New Line",
       "zh": "插入换行（不产生新段落）",
       "id": "804738897d29d2f8",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 New Line）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -210,9 +290,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+X"
       },
       "id": "4d519c2944e0299c",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Cut）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -226,9 +313,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+C"
       },
       "id": "a6ec5756b87fc283",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Copy）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -242,9 +336,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+V"
       },
       "id": "0b96d5c613e5e29f",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Paste）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -258,9 +359,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+C"
       },
       "id": "d3e7c31ae2cd41e6",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Copy as Markdown）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -274,9 +382,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+V"
       },
       "id": "0c90d93b678482f4",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Paste as Plain Text）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -290,9 +405,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+A"
       },
       "id": "5122308a465b18b4",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Select All）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -306,9 +428,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+L"
       },
       "id": "a1bdb96a275eba34",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Select Line / Sentence / Row）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -322,9 +451,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+Backspace"
       },
       "id": "dbe5ef5ec55f3433",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Delete Row (in table)）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -338,9 +474,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+E"
       },
       "id": "fe043cda3d3ed81a",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Select Style Scope / Cell）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -354,9 +497,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+D"
       },
       "id": "f72bdbb8d52e2e54",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Select Word）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -370,9 +520,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+D"
       },
       "id": "e3f13fc45fbfcf1c",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Delete Word）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -387,9 +544,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Home"
       },
       "id": "289dc1bf4f7804ee",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Jump to Top）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -403,9 +567,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+J"
       },
       "id": "11061da1568d8e51",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Jump to Selection）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -420,9 +591,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+End"
       },
       "id": "bf56b694c58d4a48",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Jump to Bottom）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -436,9 +614,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+F"
       },
       "id": "fd71edc6b52ea168",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Find）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -452,9 +637,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "F3"
       },
       "id": "7da050c32b248007",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Find Next）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -468,9 +660,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Shift+F3"
       },
       "id": "0698e50ed572f4a7",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Find Previous）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -484,9 +683,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+H"
       },
       "id": "bef7d3a3d2866e3b",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Replace）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -500,9 +706,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+1"
       },
       "id": "55c6c5a47338ccfe",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Heading 1）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -516,9 +729,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+0"
       },
       "id": "b19705850252200e",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Paragraph）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -532,9 +752,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+="
       },
       "id": "eeea61af524a6235",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Increase Heading Level）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -548,9 +775,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+-"
       },
       "id": "9294f722dfffaa5a",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Decrease Heading Level）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -564,9 +798,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+T"
       },
       "id": "6b03e4fa2cc02263",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Insert Table）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -580,9 +821,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+K"
       },
       "id": "8ff5d4ebf926ac5b",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Code Fences）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -596,9 +844,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+M"
       },
       "id": "03e24719a62cb637",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Math Block）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -612,9 +867,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+Q"
       },
       "id": "ee378e4458574444",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Quote）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -628,9 +890,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+["
       },
       "id": "e2320f2497efa296",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Ordered List）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -644,9 +913,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+]"
       },
       "id": "34740a0b6b63d659",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Unordered List）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -660,9 +936,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+["
       },
       "id": "13b2abce829f762c",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Indent）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -676,9 +959,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+]"
       },
       "id": "f859f83b210ea7c8",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Outdent）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -692,9 +982,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+B"
       },
       "id": "00d23027eb3ed071",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Bold）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -708,9 +1005,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+I"
       },
       "id": "fd0e57a1304905f7",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Italic）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -724,9 +1028,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+U"
       },
       "id": "31aea4d9d0228611",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Underline）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -740,9 +1051,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+`"
       },
       "id": "c17f2a3e2652e1fd",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Inline Code）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -756,9 +1074,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Alt+Shift+5"
       },
       "id": "bd9971cf8f5dbd41",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Strikethrough）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -772,9 +1097,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+K"
       },
       "id": "198d4e7754c88653",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Hyperlink）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -788,9 +1120,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+I"
       },
       "id": "ccf9f836058feaa3",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Image）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -804,9 +1143,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+\\"
       },
       "id": "83f21268d02dadd3",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Clear Format）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -820,9 +1166,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+L"
       },
       "id": "4442ca93d34ec475",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Toggle Sidebar）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -836,9 +1189,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+1"
       },
       "id": "475dcb5f19c6c6a1",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Outline Panel）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -852,9 +1212,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+2"
       },
       "id": "0f3aeafb87210b85",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Articles Panel）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -868,9 +1235,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+3"
       },
       "id": "4617b4b7673cd19c",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 File Tree Panel）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -884,9 +1258,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+/"
       },
       "id": "5de8c2eaa7f4f55a",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Source Code Mode）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -895,9 +1276,16 @@ window.CHEATSHEET_DATA["typora"] = {
       "en": "Focus Mode",
       "zh": "切换专注模式（仅显示当前段落，其余变暗）",
       "id": "08099184156f407e",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Focus Mode）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -906,9 +1294,16 @@ window.CHEATSHEET_DATA["typora"] = {
       "en": "Typewriter Mode",
       "zh": "切换打字机模式（光标始终固定在屏幕中央）",
       "id": "a09eb4a8af3b4e51",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Typewriter Mode）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -922,9 +1317,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "F11"
       },
       "id": "17e36767d36d67d4",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Toggle Fullscreen）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -938,9 +1340,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Tab"
       },
       "id": "496dd8ec12ec6914",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Switch Between Documents）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -953,9 +1362,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux"
       ],
       "id": "2a361d0f31d3cbb1",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Toggle DevTools）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -972,9 +1388,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+0"
       },
       "id": "2d807b9fdd37a8f7",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Actual Size）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -991,9 +1414,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+="
       },
       "id": "9704b41d06010589",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Zoom In）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -1010,9 +1440,16 @@ window.CHEATSHEET_DATA["typora"] = {
         "linux": "Ctrl+Shift+-"
       },
       "id": "d3a8ff9d8ae9d923",
-      "evidenceStatus": "verified",
-      "sourceIds": [
-        "typora-shortcuts"
+      "evidenceStatus": "partial",
+      "evidenceRefs": [
+        {
+          "sourceId": "typora-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方 Shortcut Keys（页面内检索 Zoom Out）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     }
   ]

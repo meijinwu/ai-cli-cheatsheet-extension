@@ -47,6 +47,9 @@ assert.strictEqual(hostConstant("MAX_EXAMPLES"), rules.examples.max, "MAX_EXAMPL
 for (const tier of rules.sourceTiers) {
   assert(hostPy.includes(`"${tier}"`), `host.py SOURCE_TIERS 缺少档位 ${tier}`);
 }
+for (const claim of rules.evidenceClaims) {
+  assert(hostPy.includes(`"${claim}"`), `host.py EVIDENCE_CLAIMS 缺少 ${claim}`);
+}
 assert(!("quasiOfficialDomains" in rules), "来源域名不得在 validation-rules.json 重复维护");
 assert(!("authoritativeSourcePrefixes" in rules), "权威 URL 前缀只能来自 source registry");
 assert(!("officialRepositoryPrefixes" in rules), "官方仓库前缀只能来自 source registry");
