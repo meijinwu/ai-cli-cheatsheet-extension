@@ -22,6 +22,16 @@ def valid_dataset(tool_id="sample"):
             "color": "#123ABC",
             "source": "Official docs, 2026-06",
             "sourceUrl": "https://example.com/docs",
+            "sources": [{
+                "id": "official-docs",
+                "title": "Sample Tool documentation",
+                "url": "https://example.com/docs",
+                "kind": "official-doc",
+                "maintainer": "Sample Vendor",
+                "evidenceTier": "first-party",
+                "lastVerifiedAt": "2026-06-20",
+                "purposes": ["command-existence", "option-semantics", "examples"],
+            }],
             "updatedAt": "2026-06-20",
             "coverage": "Complete command list",
             "platforms": ["mac", "windows", "linux"],
@@ -33,6 +43,7 @@ def valid_dataset(tool_id="sample"):
                 "cmd": "Ctrl+K",
                 "en": "Open command",
                 "zh": "打开命令",
+                "sourceIds": ["official-docs"],
             }
         ],
         "summary": "updated",
@@ -82,6 +93,13 @@ class HostValidationTests(unittest.TestCase):
                 "description": "打开命令面板",
                 "copyable": False,
                 "sourceType": "ai-derived",
+                "sourceIds": ["official-docs"],
+                "authorship": "editorial",
+                "evidenceTier": "first-party",
+                "adaptation": "adapted",
+                "scenario": "需要快速打开命令入口时",
+                "goal": "打开命令面板",
+                "expected": "命令面板显示可用操作",
                 "platformValues": {"mac": "Cmd+K", "windows": "Ctrl+K"},
             }],
         })
@@ -98,6 +116,27 @@ class HostValidationTests(unittest.TestCase):
         payload["items"][0]["examples"] = [{"value": "", "description": "空命令"}]
         with self.assertRaisesRegex(host.ValidationError, "value"):
             host.validate_dataset(payload, "sample")
+
+    def test_rejects_unregistered_readthedocs_authoritative_source(self):
+        payload = valid_dataset()
+        payload["meta"]["sources"][0].update({
+            "url": "https://unknown-project.readthedocs.io/en/latest/",
+            "kind": "authoritative-reference",
+            "evidenceTier": "authoritative-community",
+        })
+        with self.assertRaisesRegex(host.ValidationError, "已登记"):
+            host.validate_dataset(payload, "sample")
+
+    def test_accepts_registered_official_repository(self):
+        payload = valid_dataset("codex")
+        payload["meta"]["sources"][0].update({
+            "id": "codex-repo",
+            "url": "https://github.com/openai/codex/releases",
+            "kind": "official-repository",
+        })
+        payload["items"][0]["sourceIds"] = ["codex-repo"]
+        dataset = host.validate_dataset(payload, "codex")
+        self.assertEqual(dataset["meta"]["sources"][0]["kind"], "official-repository")
 
     def test_warns_when_example_coverage_is_low(self):
         payload = valid_dataset()
@@ -175,9 +214,13 @@ class HostFileTests(unittest.TestCase):
         self.assertTrue(target.exists())
 
     def test_add_uses_read_only_claude_and_writes_validated_files(self):
+        discovery = {"sources": valid_dataset()["meta"]["sources"], "conflicts": [], "notes": []}
         stdout = json.dumps({"result": json.dumps(valid_dataset())})
         mock_proc = mock.MagicMock()
-        mock_proc.communicate.return_value = (stdout, "")
+        mock_proc.communicate.side_effect = [
+            (json.dumps({"result": json.dumps(discovery)}), ""),
+            (stdout, ""),
+        ]
         mock_proc.returncode = 0
         # 强制 _call_api_direct 返回 None，走 claude 子进程回退路径（不依赖 CI 是否设置 token）
         with mock.patch.object(host, "_call_api_direct", return_value=None), mock.patch.object(
@@ -225,8 +268,12 @@ class HostFileTests(unittest.TestCase):
     def test_prefer_web_forces_claude_even_with_token(self):
         # 勾选"联网核对"时即使有 token 也走 claude -p 联网路径，不调用直连 API。
         stdout = json.dumps({"result": json.dumps(valid_dataset())})
+        discovery = {"sources": valid_dataset()["meta"]["sources"], "conflicts": [], "notes": []}
         mock_proc = mock.MagicMock()
-        mock_proc.communicate.return_value = (stdout, "")
+        mock_proc.communicate.side_effect = [
+            (json.dumps({"result": json.dumps(discovery)}), ""),
+            (stdout, ""),
+        ]
         mock_proc.returncode = 0
         api = mock.MagicMock()
         with mock.patch.object(host, "_has_api_token", return_value=True), mock.patch.object(
@@ -241,8 +288,11 @@ class HostFileTests(unittest.TestCase):
     def test_token_without_prefer_web_uses_offline_api(self):
         # 不勾选时有 token 走直连 API 离线路径，不启动 claude 子进程。
         popen = mock.MagicMock()
+        discovery = {"sources": valid_dataset()["meta"]["sources"], "conflicts": [], "notes": []}
         with mock.patch.object(host, "_has_api_token", return_value=True), mock.patch.object(
-            host, "_call_api_direct", return_value=json.dumps(valid_dataset())
+            host, "_call_api_direct", side_effect=[
+                json.dumps(discovery), json.dumps(valid_dataset())
+            ]
         ), mock.patch.object(host.subprocess, "Popen", popen):
             dataset = host.run_claude_query("sample", "Sample Tool", "add", prefer_web=False)
         popen.assert_not_called()
@@ -457,6 +507,26 @@ class HostDiffEnrichmentTests(unittest.TestCase):
         self.assertEqual(diff["risks"], [])
         self.assertEqual(diff["counts"]["modified"], 1)
 
+    def test_diff_flags_new_repository_and_source_conflict(self):
+        old = host.validate_dataset(self._with_id("item-1"), "sample")
+        new_payload = self._with_id("item-1")
+        new_payload["meta"]["sources"].append({
+            "id": "codex-repo",
+            "title": "Codex repository",
+            "url": "https://github.com/openai/codex/releases",
+            "kind": "official-repository",
+            "maintainer": "OpenAI",
+            "evidenceTier": "first-party",
+            "lastVerifiedAt": "2026-06-21",
+            "purposes": ["release-notes"],
+        })
+        new_payload["sourceConflicts"] = ["官方文档与 Release 的命令状态不同"]
+        new = host.validate_dataset(new_payload, "sample")
+        diff = host.build_dataset_diff(old, new)
+        self.assertEqual(len(diff["sourceChanges"]["added"]), 1)
+        self.assertEqual(len(diff["sourceChanges"]["conflicts"]), 1)
+        self.assertTrue(any("新增需确认来源" in risk for risk in diff["risks"]))
+
     def test_quality_warning_flags_keyword_gap(self):
         warnings = host.build_quality_warnings(valid_dataset())
         self.assertTrue(any("语义关键词覆盖不足" in warning for warning in warnings))
@@ -496,6 +566,17 @@ class HostSourceTierGenerationTests(unittest.TestCase):
         # 白名单动态注入：每个域名都应出现在 prompt 中
         for domain in host.QUASI_OFFICIAL_DOMAINS:
             self.assertIn(domain, prompt)
+        self.assertIn("每个 item 必须用 sourceIds 绑定证据", prompt)
+        self.assertNotIn("目标 50 条以上", prompt)
+
+    def test_source_discovery_prompt_precedes_content_generation(self):
+        prompt = host.build_source_discovery_prompt(
+            "codex", "Codex CLI", "update", web_enabled=True
+        )
+        self.assertIn("来源发现", prompt)
+        self.assertIn("official-repository", prompt)
+        self.assertIn("tldr 只适合实用案例", prompt)
+        self.assertIn("https://github.com/openai/codex", prompt)
 
     def test_prompt_offline_forbids_quasi_official(self):
         prompt = host.build_prompt("sample", "Sample", "add", web_enabled=False)

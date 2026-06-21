@@ -21,5 +21,8 @@ assert(script.includes("主要匹配"), "search results must explain their prima
 assert(script.includes("example-summary"), "search results must surface a usage summary");
 assert(script.includes("event.key !== \"Tab\""), "onboarding must trap keyboard focus");
 assert(script.includes("focusSearch: true"), "finishing onboarding must restore focus to search");
+assert(script.includes("官方仓库确认") && script.includes("本机帮助确认"), "source evidence labels are required");
+assert(script.includes("exampleProvenanceLabel"), "example authorship and evidence must be rendered separately");
+assert(script.includes("sourceChanges.conflicts"), "update preview must display source conflicts");
 
 console.log("Popup UX contract tests passed.");

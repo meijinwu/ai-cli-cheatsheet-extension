@@ -49,5 +49,12 @@ for (const tier of rules.sourceTiers) {
 for (const domain of rules.quasiOfficialDomains) {
   assert(hostPy.includes(`"${domain}"`), `host.py QUASI_OFFICIAL_DOMAINS 缺少域名 ${domain}`);
 }
+assert(!rules.quasiOfficialDomains.includes("readthedocs.io"), "托管平台不能整体进入权威白名单");
+for (const prefix of rules.authoritativeSourcePrefixes) {
+  assert(hostPy.includes(`"${prefix}"`), `host.py AUTHORITATIVE_SOURCE_PREFIXES 缺少 ${prefix}`);
+}
+for (const prefix of rules.officialRepositoryPrefixes) {
+  assert(hostPy.includes(`"${prefix}"`), `host.py OFFICIAL_REPOSITORY_PREFIXES 缺少 ${prefix}`);
+}
 
 console.log("Validation consistency tests passed.");

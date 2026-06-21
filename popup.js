@@ -114,6 +114,54 @@ function sourceTierLabel(sourceTier) {
   return "官方";
 }
 
+function normalizedSources(meta) {
+  if (Array.isArray(meta.sources) && meta.sources.length) return meta.sources;
+  if (!meta.sourceUrl) return [];
+  const tier = meta.sourceTier || "official";
+  return [{
+    id: "primary",
+    title: meta.source,
+    url: meta.sourceUrl,
+    kind: tier === "official" ? "official-doc" : tier === "quasi-official" ? "authoritative-reference" : "community",
+    maintainer: new URL(meta.sourceUrl).hostname,
+    evidenceTier: tier === "official" ? "first-party" : tier === "quasi-official" ? "authoritative-community" : "community",
+    lastVerifiedAt: meta.updatedAt,
+  }];
+}
+
+function evidenceLabel(tier, kind = "") {
+  if (kind === "local-help") return "本机帮助确认";
+  if (kind === "official-repository") return "官方仓库确认";
+  if (tier === "first-party") return "官方确认";
+  if (tier === "authoritative-community") return "权威社区补充";
+  if (tier === "community") return "社区参考";
+  return "未独立核验";
+}
+
+function exampleProvenanceLabel(example) {
+  if (example.authorship === "official" && example.adaptation === "verbatim") return "官方原例";
+  if (example.evidenceTier === "first-party") return "基于官方资料改写";
+  if (example.evidenceTier === "authoritative-community") return "权威社区补充";
+  if (example.authorship === "editorial") return "编辑整理场景";
+  return "自动生成";
+}
+
+function itemEvidence(entry, sources) {
+  const ids = entry.item.sourceIds || [];
+  const linked = ids.map((id) => sources.find((source) => source.id === id)).filter(Boolean);
+  if (linked.length) {
+    const best = linked.sort((a, b) =>
+      ["none", "community", "authoritative-community", "first-party"].indexOf(b.evidenceTier)
+      - ["none", "community", "authoritative-community", "first-party"].indexOf(a.evidenceTier)
+    )[0];
+    return evidenceLabel(best.evidenceTier, best.kind);
+  }
+  const tiers = (entry.item.examples || []).map((example) => example.evidenceTier);
+  if (tiers.includes("first-party")) return "官方确认";
+  if (tiers.includes("authoritative-community")) return "权威社区补充";
+  return "未独立核验";
+}
+
 function riskFor(command, examples) {
   return CORE.classifyCommandRisk(command, examples);
 }
@@ -286,6 +334,7 @@ function collectEntries() {
 
 function renderRow(entry, query, includeBadge = false) {
   const tool = getAllData()[entry.toolId];
+  const sources = normalizedSources(tool.meta);
   const key = `${entry.toolId}::${entry.itemId}`;
   const examples = (entry.item.examples || []).map((example, index) => ({
     ...example,
@@ -311,13 +360,19 @@ function renderRow(entry, query, includeBadge = false) {
     commandRisk.requiresConfirmation ? `<span class="trust-tag risk">高风险</span>` : "",
     isStale ? `<span class="trust-tag stale">资料较旧</span>` : "",
     tierTag,
+    `<span class="trust-tag tier">${escapeHtml(itemEvidence(entry, sources))}</span>`,
   ].join("");
   const examplesId = `examples-${entry.toolId}-${entry.itemId}`;
   const examplesHtml = examplesOpen ? `<div class="examples">${examples.map((example) => `
     <div class="example">
       <div class="example-value">${highlightHtml(example.platformInfo.value, query)}</div>
       <div class="example-desc">${highlightHtml(example.description, query)}</div>
-      <div class="example-source">${example.sourceType === "official" ? "官方示例" : example.sourceType === "quasi-official" ? "类官方示例" : example.sourceType === "manual" ? "人工整理" : "AI 整理"}${example.sourceUrl ? ` · <a class="example-doc" href="${escapeHtml(example.sourceUrl)}" target="_blank" rel="noopener noreferrer">文档</a>` : ""}</div>
+      ${example.scenario ? `<div class="example-context">场景：${escapeHtml(example.scenario)}</div>` : ""}
+      ${example.goal ? `<div class="example-context">目标：${escapeHtml(example.goal)}</div>` : ""}
+      ${example.expected ? `<div class="example-context">结果：${escapeHtml(example.expected)}</div>` : ""}
+      ${example.prerequisites ? `<div class="example-context">前提：${escapeHtml(example.prerequisites)}</div>` : ""}
+      ${example.caveat ? `<div class="example-context">注意：${escapeHtml(example.caveat)}</div>` : ""}
+      <div class="example-source">${escapeHtml(exampleProvenanceLabel(example))}${example.sourceUrl ? ` · <a class="example-doc" href="${escapeHtml(example.sourceUrl)}" target="_blank" rel="noopener noreferrer">证据</a>` : ""}</div>
       ${example.warning ? `<div class="example-warning">⚠ ${escapeHtml(example.warning)}</div>` : ""}
       ${example.copyable !== false ? `<button class="act example-copy" data-example="${example.index}" title="复制此用法" aria-label="复制此用法">复制</button>` : ""}
     </div>`).join("")}</div>` : "";
@@ -340,11 +395,14 @@ function renderRow(entry, query, includeBadge = false) {
 function sourceCard(toolId) {
   const meta = getAllData()[toolId].meta;
   const tierLabel = sourceTierLabel(meta.sourceTier);
-  const linkLabel = meta.sourceTier === "official" || !meta.sourceTier ? "打开官方来源" : `打开${tierLabel}来源`;
+  const sources = normalizedSources(meta);
   return `<div class="source-card" id="source-${toolId}">
     <div>${escapeHtml(meta.coverage || meta.source)}</div>
     <div>来源档位：${escapeHtml(tierLabel)} · 更新：${escapeHtml(meta.updatedAt || "未标注")} · 平台：${escapeHtml((meta.platforms || []).join(" / ") || "未标注")}</div>
-    ${meta.sourceUrl ? `<a href="${escapeHtml(meta.sourceUrl)}" target="_blank">${escapeHtml(linkLabel)} ↗</a>` : ""}
+    <div class="source-list">${sources.map((source) => `<div class="source-entry">
+      <span>${escapeHtml(evidenceLabel(source.evidenceTier, source.kind))} · ${escapeHtml(source.title || source.id)} · ${escapeHtml(source.maintainer || "维护者未标注")}${source.lastVerifiedAt ? ` · ${escapeHtml(source.lastVerifiedAt)}` : ""}</span>
+      ${source.url ? ` <a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">打开 ↗</a>` : ""}
+    </div>`).join("") || "<div>尚未登记可核验来源</div>"}</div>
   </div>`;
 }
 
@@ -532,6 +590,7 @@ function renderManage() {
   tools.innerHTML = getToolIds().map((toolId) => {
     const meta = getAllData()[toolId].meta;
     const canDelete = !meta.builtIn;
+    const sources = normalizedSources(meta);
     const verification = meta.verificationStatus === "web-assisted"
       ? "生成时允许联网辅助"
       : meta.verificationStatus === "model-knowledge"
@@ -545,8 +604,8 @@ function renderManage() {
       if (sourceCounts[example.sourceType] !== undefined) sourceCounts[example.sourceType] += 1;
     }));
     return `<div class="tool-card"><div class="tool-title"><input type="checkbox" data-enabled="${toolId}" ${enabledTools.has(toolId) ? "checked" : ""}><label>${escapeHtml(meta.name)}</label></div>
-      <div class="meta">${escapeHtml(meta.coverage || meta.source)}<br>来源档位：${escapeHtml(sourceTierLabel(meta.sourceTier))} · 更新：${escapeHtml(meta.updatedAt || "未标注")}（${escapeHtml(freshnessLabel(meta.updatedAt))}） · <span class="verify">${escapeHtml(verification)}</span>${meta.sourceUrl ? ` · <a href="${escapeHtml(meta.sourceUrl)}" target="_blank">${escapeHtml(sourceTierLabel(meta.sourceTier))}来源</a>` : ""}</div>
-      <div class="meta">用法覆盖：${exampleItems.length}/${getAllData()[toolId].items.length} · 官方 ${sourceCounts.official} / 类官方 ${sourceCounts["quasi-official"]} / 人工 ${sourceCounts.manual} / AI ${sourceCounts["ai-derived"]}</div>
+      <div class="meta">${escapeHtml(meta.coverage || meta.source)}<br>来源 ${sources.length} 个 · 更新：${escapeHtml(meta.updatedAt || "未标注")}（${escapeHtml(freshnessLabel(meta.updatedAt))}） · <span class="verify">${escapeHtml(verification)}</span></div>
+      <div class="meta">用法覆盖：${exampleItems.length}/${getAllData()[toolId].items.length} · 官方依据 ${sourceCounts.official} / 权威社区 ${sourceCounts["quasi-official"]} / 编辑整理 ${sourceCounts.manual} / 自动生成 ${sourceCounts["ai-derived"]}</div>
       <div class="tool-actions"><button class="text-btn" data-update="${toolId}">检查更新</button>${canDelete ? `<button class="text-btn danger" data-remove="${toolId}">删除</button>` : `<span class="meta">内置工具可隐藏，不可删除</span>`}</div></div>`;
   }).join("");
   tools.querySelectorAll("[data-enabled]").forEach((checkbox) => checkbox.addEventListener("change", async () => {
@@ -579,10 +638,14 @@ function renderPending() {
   const counts = pendingUpdate.diff?.counts || {};
   const risks = pendingUpdate.diff?.risks || [];
   const qualityWarnings = pendingUpdate.qualityWarnings || pendingUpdate.diff?.qualityWarnings || [];
+  const sourceChanges = pendingUpdate.diff?.sourceChanges || {};
   const detailRows = [
     ...(pendingUpdate.diff?.added || []).map((item) => `＋ ${item.cmd} · ${item.zh}`),
     ...(pendingUpdate.diff?.modified || []).map((item) => `≈ ${item.before} → ${item.after}`),
     ...(pendingUpdate.diff?.removed || []).map((item) => `－ ${item.cmd} · ${item.zh}`),
+    ...(sourceChanges.added || []).map((source) => `＋ 来源：${source.title || source.id}`),
+    ...(sourceChanges.removed || []).map((source) => `－ 来源：${source.title || source.id}`),
+    ...(sourceChanges.conflicts || []).map((conflict) => `⚠ 来源冲突：${conflict}`),
   ];
   panel.hidden = false;
   panel.innerHTML = `<h2>发现 ${escapeHtml(getAllData()[pendingUpdate.toolId]?.meta.name || pendingUpdate.toolId)} 更新</h2>

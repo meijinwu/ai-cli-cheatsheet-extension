@@ -71,6 +71,13 @@ POSSIBLE_SECRET_RE = re.compile(
 # 镜像 shared/validation-rules.json，由 tests/test_validation_consistency.js 防漂移。
 SOURCE_TIERS = {"official", "quasi-official", "community"}
 EXAMPLE_SOURCE_TYPES = {"official", "quasi-official", "manual", "ai-derived"}
+SOURCE_KINDS = {
+    "local-help", "official-doc", "official-repository", "release-notes",
+    "authoritative-reference", "community",
+}
+AUTHORSHIPS = {"official", "editorial", "generated"}
+EVIDENCE_TIERS = {"first-party", "authoritative-community", "community", "none"}
+ADAPTATIONS = {"verbatim", "adapted", "scenario-derived"}
 QUASI_OFFICIAL_DOMAINS = (
     "tldr.sh",
     "man7.org",
@@ -80,7 +87,22 @@ QUASI_OFFICIAL_DOMAINS = (
     "wiki.archlinux.org",
     "devhints.io",
     "cheat.sh",
-    "readthedocs.io",
+)
+AUTHORITATIVE_SOURCE_PREFIXES = (
+    "https://man7.org/linux/man-pages/",
+    "https://www.man7.org/linux/man-pages/",
+    "https://tldr.sh/",
+    "https://ss64.com/",
+    "https://manpages.debian.org/",
+    "https://developer.mozilla.org/",
+    "https://wiki.archlinux.org/",
+    "https://devhints.io/",
+    "https://cheat.sh/",
+)
+OFFICIAL_REPOSITORY_PREFIXES = (
+    "https://github.com/openai/codex",
+    "https://github.com/anthropics/claude-code",
+    "https://github.com/google-gemini/gemini-cli",
 )
 
 
@@ -94,6 +116,25 @@ def host_in_quasi_official_whitelist(url):
         return False
     host = host.lower()
     return any(host == domain or host.endswith(f".{domain}") for domain in QUASI_OFFICIAL_DOMAINS)
+
+
+def url_matches_prefixes(url, prefixes):
+    return bool(url) and any(url == prefix.rstrip("/") or url.startswith(prefix) for prefix in prefixes)
+
+
+def validate_source_ids(value, field, known_ids):
+    if value is None:
+        return []
+    if not isinstance(value, list) or not value:
+        raise ValidationError(f"{field} 必须是非空数组")
+    clean = []
+    for index, source_id in enumerate(value):
+        source_id = checked_text(source_id, f"{field}[{index}]")
+        if source_id not in known_ids:
+            raise ValidationError(f"{field}[{index}] 引用了不存在的来源：{source_id}")
+        if source_id not in clean:
+            clean.append(source_id)
+    return clean
 
 
 def find_claude_binary():
@@ -312,8 +353,10 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
     updated_at = checked_text(meta.get("updatedAt"), "meta.updatedAt", required=False)
     coverage = checked_text(meta.get("coverage"), "meta.coverage", required=False)
     platforms = meta.get("platforms")
-    if require_structured_source and not all([source_url, updated_at, coverage]):
-        raise ValidationError("新生成的数据必须包含 meta.sourceUrl、meta.updatedAt 和 meta.coverage")
+    if require_structured_source and (
+        not updated_at or not coverage or (not source_url and not meta.get("sources"))
+    ):
+        raise ValidationError("新生成的数据必须包含 meta.sources、meta.updatedAt 和 meta.coverage")
     if source_url:
         if not re.fullmatch(r"https://[^\s]+", source_url):
             raise ValidationError("meta.sourceUrl 必须是 HTTPS URL")
@@ -344,6 +387,90 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
             raise ValidationError("meta.order 必须是 0 到 9999 的整数")
         clean_meta["order"] = order
 
+    raw_sources = meta.get("sources")
+    # 旧数据兼容：从单一来源字段合成一条来源。新生成提示只允许输出 sources[]。
+    if raw_sources is None and source_url:
+        legacy_tier = source_tier or "official"
+        raw_sources = [{
+            "id": "primary",
+            "title": clean_meta["source"],
+            "url": source_url,
+            "kind": "official-doc" if legacy_tier == "official" else (
+                "authoritative-reference" if legacy_tier == "quasi-official" else "community"
+            ),
+            "maintainer": urllib.parse.urlparse(source_url).hostname or "未标注",
+            "evidenceTier": "first-party" if legacy_tier == "official" else (
+                "authoritative-community" if legacy_tier == "quasi-official" else "community"
+            ),
+            "lastVerifiedAt": updated_at or "",
+            "purposes": ["command-existence", "option-semantics", "examples"],
+        }]
+    if not isinstance(raw_sources, list) or not raw_sources:
+        if require_structured_source:
+            raise ValidationError("新生成的数据必须包含非空 meta.sources")
+        raw_sources = []
+    clean_sources = []
+    source_ids = set()
+    for source_index, source in enumerate(raw_sources):
+        if not isinstance(source, dict):
+            raise ValidationError(f"meta.sources[{source_index}] 必须是对象")
+        field = f"meta.sources[{source_index}]"
+        source_id = checked_text(source.get("id"), f"{field}.id")
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{2,64}", source_id):
+            raise ValidationError(f"{field}.id 非法")
+        if source_id in source_ids:
+            raise ValidationError(f"meta.sources 存在重复 id：{source_id}")
+        source_ids.add(source_id)
+        kind = checked_text(source.get("kind"), f"{field}.kind")
+        evidence_tier = checked_text(source.get("evidenceTier"), f"{field}.evidenceTier")
+        if kind not in SOURCE_KINDS:
+            raise ValidationError(f"{field}.kind 非法")
+        if evidence_tier not in EVIDENCE_TIERS - {"none"}:
+            raise ValidationError(f"{field}.evidenceTier 非法")
+        url = checked_text(source.get("url"), f"{field}.url", required=kind != "local-help")
+        if url and not re.fullmatch(r"https://[^\s]+", url):
+            raise ValidationError(f"{field}.url 必须是 HTTPS URL")
+        if kind == "official-repository" and not url_matches_prefixes(url, OFFICIAL_REPOSITORY_PREFIXES):
+            raise ValidationError(f"{field} 不是已登记的官方仓库")
+        if kind == "authoritative-reference" and not url_matches_prefixes(
+            url, AUTHORITATIVE_SOURCE_PREFIXES
+        ):
+            raise ValidationError(f"{field} 不是已登记的权威第三方来源")
+        if kind in {"local-help", "official-doc", "official-repository", "release-notes"}:
+            if evidence_tier != "first-party":
+                raise ValidationError(f"{field} 的 evidenceTier 必须为 first-party")
+        if kind == "authoritative-reference" and evidence_tier != "authoritative-community":
+            raise ValidationError(f"{field} 的 evidenceTier 必须为 authoritative-community")
+        verified_at = checked_text(
+            source.get("lastVerifiedAt"), f"{field}.lastVerifiedAt", required=False
+        )
+        if verified_at and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", verified_at):
+            raise ValidationError(f"{field}.lastVerifiedAt 必须是 YYYY-MM-DD")
+        purposes = source.get("purposes")
+        if not isinstance(purposes, list) or not purposes or any(
+            not isinstance(purpose, str) or not purpose.strip() for purpose in purposes
+        ):
+            raise ValidationError(f"{field}.purposes 必须是非空字符串数组")
+        clean_source = {
+            "id": source_id,
+            "title": checked_text(source.get("title"), f"{field}.title"),
+            "kind": kind,
+            "maintainer": checked_text(source.get("maintainer"), f"{field}.maintainer"),
+            "evidenceTier": evidence_tier,
+            "purposes": list(dict.fromkeys(purpose.strip() for purpose in purposes)),
+        }
+        if url:
+            clean_source["url"] = url
+        if verified_at:
+            clean_source["lastVerifiedAt"] = verified_at
+        version = checked_text(source.get("version"), f"{field}.version", required=False)
+        if version:
+            clean_source["version"] = version
+        clean_sources.append(clean_source)
+    if clean_sources:
+        clean_meta["sources"] = clean_sources
+    source_by_id = {source["id"]: source for source in clean_sources}
+
     clean_items = []
     duplicate_keys = set()
     item_ids = set()
@@ -363,6 +490,11 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         context = checked_text(item.get("context"), f"items[{index}].context", required=False)
         if context:
             clean_item["context"] = context
+        item_source_ids = validate_source_ids(
+            item.get("sourceIds"), f"items[{index}].sourceIds", source_ids
+        )
+        if item_source_ids:
+            clean_item["sourceIds"] = item_source_ids
         keywords = item.get("keywords")
         if keywords is not None:
             if (
@@ -424,6 +556,69 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                         f"items[{index}].examples[{example_index}].sourceType 为 quasi-official 时，"
                         "sourceUrl 主机名必须在白名单内"
                     )
+                authorship = example.get("authorship")
+                if authorship is None:
+                    authorship = (
+                        "generated" if clean_example["sourceType"] == "ai-derived" else "editorial"
+                    )
+                evidence_tier = example.get("evidenceTier")
+                if evidence_tier is None:
+                    evidence_tier = {
+                        "official": "first-party",
+                        "quasi-official": "authoritative-community",
+                        "manual": "community" if example_source_url else "none",
+                        "ai-derived": "none",
+                    }[clean_example["sourceType"]]
+                adaptation = example.get("adaptation")
+                if adaptation is None:
+                    adaptation = (
+                        "verbatim" if authorship == "official" else
+                        "scenario-derived" if authorship == "generated" else "adapted"
+                    )
+                if authorship not in AUTHORSHIPS:
+                    raise ValidationError(f"items[{index}].examples[{example_index}].authorship 非法")
+                if evidence_tier not in EVIDENCE_TIERS:
+                    raise ValidationError(f"items[{index}].examples[{example_index}].evidenceTier 非法")
+                if adaptation not in ADAPTATIONS:
+                    raise ValidationError(f"items[{index}].examples[{example_index}].adaptation 非法")
+                clean_example.update({
+                    "authorship": authorship,
+                    "evidenceTier": evidence_tier,
+                    "adaptation": adaptation,
+                })
+                example_source_ids = validate_source_ids(
+                    example.get("sourceIds"),
+                    f"items[{index}].examples[{example_index}].sourceIds",
+                    source_ids,
+                )
+                if example_source_ids:
+                    clean_example["sourceIds"] = example_source_ids
+                if clean_example["sourceType"] == "official" and example_source_url:
+                    referenced = [
+                        source_by_id[source_id] for source_id in example_source_ids
+                        if source_id in source_by_id
+                    ] or [
+                        source for source in clean_sources
+                        if source.get("evidenceTier") == "first-party"
+                    ]
+                    example_host = urllib.parse.urlparse(example_source_url).hostname
+                    if referenced and not any(
+                        source.get("kind") == "local-help"
+                        or urllib.parse.urlparse(source.get("url", "")).hostname == example_host
+                        or url_matches_prefixes(example_source_url, OFFICIAL_REPOSITORY_PREFIXES)
+                        for source in referenced
+                    ):
+                        raise ValidationError(
+                            f"items[{index}].examples[{example_index}] 的 official URL 不是第一方来源"
+                        )
+                for optional_field in ("scenario", "goal", "expected", "prerequisites", "caveat"):
+                    optional_value = checked_text(
+                        example.get(optional_field),
+                        f"items[{index}].examples[{example_index}].{optional_field}",
+                        required=False,
+                    )
+                    if optional_value:
+                        clean_example[optional_field] = optional_value
                 warning = checked_text(
                     example.get("warning"),
                     f"items[{index}].examples[{example_index}].warning",
@@ -529,6 +724,15 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         "items": clean_items,
         "summary": summary,
     }
+    source_conflicts = payload.get("sourceConflicts", [])
+    if source_conflicts:
+        if not isinstance(source_conflicts, list) or any(
+            not isinstance(conflict, str) or not conflict.strip() for conflict in source_conflicts
+        ):
+            raise ValidationError("sourceConflicts 必须是字符串数组")
+        dataset["sourceConflicts"] = list(dict.fromkeys(
+            conflict.strip() for conflict in source_conflicts
+        ))
     dataset["qualityWarnings"] = build_quality_warnings(dataset)
     return dataset
 
@@ -543,6 +747,34 @@ def build_quality_warnings(dataset, previous_dataset=None):
         warnings.append(f"示例覆盖不足：当前 {covered} 条，目标 {expected} 条")
     if keyword_covered < expected:
         warnings.append(f"语义关键词覆盖不足：当前 {keyword_covered} 条，目标 {expected} 条")
+    evidenced = sum(1 for item in items if item.get("sourceIds"))
+    if evidenced < expected:
+        warnings.append(f"逐条证据覆盖不足：当前 {evidenced} 条，目标 {expected} 条")
+    examples = [
+        example for item in items for example in (item.get("examples") or [])
+    ]
+    scenario_complete = sum(
+        1 for example in examples
+        if example.get("scenario") and example.get("goal") and example.get("expected")
+    )
+    if examples and scenario_complete < len(examples):
+        warnings.append(
+            f"场景案例结构不足：完整 {scenario_complete}/{len(examples)}"
+        )
+    unverified = sum(
+        1 for example in examples if example.get("evidenceTier", "none") == "none"
+    )
+    if unverified:
+        warnings.append(f"未独立核验案例：{unverified} 条")
+    repetitive = sum(
+        1 for item in items for example in (item.get("examples") or [])
+        if example.get("description", "").strip() == item.get("zh", "").strip()
+    )
+    if repetitive:
+        warnings.append(f"案例说明与条目释义重复：{repetitive} 条")
+    conflicts = dataset.get("sourceConflicts") or []
+    if conflicts:
+        warnings.append(f"来源冲突待核对：{len(conflicts)} 项")
     if previous_dataset is not None:
         previous_covered = sum(1 for item in previous_dataset.get("items", []) if item.get("examples"))
         if covered < previous_covered:
@@ -553,6 +785,8 @@ def build_quality_warnings(dataset, previous_dataset=None):
 def render_data_file(dataset):
     tool_id = dataset["meta"]["id"]
     serializable = {"meta": dataset["meta"], "items": dataset["items"]}
+    if dataset.get("sourceConflicts"):
+        serializable["sourceConflicts"] = dataset["sourceConflicts"]
     return (
         "// Generated from validated structured data. Manual edits must follow data/SCHEMA.md.\n"
         "window.CHEATSHEET_DATA = window.CHEATSHEET_DATA || {};\n"
@@ -592,7 +826,46 @@ def extract_json_output(stdout):
     return parsed
 
 
-def build_prompt(tool_id, display_name, mode, web_enabled):
+def build_source_discovery_prompt(tool_id, display_name, mode, web_enabled):
+    registry = {
+        "authoritativeSourcePrefixes": AUTHORITATIVE_SOURCE_PREFIXES,
+        "officialRepositoryPrefixes": OFFICIAL_REPOSITORY_PREFIXES,
+    }
+    network_rule = (
+        "你可以联网逐个打开并核对 URL。"
+        if web_enabled else
+        "你不能联网；不要提出无法确认的第三方 URL，只保留高度确信的第一方资料。"
+    )
+    return f"""
+你正在为「{display_name}」（工具 ID：{tool_id}）执行{('新增' if mode == 'add' else '更新')}前的来源发现。
+{network_rule}
+只输出 JSON 对象，不要 Markdown。格式：
+{{
+  "sources": [{{
+    "id": "稳定短 ID",
+    "title": "页面或本机帮助名称",
+    "url": "HTTPS URL；local-help 可省略",
+    "kind": "local-help|official-doc|official-repository|release-notes|authoritative-reference|community",
+    "maintainer": "维护组织",
+    "evidenceTier": "first-party|authoritative-community|community",
+    "lastVerifiedAt": "YYYY-MM-DD",
+    "version": "可选；适用版本",
+    "purposes": ["command-existence|option-semantics|examples|release-notes|cross-check"]
+  }}],
+  "conflicts": ["来源之间发现的冲突；没有则空数组"],
+  "notes": ["采用或拒绝候选来源的理由"]
+}}
+
+来源优先级：当前版本本机 --help 或 /help；官方文档；官方仓库与 Release/Changelog；
+已登记权威第三方；普通社区仅可作为线索。
+tldr 只适合实用案例，不能单独证明新参数存在。托管平台不能整体授信。
+GitHub 仅认可已登记的厂商仓库。精确登记范围如下：
+{json.dumps(registry, ensure_ascii=False)}
+不得编造 URL。找不到可靠来源时返回较少来源，并在 notes 说明。
+""".strip()
+
+
+def build_prompt(tool_id, display_name, mode, web_enabled, discovered_sources=None):
     current_text = ""
     data_path = tool_data_path(tool_id)
     if mode == "update":
@@ -639,8 +912,14 @@ def build_prompt(tool_id, display_name, mode, web_enabled):
         if mode == "update"
         else ""
     )
+    discovered_section = json.dumps(
+        discovered_sources or {"sources": [], "conflicts": [], "notes": []},
+        ensure_ascii=False,
+        indent=2,
+    )
     return f"""
-你正在为浏览器扩展{operation}「{display_name}」的数据。基于你已知的官方文档与训练知识整理，确保命令准确、宁可少收录也不要编造。
+你正在为浏览器扩展{operation}「{display_name}」的数据。先使用下方已经完成的来源发现结果，再生成内容。
+确保命令准确、宁可少收录也不要编造；没有逐条证据的候选默认不要写入 items。
 只输出一个 JSON 对象，不要 Markdown，不要解释，不要任何前缀文字。
 
 目标工具 ID：{tool_id}
@@ -657,6 +936,17 @@ JSON 格式：
     "sourceTier": "official|quasi-official|community",
     "updatedAt": "YYYY-MM-DD",
     "coverage": "完整命令列表或常用子集说明",
+    "sources": [{{
+      "id": "稳定来源ID",
+      "title": "来源名称",
+      "url": "HTTPS URL；local-help 可省略",
+      "kind": "local-help|official-doc|official-repository|release-notes|authoritative-reference|community",
+      "maintainer": "维护组织",
+      "evidenceTier": "first-party|authoritative-community|community",
+      "lastVerifiedAt": "YYYY-MM-DD",
+      "version": "可选版本",
+      "purposes": ["command-existence|option-semantics|examples|release-notes|cross-check"]
+    }}],
     "platforms": ["mac", "windows", "linux"],
     "builtIn": false,
     "order": 999
@@ -670,14 +960,24 @@ JSON 格式：
       "zh": "清晰中文说明",
       "context": "可选；相同 cmd 在不同场景出现时必须填写",
       "keywords": ["3到8个用户常用用途词"],
+      "sourceIds": ["支持该命令存在和语义的来源ID"],
       "examples": [
         {{
+          "scenario": "用户在什么情况下需要它",
+          "goal": "要解决的具体问题",
           "value": "具体命令、Markdown输入或操作步骤",
-          "description": "中文说明执行后会发生什么",
+          "description": "自然说明为什么这样用，避免重复命令释义",
+          "expected": "执行后应看到什么",
+          "prerequisites": "可选；执行前提",
+          "caveat": "可选；版本、平台或易混淆点",
           "copyable": true,
           "warning": "可选；危险操作或注意事项",
           "sourceType": "official|quasi-official|manual|ai-derived",
           "sourceUrl": "可选；具体示例来源的HTTPS地址",
+          "sourceIds": ["支持这个案例的来源ID"],
+          "authorship": "official|editorial|generated",
+          "evidenceTier": "first-party|authoritative-community|community|none",
+          "adaptation": "verbatim|adapted|scenario-derived",
           "platforms": ["可选；mac/windows/linux"],
           "platformValues": {{"mac": "可选的平台专属示例"}}
         }}
@@ -686,22 +986,28 @@ JSON 格式：
       "platformCmds": {{"mac": "可选的平台专属命令"}}
     }}
   ],
+  "sourceConflicts": ["来源之间仍未解决的冲突；没有则空数组"],
   "summary": "一句话说明数据变化"
 }}
 
 要求：
 1. {source_policy}
-2. 尽量覆盖全面，不要只给极少量常用项。CLI 工具应收录：常用子命令（slash）以及每个重要子命令下的常用选项（flag），目标 50 条以上；IDE 类工具只收录默认快捷键常用子集并在 source 标明平台和限制。
+2. 按功能区覆盖核心能力，不设凑数目标。CLI 应覆盖交互命令、重要子命令及关键选项；IDE 只收录默认快捷键的实用子集，并明确平台和限制。
 3. flag 类条目的 cmd 写成「子命令 + 选项」的完整形式（例如 git commit -m、git log --oneline），并用 context 标注所属子命令。
 4. 同一 cat、cmd、context 组合不得重复。
 5. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。{upgrade_note}
 6. 所有字符串必须是有效 JSON 字符串。
-7. sourceUrl、updatedAt、coverage 必须填写；平台快捷键应尽量使用 platformCmds 表达。
+7. sources、updatedAt、coverage 必须填写；每个 item 必须用 sourceIds 绑定证据；平台快捷键应尽量使用 platformCmds 表达。
 8. 每个条目都必须提供 keywords 和 examples；每条最多 3 个示例。
-9. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；Markdown 工具示例提供可复制输入。
+9. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；案例应包含 scenario、goal、expected，说明何时用、结果是什么以及不要与什么混淆。
 10. 更新时保留已有 keywords 和 examples，并为所有新增条目补充关键词和示例。
 11. 官方明确示例标记 official；人工整理标记 manual；根据命令语义推导的标记 ai-derived；可信第三方补充按上面第 1 条的来源优先级处理。
 12. {tier_rule}
+13. authorship 表示谁写的案例，evidenceTier 表示证据强度，adaptation 表示是否改写，三者不得混为一个 sourceType。
+14. 高风险命令必须提供 warning，并在 description 或 caveat 中给出预览、备份或更安全替代方案。
+
+来源发现结果：
+{discovered_section}
 
 {current_section}
 """.strip()
@@ -719,13 +1025,35 @@ def _demote_quasi_official(dataset):
     并去掉其未经核实的 sourceUrl。返回同一个对象（就地清洗后由调用方写盘）。
     """
     meta = dataset.get("meta")
+    removed_ids = set()
     if isinstance(meta, dict) and meta.get("sourceTier") == "quasi-official":
         meta["sourceTier"] = "community"
+    if isinstance(meta, dict):
+        safe_sources = []
+        for source in meta.get("sources", []) or []:
+            if source.get("evidenceTier") == "authoritative-community":
+                removed_ids.add(source.get("id"))
+                continue
+            safe_sources.append(source)
+        if "sources" in meta:
+            meta["sources"] = safe_sources
     for item in dataset.get("items", []):
+        if removed_ids:
+            item["sourceIds"] = [
+                source_id for source_id in item.get("sourceIds", []) if source_id not in removed_ids
+            ]
         for example in item.get("examples", []) or []:
             if isinstance(example, dict) and example.get("sourceType") == "quasi-official":
                 example["sourceType"] = "ai-derived"
                 example.pop("sourceUrl", None)
+                example["authorship"] = "generated"
+                example["evidenceTier"] = "none"
+                example["adaptation"] = "scenario-derived"
+            if removed_ids:
+                example["sourceIds"] = [
+                    source_id for source_id in example.get("sourceIds", [])
+                    if source_id not in removed_ids
+                ]
     return dataset
 
 
@@ -788,28 +1116,7 @@ def _call_api_direct(prompt):
         conn.close()
 
 
-def run_claude_query(tool_id, display_name, mode, prefer_web=False):
-    if mode == "add" and os.path.exists(tool_data_path(tool_id)):
-        raise ValidationError(f"data/{tool_id}.js 已存在，请使用更新模式")
-
-    # 有 token 时默认走 API（无联网、快速）；勾选了"联网核对"(prefer_web) 则即使有 token
-    # 也强制走 claude -p 联网路径，以便在官方缺口处补充并核实类官方来源。
-    # web_enabled 决定 prompt 是否允许 quasi-official 补缺，与路径选择保持一致。
-    use_api = _has_api_token() and not prefer_web
-    web_enabled = not use_api
-    prompt = build_prompt(tool_id, display_name, mode, web_enabled)
-
-    if use_api:
-        # 直接调用 API，完全绕过 claude -p 的技能/计划模式系统
-        api_text = _call_api_direct(prompt)
-        if api_text is not None:
-            # 校验前先降级：离线无法核实第三方来源，去掉类官方标签（防御纵深，
-            # 即使模型无视 prompt，也避免未核实的白名单 URL 混入或导致校验失败）。
-            raw = _demote_quasi_official(extract_json_output(api_text))
-            dataset = validate_dataset(raw, tool_id)
-            dataset["meta"]["verificationStatus"] = "model-knowledge"
-            return dataset
-
+def _call_claude_cli(prompt, prefer_web=False):
     if not CLAUDE_BIN:
         if prefer_web:
             raise ValidationError(
@@ -856,8 +1163,40 @@ def run_claude_query(tool_id, display_name, mode, prefer_web=False):
         error = stderr.strip()[:2000] or "claude 命令执行失败"
         raise ValidationError(error)
 
-    dataset = validate_dataset(extract_json_output(stdout), tool_id)
-    dataset["meta"]["verificationStatus"] = "web-assisted"
+    return extract_json_output(stdout)
+
+
+def _run_generation_prompt(prompt, use_api, prefer_web=False):
+    if use_api:
+        api_text = _call_api_direct(prompt)
+        if api_text is not None:
+            return extract_json_output(api_text)
+    return _call_claude_cli(prompt, prefer_web)
+
+
+def run_claude_query(tool_id, display_name, mode, prefer_web=False):
+    if mode == "add" and os.path.exists(tool_data_path(tool_id)):
+        raise ValidationError(f"data/{tool_id}.js 已存在，请使用更新模式")
+
+    use_api = _has_api_token() and not prefer_web
+    web_enabled = not use_api
+    discovery_prompt = build_source_discovery_prompt(
+        tool_id, display_name, mode, web_enabled
+    )
+    discovered = _run_generation_prompt(discovery_prompt, use_api, prefer_web)
+    if not isinstance(discovered, dict) or not isinstance(discovered.get("sources"), list):
+        raise ValidationError("来源发现阶段没有返回合法的 sources 数组")
+
+    content_prompt = build_prompt(
+        tool_id, display_name, mode, web_enabled, discovered_sources=discovered
+    )
+    raw = _run_generation_prompt(content_prompt, use_api, prefer_web)
+    if use_api:
+        raw = _demote_quasi_official(raw)
+    dataset = validate_dataset(raw, tool_id)
+    dataset["meta"]["verificationStatus"] = (
+        "model-knowledge" if use_api else "web-assisted"
+    )
     return dataset
 
 
@@ -887,7 +1226,7 @@ def item_signature(item):
         key: item.get(key)
         for key in (
             "cat", "cmd", "en", "zh", "context", "keywords", "examples",
-            "platforms", "platformCmds",
+            "sourceIds", "platforms", "platformCmds",
         )
         if key in item
     }
@@ -904,7 +1243,9 @@ def preserve_existing_enrichment(old_dataset, new_dataset):
         old_examples = old_item.get("examples") or []
         new_examples = item.get("examples") or []
         old_has_reviewed = any(
-            example.get("sourceType") in {"official", "manual"} for example in old_examples
+            example.get("evidenceTier") in {"first-party", "authoritative-community"}
+            or example.get("sourceType") in {"official", "quasi-official", "manual"}
+            for example in old_examples
         )
         if old_examples and (not new_examples or old_has_reviewed):
             item["examples"] = old_examples
@@ -942,6 +1283,48 @@ def build_dataset_diff(old_dataset, new_dataset):
     if old_dataset.get("meta", {}).get("builtIn") != new_dataset.get("meta", {}).get("builtIn"):
         risks.append("内置工具标记发生变化")
 
+    old_sources = {
+        source["id"]: source for source in old_dataset.get("meta", {}).get("sources", [])
+    }
+    new_sources = {
+        source["id"]: source for source in new_dataset.get("meta", {}).get("sources", [])
+    }
+    added_sources = [new_sources[source_id] for source_id in new_sources.keys() - old_sources.keys()]
+    removed_sources = [old_sources[source_id] for source_id in old_sources.keys() - new_sources.keys()]
+    modified_sources = [
+        {"before": old_sources[source_id], "after": new_sources[source_id]}
+        for source_id in old_sources.keys() & new_sources.keys()
+        if old_sources[source_id] != new_sources[source_id]
+    ]
+    for source in added_sources:
+        if source.get("kind") in {"authoritative-reference", "community", "official-repository"}:
+            risks.append(f"新增需确认来源：{source.get('title')}（{source.get('kind')}）")
+    if removed_sources:
+        risks.append(f"移除 {len(removed_sources)} 个已有来源")
+
+    evidence_rank = {
+        "none": 0, "community": 1, "authoritative-community": 2, "first-party": 3
+    }
+    old_evidence = {
+        item["id"]: max(
+            [evidence_rank.get(example.get("evidenceTier", "none"), 0)
+             for example in item.get("examples", [])] or [0]
+        )
+        for item in old_dataset.get("items", []) if item.get("id")
+    }
+    evidence_downgrades = [
+        item["id"] for item in new_dataset.get("items", [])
+        if item.get("id") in old_evidence and max(
+            [evidence_rank.get(example.get("evidenceTier", "none"), 0)
+             for example in item.get("examples", [])] or [0]
+        ) < old_evidence[item["id"]]
+    ]
+    if evidence_downgrades:
+        risks.append(f"{len(evidence_downgrades)} 个条目的案例证据等级下降")
+    source_conflicts = new_dataset.get("sourceConflicts") or []
+    if source_conflicts:
+        risks.append(f"存在 {len(source_conflicts)} 项来源冲突")
+
     def summarize(items):
         return [
             {"id": item.get("id"), "cmd": item.get("cmd"), "zh": item.get("zh")}
@@ -967,6 +1350,13 @@ def build_dataset_diff(old_dataset, new_dataset):
         ],
         "removed": summarize(removed),
         "metaChanges": meta_changes,
+        "sourceChanges": {
+            "added": added_sources,
+            "removed": removed_sources,
+            "modified": modified_sources,
+            "conflicts": source_conflicts,
+            "evidenceDowngrades": evidence_downgrades,
+        },
         "risks": risks,
     }
 

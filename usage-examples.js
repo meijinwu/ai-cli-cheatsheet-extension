@@ -1,7 +1,7 @@
 (function initUsageExamples(globalScope) {
   "use strict";
 
-  const SOURCE_TYPES = new Set(["official", "manual", "ai-derived"]);
+  const SOURCE_TYPES = new Set(["official", "quasi-official", "manual", "ai-derived"]);
   const RISK_PATTERNS = {
     deleteOrOverwrite: /(?:\brm(?:\s|$)|\breset\s+--hard\b|--delete\b)|(^|\s)>(?!>)/i,
     permissionChange: /\b(chmod|chown)\b/i,
@@ -288,20 +288,50 @@
       generated: true,
       copyable: !isOperation && !unresolved && !risks.length,
       sourceType: "ai-derived",
+      authorship: "generated",
+      evidenceTier: "none",
+      adaptation: "scenario-derived",
       ...(risks.length ? { warning: RISK_WARNINGS[risks[0]], riskLevels: risks } : {}),
       ...(Array.isArray(item.platforms) ? { platforms: item.platforms } : {}),
       ...(platformValues ? { platformValues } : {}),
     };
   }
 
-  function normalizeCuratedExample(example) {
+  function sameSourceHost(left, right) {
+    try {
+      const leftHost = new URL(left).hostname.replace(/^www\./, "");
+      const rightHost = new URL(right).hostname.replace(/^www\./, "");
+      return leftHost === rightHost;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function normalizeCuratedExample(example, tool) {
     const risks = classifyRisk(example.value);
-    const sourceType = SOURCE_TYPES.has(example.sourceType)
+    const explicitlyTyped = SOURCE_TYPES.has(example.sourceType);
+    const firstPartyUrl = example.sourceUrl && (
+      sameSourceHost(example.sourceUrl, tool?.meta?.sourceUrl)
+      || /^https:\/\/github\.com\/(?:openai\/codex|anthropics\/claude-code|google-gemini\/gemini-cli)(?:\/|$)/.test(example.sourceUrl)
+    );
+    const sourceType = explicitlyTyped
       ? example.sourceType
-      : example.sourceUrl ? "manual" : "ai-derived";
+      : firstPartyUrl ? "official" : example.sourceUrl ? "manual" : "ai-derived";
+    const authorship = example.authorship
+      || (sourceType === "ai-derived" ? "generated" : sourceType === "official" && example.adaptation === "verbatim" ? "official" : "editorial");
+    const evidenceTier = example.evidenceTier
+      || (sourceType === "official" ? "first-party"
+        : sourceType === "quasi-official" ? "authoritative-community"
+          : sourceType === "manual" && example.sourceUrl ? "community" : "none");
+    const adaptation = example.adaptation
+      || (authorship === "official" ? "verbatim"
+        : sourceType === "ai-derived" ? "scenario-derived" : "adapted");
     return {
       ...example,
       sourceType,
+      authorship,
+      evidenceTier,
+      adaptation,
       ...(risks.length ? {
         copyable: false,
         warning: example.warning || RISK_WARNINGS[risks[0]],
@@ -599,6 +629,56 @@
   };
 
   const enrichmentModules = globalScope.CHEATSHEET_ENRICHMENT_MODULES || {};
+  const SCENARIO_DETAILS = {
+    "claude-code": {
+      "/compact [指令]": ["长会话开始遗忘早期约定，但仍要继续当前任务", "保留架构决策和未完成事项并释放上下文", "上下文占用下降，后续回复仍遵循指定约定", "它不会开启新会话；需要彻底清空时使用 /clear"],
+      "/model [模型]": ["当前任务需要切换速度、成本或能力侧重点", "更换本次会话使用的模型", "状态栏显示新模型且对话上下文保留", "模型可用性取决于账号与组织策略"],
+      "/resume [会话]": ["终端重开后要继续昨天未完成的调试", "找回已有会话而不是重新解释背景", "选中的历史会话恢复并可继续输入", "不要与 /branch 混用；/branch 会创建新分支"],
+      "/plan [描述]": ["改动涉及多个模块，需要先明确影响范围", "只读分析并形成可审查的实施方案", "在修改文件前先得到步骤、风险和测试计划", "计划模式不会直接实施代码改动"],
+      "/review [PR]": ["合并前需要检查指定 PR 的正确性与测试缺口", "聚焦真实缺陷而不是泛泛总结", "返回按严重度排列且可定位的审查意见", "需要本地能访问对应仓库和 PR"],
+      "/permissions": ["工具调用频繁弹窗或权限范围过宽", "按工具调整允许、询问和拒绝规则", "后续调用按新规则审批", "放宽权限前先确认工作目录和命令边界"],
+      "/context [all]": ["长任务接近上下文上限，需要找出占用来源", "判断哪些文件、工具输出或历史最占空间", "显示完整上下文组成及优化建议", "这是诊断视图，不会自动删除内容"],
+      "/tasks": ["并行代理或后台命令较多，当前进度不清楚", "查看正在运行、完成或失败的后台任务", "任务列表显示状态并允许继续管理", "停止任务前确认它没有正在写入关键文件"],
+      "/diff": ["准备提交前要确认 Claude 实际改了什么", "查看工作区和各轮产生的差异", "打开可逐项检查的 diff 视图", "仍应配合测试和 git status 使用"],
+      "/rewind": ["最近几轮方向错误，需要回到较早检查点", "恢复代码与对话到选定状态", "选定检查点之后的状态被回退", "回退前先保存仍需保留的未提交工作"],
+    },
+    codex: {
+      "/compact": ["长会话接近上下文限制但任务尚未结束", "压缩历史并保留关键实现约束", "可用上下文增加且当前线程继续", "需要全新上下文时使用 /new 或 /clear"],
+      "/model": ["任务从快速问答转为复杂重构", "切换模型和可用的推理强度", "当前会话后续轮次使用新配置", "模型列表取决于账号和当前版本"],
+      "/plan [提示]": ["跨模块改动需要先确认接口和迁移顺序", "进入只读计划模式形成可执行方案", "输出包含实现步骤和验证方式的计划", "计划阶段不应修改仓库文件"],
+      "/review": ["提交前需要发现行为回归和缺失测试", "审查当前工作树而非生成改动摘要", "返回带文件位置和严重度的发现", "干净工作树可能没有可审查内容"],
+      "/resume": ["要继续之前保存的本地会话", "恢复历史上下文和任务状态", "选择器中的会话重新打开", "默认选择范围可能受当前目录限制"],
+      "/diff": ["执行代理修改后需要核对实际文件变化", "汇总暂存、未暂存和未跟踪改动", "终端展示当前 Git 差异", "它不会替代测试或代码审查"],
+      "/permissions": ["当前审批策略不适合任务风险", "在只读、自动或完全访问间调整权限", "后续工具调用采用新策略", "完全访问只应在受控环境启用"],
+      "codex exec \"任务\"（别名 codex e）": ["CI 或脚本需要非交互执行一个明确任务", "执行一次任务并把最终结果写到标准输出", "进程结束时返回结果和退出状态", "自动化中应固定工作目录和审批策略"],
+      "codex resume [--last|--all]": ["从终端直接恢复最近或跨目录的历史会话", "跳过重新描述项目背景", "目标会话恢复为交互模式", "--all 可能返回较多跨项目记录"],
+      "--sandbox, -s <模式>": ["启动前要限制代理能读取或写入的范围", "选择与任务风险匹配的沙盒策略", "会话按指定文件系统权限运行", "danger-full-access 会显著扩大影响范围"],
+    },
+    git: {
+      status: ["切换任务或提交前需要确认仓库是否干净", "区分已暂存、未暂存和未跟踪文件", "输出当前分支及各文件状态", "它只显示状态，不展示具体内容差异"],
+      diff: ["准备暂存前需要审阅工作区具体改动", "查看尚未加入暂存区的行级差异", "输出文件间的增删内容", "已暂存内容需改用 git diff --staged"],
+      "diff --staged\u0000diff": ["提交前要确认暂存区正是准备提交的内容", "审阅即将进入下一次提交的差异", "仅显示已暂存修改", "未暂存修改不会出现在结果中"],
+      "commit -m\u0000commit": ["一个逻辑改动已经测试并完成暂存", "创建带清晰说明的本地提交", "生成新提交并保留在当前分支", "提交前先检查 git diff --staged"],
+      "switch -c\u0000switch": ["开始独立功能且不应直接改主分支", "创建并立即切换到新分支", "HEAD 指向新分支，工作区内容保留", "分支名应符合团队约定"],
+      "pull": ["开始工作前需要同步远端最新提交", "抓取并整合当前上游分支", "本地分支更新或进入冲突处理", "有本地改动时先确认合并策略"],
+      "push -u\u0000push": ["新分支第一次推送到远端", "发布分支并建立默认上游", "远端创建分支，后续可直接 git push", "先确认远端名称和分支名"],
+      stash: ["需要临时切换任务但当前改动尚不能提交", "暂存工作区改动并恢复干净状态", "改动进入 stash 列表", "恢复时可能与新改动产生冲突"],
+      "reflog": ["reset、rebase 或误删分支后找不到原提交", "从本地引用移动历史中定位提交", "显示 HEAD 历史及可恢复哈希", "reflog 通常只存在于本地且会过期"],
+      "reset --hard\u0000reset": ["确认要彻底丢弃当前未提交改动", "让索引和工作区强制匹配指定提交", "未提交内容被移除", "先运行 git status 和 git diff，并优先考虑 stash 或 restore"],
+    },
+    linux: {
+      "ls -la": ["进入陌生目录后需要同时查看隐藏文件和权限", "获得文件类型、权限、所有者和时间信息", "终端显示包含隐藏项的长列表", "目录很大时可配合 less 分页"],
+      cd: ["准备在另一个项目目录执行命令", "切换 shell 当前工作目录", "后续相对路径都基于新目录解析", "执行前可用 pwd 确认当前位置"],
+      "grep -r": ["需要在源码目录中定位某段文本", "递归找出包含关键词的文件和行", "输出匹配文件路径与文本行", "二进制文件或大型依赖目录可能产生噪声"],
+      "find . -name": ["只知道文件名模式，不知道具体目录", "递归定位匹配名称的文件", "输出当前目录树下的匹配路径", "复杂条件注意括号和 shell 通配符转义"],
+      "tail -f": ["服务运行中需要持续观察新日志", "跟踪文件末尾追加内容", "新日志写入时实时显示", "日志轮转后可能需要 -F 才能继续跟踪"],
+      curl: ["排查接口是否可达以及返回头是否正确", "直接请求 HTTP 端点观察响应", "终端显示状态头和响应体", "生产接口避免在命令历史中写入密钥"],
+      sed: ["需要批量替换文本但应先确认匹配范围", "预览替换结果后再决定是否原地修改", "默认输出替换后的文本而不改文件", "使用 -i 前先备份；macOS 与 GNU sed 参数不同"],
+      "tar -xzf": ["收到 gzip 压缩归档，需要查看或解压内容", "把归档恢复为目录和文件", "文件写入当前目录", "先用 tar -tzf 查看路径，避免覆盖同名文件"],
+      chmod: ["脚本权限错误或文件访问范围不符合预期", "设置明确的所有者、组和其他用户权限", "文件模式位发生变化", "先用 ls -l 检查，避免无意开放敏感文件"],
+      "rm -rf": ["已确认某个临时目录可以永久删除", "递归删除目录且不逐项确认", "目标路径及内容不可恢复地消失", "先用 realpath 和 ls 检查目标，能用回收站工具时优先使用"],
+    },
+  };
 
   globalScope.CHEATSHEET_BUILD_FULL_ENRICHMENTS = function buildFullEnrichments(data) {
     const legacyWarnings = [];
@@ -620,8 +700,19 @@
         if (item.id && !stableEnrichment && (exactLegacyEnrichment || commandLegacyEnrichment)) {
           legacyWarnings.push(`${toolId}:${item.id} still uses cmd/context enrichment lookup`);
         }
+        const scenarioDetails = SCENARIO_DETAILS[toolId]?.[lookup]
+          || SCENARIO_DETAILS[toolId]?.[legacyLookup];
         const examples = (existing.examples || item.examples || [deriveExample(toolId, tool, item)])
-          .map(normalizeCuratedExample);
+          .map((example) => {
+            const detailed = scenarioDetails ? {
+              ...example,
+              scenario: example.scenario || scenarioDetails[0],
+              goal: example.goal || scenarioDetails[1],
+              expected: example.expected || scenarioDetails[2],
+              caveat: example.caveat || scenarioDetails[3],
+            } : example;
+            return normalizeCuratedExample(detailed, tool);
+          });
         const keywords = existing.keywords || item.keywords || deriveKeywords(item);
         byLookup.set(lookup, { ...existing, keywords, examples });
         if (lookup !== legacyLookup && byLookup.get(legacyLookup) === existing) byLookup.delete(legacyLookup);
