@@ -84,6 +84,7 @@ function getAllData() {
 }
 
 function applyCuratedEnrichments() {
+  window.CHEATSHEET_BUILD_FULL_ENRICHMENTS?.(getAllData());
   Object.entries(window.CHEATSHEET_ENRICHMENTS || {}).forEach(([toolId, enrichments]) => {
     const items = getAllData()[toolId]?.items || [];
     Object.entries(enrichments).forEach(([lookup, enrichment]) => {
@@ -244,6 +245,7 @@ function renderRow(entry, query, includeBadge = false) {
     <div class="example">
       <div class="example-value">${highlightHtml(example.platformInfo.value, query)}</div>
       <div class="example-desc">${highlightHtml(example.description, query)}</div>
+      <div class="example-source">${example.sourceType === "official" ? "官方示例" : example.sourceType === "manual" ? "人工整理" : "AI 整理"}</div>
       ${example.warning ? `<div class="example-warning">⚠ ${escapeHtml(example.warning)}</div>` : ""}
       ${example.copyable !== false ? `<button class="act example-copy" data-example="${example.index}" title="复制示例" aria-label="复制示例">⧉</button>` : ""}
     </div>`).join("")}</div>` : "";
@@ -439,8 +441,14 @@ function renderManage() {
       : meta.verificationStatus === "model-knowledge"
         ? "模型知识生成，待人工核验"
         : "来源状态未标注";
+    const exampleItems = (getAllData()[toolId].items || []).filter((item) => item.examples?.length);
+    const sourceCounts = { official: 0, manual: 0, "ai-derived": 0 };
+    exampleItems.forEach((item) => item.examples.forEach((example) => {
+      if (sourceCounts[example.sourceType] !== undefined) sourceCounts[example.sourceType] += 1;
+    }));
     return `<div class="tool-card"><div class="tool-title"><input type="checkbox" data-enabled="${toolId}" ${enabledTools.has(toolId) ? "checked" : ""}><label>${escapeHtml(meta.name)}</label></div>
       <div class="meta">${escapeHtml(meta.coverage || meta.source)}<br>更新：${escapeHtml(meta.updatedAt || "未标注")}（${escapeHtml(freshnessLabel(meta.updatedAt))}） · <span class="verify">${escapeHtml(verification)}</span>${meta.sourceUrl ? ` · <a href="${escapeHtml(meta.sourceUrl)}" target="_blank">官方来源</a>` : ""}</div>
+      <div class="meta">用法覆盖：${exampleItems.length}/${getAllData()[toolId].items.length} · 官方 ${sourceCounts.official} / 人工 ${sourceCounts.manual} / AI ${sourceCounts["ai-derived"]}</div>
       <div class="tool-actions"><button class="text-btn" data-update="${toolId}">检查更新</button>${canDelete ? `<button class="text-btn danger" data-remove="${toolId}">删除</button>` : `<span class="meta">内置工具可隐藏，不可删除</span>`}</div></div>`;
   }).join("");
   tools.querySelectorAll("[data-enabled]").forEach((checkbox) => checkbox.addEventListener("change", async () => {

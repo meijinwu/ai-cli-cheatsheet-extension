@@ -49,6 +49,10 @@ for (const id of files) {
 const data = context.window.CHEATSHEET_DATA || {};
 const enrichmentFile = path.join(root, "usage-examples.js");
 vm.runInContext(fs.readFileSync(enrichmentFile, "utf8"), context, { filename: enrichmentFile });
+if (typeof context.window.CHEATSHEET_BUILD_FULL_ENRICHMENTS !== "function") {
+  fail("usage-examples.js must expose CHEATSHEET_BUILD_FULL_ENRICHMENTS");
+}
+context.window.CHEATSHEET_BUILD_FULL_ENRICHMENTS(data);
 for (const [toolId, enrichments] of Object.entries(context.window.CHEATSHEET_ENRICHMENTS || {})) {
   if (!data[toolId]) fail(`usage-examples.js: unknown tool ${toolId}`);
   if (Object.keys(enrichments).length < 10) {
@@ -104,11 +108,11 @@ for (const id of files) {
       fail(`${id}[${index}]: invalid context`);
     }
     if (item.keywords !== undefined) {
-      if (!Array.isArray(item.keywords) || item.keywords.length > 20
+      if (!Array.isArray(item.keywords) || item.keywords.length < 3 || item.keywords.length > 8
         || item.keywords.some((keyword) => typeof keyword !== "string" || !keyword.trim())) {
         fail(`${id}[${index}]: invalid keywords`);
       }
-    }
+    } else fail(`${id}[${index}]: keywords required`);
     if (item.examples !== undefined) {
       if (!Array.isArray(item.examples) || item.examples.length === 0 || item.examples.length > 3) {
         fail(`${id}[${index}]: invalid examples`);
@@ -121,6 +125,12 @@ for (const id of files) {
         }
         if (example.copyable !== undefined && typeof example.copyable !== "boolean") {
           fail(`${id}[${index}].examples[${exampleIndex}]: invalid copyable`);
+        }
+        if (!["official", "manual", "ai-derived"].includes(example.sourceType)) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: invalid sourceType`);
+        }
+        if (example.sourceUrl !== undefined && !/^https:\/\/\S+$/.test(example.sourceUrl)) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: invalid sourceUrl`);
         }
         if (example.warning !== undefined && (typeof example.warning !== "string" || !example.warning.trim())) {
           fail(`${id}[${index}].examples[${exampleIndex}]: invalid warning`);
@@ -142,8 +152,15 @@ for (const id of files) {
             }
           }
         }
+        if (/\b(rm\s+-rf|reset\s+--hard|push\s+--force|kill\s+-9|chmod|chown|restart|--delete|--yolo|dangerously-bypass)\b|(^|\s)>(?!>)/i.test(example.value)
+          && !example.warning) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: dangerous example requires warning`);
+        }
+        if (/api[_-]?key|secret|token\s*[=:]\s*[a-z0-9_-]{12,}/i.test(example.value)) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: possible secret`);
+        }
       });
-    }
+    } else fail(`${id}[${index}]: examples required`);
     if (item.platformCmds !== undefined) {
       if (!item.platformCmds || typeof item.platformCmds !== "object" || Array.isArray(item.platformCmds)) {
         fail(`${id}[${index}]: invalid platformCmds`);

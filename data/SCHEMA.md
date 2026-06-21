@@ -42,6 +42,8 @@
       description: "把输出中的所有“旧文本”替换为“新文本”",
       copyable: true,                       // 可选，默认 true
       warning: "先去掉 -i 预览结果",        // 可选
+      sourceType: "ai-derived",             // 必填：official / manual / ai-derived
+      sourceUrl: "https://example.com/docs", // 可选；能定位具体官方页面时填写
       platforms: ["mac", "linux"],          // 可选
       platformValues: {                     // 可选；平台专属示例
         mac: "sed -i '' 's/旧/新/g' file.txt",
@@ -79,8 +81,9 @@ meta：
 
 - 新增模式：先判断是 CLI 类还是 IDE 类，按上面对应的规则处理
 - 更新模式：保留原有未变化的条目，不要整份重写丢失细节
-- 新增工具至少为 6 个高频条目提供 examples；不足 6 条时全部提供。CLI 提供可执行命令，IDE 提供操作场景
-- examples 不足不会阻止写入，但会产生质量警告；结构错误仍会拒绝
+- 新增工具应为所有条目提供 keywords 和 examples。CLI 提供可执行命令，IDE 提供操作场景
+- examples 覆盖不足不会阻止写入，但会产生质量警告；结构错误仍会拒绝
+- 官方明确提供的示例标记 official，人工整理标记 manual，基于语义推导标记 ai-derived
 - 严禁编造没有查到的命令或快捷键；查不到就如实少收录，不要为了凑数量编内容
 - Claude 只返回结构化 JSON；Native Host 校验后负责生成 JS 和原子写入
 - `meta.id` 必须与文件名一致；同一 `cat + cmd + context` 不能重复
