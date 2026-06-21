@@ -30,7 +30,13 @@
       .replace(/\[([^\]]+)\]/g, (_match, label) => {
         const normalized = label.toLowerCase();
         if (/^-/.test(label.trim())) return label.trim();
-        if (normalized.includes("|")) return cleanSyntax(normalized.split("|")[0]);
+        if (normalized.includes("|")) {
+          // 区分「字面选项列表」(list|reload→取字面首词) 与「形参占位符」(级别|auto、条件|clear→走值映射)，
+          // 避免把类型名当成真实参数泄漏（如 /effort 级别）。
+          const first = normalized.split("|")[0].trim();
+          const isParam = /级别|level|条件|目标|goal|名称|name|title|路径|path|file|模型|model|会话|session|值|value|命令|command|问题|prompt|描述|提示|任务|指令|编号|number|url/.test(first);
+          return isParam ? cleanSyntax(`[${first}]`) : first;
+        }
         if (/pr/.test(normalized)) return "123";
         if (/url|链接/.test(normalized)) return "https://example.com";
         if (/number|编号|序号/.test(normalized)) return "123";
@@ -38,6 +44,7 @@
         if (/路径|path|file/.test(normalized)) return "src/app.js";
         if (/模型|model/.test(normalized)) return "model-name";
         if (/会话|session|id/.test(normalized)) return "session-id";
+        if (/条件|目标/.test(normalized)) return '"完成登录重构"';
         if (/级别|level/.test(normalized)) return "medium";
         if (/命令|command/.test(normalized)) return "git status";
         if (/提示|任务|指令|prompt|问题|question|描述|报告/.test(normalized)) return "检查当前改动";
@@ -289,6 +296,19 @@
       "/permissions": { examples: [{ value: "/permissions", description: "管理工具的允许、询问和拒绝规则" }] },
       "/clear [名称]": { examples: [{ value: "/clear", description: "开启新对话并清空上下文，项目记忆仍会保留" }] },
       "/branch [名称]": { examples: [{ value: "/branch experiment-auth", description: "在当前节点创建名为 experiment-auth 的对话分支，独立尝试新方向" }] },
+      "/effort [级别|auto]": { examples: [
+        { value: "/effort high", description: "把推理强度调到 high，处理复杂重构或难调的 bug 时更细致", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
+        { value: "/effort low", description: "简单问答或小改动时降到 low，响应更快、更省上下文", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
+        { value: "/effort auto", description: "交给 Claude 按任务复杂度自动选择推理强度", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
+      ] },
+      "/fast [on|off]": { examples: [
+        { value: "/fast on", description: "开启快速模式，跳过规划直接执行，适合范围明确的小任务", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
+        { value: "/fast off", description: "关闭快速模式，恢复带规划阶段的常规流程", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
+      ] },
+      "/goal [条件|clear]": { examples: [
+        { value: "/goal 通过所有单元测试再停止", description: "设定一个跨多轮持续追踪的目标，直到条件满足", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
+        { value: "/goal clear", description: "清除当前目标，停止跨轮追踪", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
+      ] },
     },
     "codex": {
       "/model": { examples: [{ value: "/model", description: "打开当前会话的模型与推理强度选择器" }] },
@@ -302,6 +322,20 @@
       "/init": { examples: [{ value: "/init", description: "在当前目录生成项目级 AGENTS.md 说明文件" }] },
       "/skills": { examples: [{ value: "/skills", description: "浏览当前可用技能并选择一个使用" }] },
       "--profile, -p <名称>": { examples: [{ value: "codex --profile work", description: "加载 config.toml 中名为 work 的配置档案后启动" }] },
+      "/fast [on|off|status]": { examples: [
+        { value: "/fast on", description: "开启当前模型的快速服务层，响应更快（仅部分模型支持）", sourceUrl: "https://developers.openai.com/codex/cli/" },
+        { value: "/fast status", description: "查看快速服务层当前是否已启用", sourceUrl: "https://developers.openai.com/codex/cli/" },
+        { value: "/fast off", description: "关闭快速服务层，回到标准服务", sourceUrl: "https://developers.openai.com/codex/cli/" },
+      ] },
+      "/raw [on|off]": { examples: [
+        { value: "/raw on", description: "开启原始回滚模式，查看未经渲染的模型输出（同 Alt+R）", sourceUrl: "https://developers.openai.com/codex/cli/" },
+        { value: "/raw off", description: "关闭原始模式，恢复正常渲染显示", sourceUrl: "https://developers.openai.com/codex/cli/" },
+      ] },
+      "codex resume [--last|--all]": { examples: [
+        { value: "codex resume", description: "打开会话选择器，从当前目录的历史会话中挑一个恢复", sourceUrl: "https://developers.openai.com/codex/cli/" },
+        { value: "codex resume --last", description: "直接恢复最近一次会话，跳过选择器", sourceUrl: "https://developers.openai.com/codex/cli/" },
+        { value: "codex resume --all", description: "跨所有目录搜索历史会话后再选择恢复", sourceUrl: "https://developers.openai.com/codex/cli/" },
+      ] },
     },
     "cursor": {
       "Cmd+I": { examples: [{ value: "选中要修改的代码后按 Cmd/Ctrl+I，输入“提取为可复用函数”", description: "让 Agent 基于当前上下文直接修改代码", copyable: false }] },
@@ -326,6 +360,40 @@
       "/settings": { examples: [{ value: "/settings", description: "打开带校验和说明的设置编辑器" }] },
       "/stats [session|model|tools]": { examples: [{ value: "/stats model", description: "查看当前会话按模型统计的用量信息" }] },
       "/tools [desc|nodesc]": { examples: [{ value: "/tools desc", description: "列出可用工具并显示完整描述" }] },
+      "/agents [list|reload|enable|disable|config]": { examples: [
+        { value: "/agents list", description: "列出当前可用的本地与远程子代理", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/agents enable", description: "启用某个子代理，使其参与任务", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/agents config", description: "查看或调整子代理的配置", sourceUrl: "https://geminicli.com/docs/" },
+      ] },
+      "/commands [list|reload]": { examples: [
+        { value: "/commands list", description: "列出从 .toml 文件加载的自定义命令", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/commands reload", description: "改动 .toml 后重新加载自定义命令，无需重启", sourceUrl: "https://geminicli.com/docs/" },
+      ] },
+      "/extensions [install|list|update|...]": { examples: [
+        { value: "/extensions list", description: "列出已安装的扩展及其启用状态", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/extensions install", description: "安装一个新扩展", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/extensions update", description: "把已安装扩展更新到最新版本", sourceUrl: "https://geminicli.com/docs/" },
+      ] },
+      "/hooks [enable|disable|list]": { examples: [
+        { value: "/hooks list", description: "列出已注册的生命周期事件钩子", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/hooks enable", description: "启用钩子，让它在对应事件时触发", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/hooks disable", description: "临时停用钩子，但保留其配置", sourceUrl: "https://geminicli.com/docs/" },
+      ] },
+      "/ide [enable|disable|install|status]": { examples: [
+        { value: "/ide status", description: "查看当前 IDE 集成是否已连接", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/ide install", description: "安装 IDE 伴随插件以启用深度集成", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/ide enable", description: "启用 IDE 集成，共享编辑器上下文", sourceUrl: "https://geminicli.com/docs/" },
+      ] },
+      "/mcp [list|auth|reload|schema]": { examples: [
+        { value: "/mcp list", description: "列出已配置的 MCP 服务器及连接状态", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/mcp auth", description: "对需要 OAuth 的 MCP 服务器发起认证", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/mcp reload", description: "修改配置后重新加载 MCP 服务器", sourceUrl: "https://geminicli.com/docs/" },
+      ] },
+      "/skills [enable|disable|list|reload]": { examples: [
+        { value: "/skills list", description: "列出可用的 Agent Skills", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/skills enable", description: "启用某个技能，按需提供专业能力", sourceUrl: "https://geminicli.com/docs/" },
+        { value: "/skills reload", description: "改动技能定义后重新加载", sourceUrl: "https://geminicli.com/docs/" },
+      ] },
     },
     "git": {
       "clone": { examples: [{ value: "git clone https://github.com/example/project.git", description: "把远程仓库克隆到当前目录" }] },
@@ -391,6 +459,21 @@
       "/name <title>": { examples: [{ value: "/name 登录重构", description: "把当前会话命名为「登录重构」，便于以后检索" }] },
       "/skill <name> [input]": { examples: [{ value: "/skill commit-helper 生成本次提交信息", description: "按名称调用 commit-helper 技能并传入输入" }] },
       "openclaw config set <path> <value>": { examples: [{ value: "openclaw config set model.default gpt-5.5", description: "把 openclaw.json 中 model.default 设为 gpt-5.5" }] },
+      "openclaw config get <path>": { examples: [{ value: "openclaw config get model.default", description: "按路径读取 openclaw.json 中 model.default 的当前值", sourceUrl: "https://docs.openclaw.ai/tools/slash-commands" }] },
+      "/fast [on|off|default]": { examples: [
+        { value: "/fast on", description: "开启快速模式，provider 映射为高优先级推理", sourceUrl: "https://docs.openclaw.ai/tools/slash-commands" },
+        { value: "/fast default", description: "恢复到 provider 的默认推理优先级", sourceUrl: "https://docs.openclaw.ai/tools/slash-commands" },
+        { value: "/fast off", description: "关闭快速模式", sourceUrl: "https://docs.openclaw.ai/tools/slash-commands" },
+      ] },
+      "/tools [compact|verbose]": { examples: [
+        { value: "/tools compact", description: "以精简列表显示当前代理可用的工具", sourceUrl: "https://docs.openclaw.ai/tools/slash-commands" },
+        { value: "/tools verbose", description: "显示每个工具的完整描述与参数", sourceUrl: "https://docs.openclaw.ai/tools/slash-commands" },
+      ] },
+      "/goal [status|start|pause|resume|complete|block|clear]": { examples: [
+        { value: "/goal start 完成登录页重构并补测试", description: "为当前会话设定一个持久追踪的目标", sourceUrl: "https://docs.openclaw.ai/tools/slash-commands" },
+        { value: "/goal status", description: "查看当前目标及完成进度", sourceUrl: "https://docs.openclaw.ai/tools/slash-commands" },
+        { value: "/goal clear", description: "清除目标，停止追踪", sourceUrl: "https://docs.openclaw.ai/tools/slash-commands" },
+      ] },
     },
     "opencode": {
       "/new": { examples: [{ value: "/new", description: "清空当前上下文并开始新会话" }] },
@@ -441,8 +524,14 @@
         const lookup = `${item.cmd}\0${item.context || ""}`;
         const legacyLookup = item.cmd;
         const existing = byLookup.get(lookup) || byLookup.get(legacyLookup) || {};
+        const docUrl = tool.meta && tool.meta.sourceUrl;
         const examples = (existing.examples || item.examples || [deriveExample(toolId, tool, item)])
-          .map(normalizeCuratedExample);
+          .map(normalizeCuratedExample)
+          // 人工/官方示例若未自带链接，默认挂上该工具已验证的文档地址（meta.sourceUrl），便于核验；
+          // AI 派生示例不冒充权威来源，保持无链接。
+          .map((example) => (example.sourceType !== "ai-derived" && !example.sourceUrl && docUrl)
+            ? { ...example, sourceUrl: docUrl }
+            : example);
         const keywords = existing.keywords || item.keywords || deriveKeywords(item);
         byLookup.set(lookup, { ...existing, keywords, examples });
         if (lookup !== legacyLookup && byLookup.get(legacyLookup) === existing) byLookup.delete(legacyLookup);

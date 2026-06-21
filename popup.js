@@ -255,7 +255,7 @@ function renderRow(entry, query, includeBadge = false) {
     <div class="example">
       <div class="example-value">${highlightHtml(example.platformInfo.value, query)}</div>
       <div class="example-desc">${highlightHtml(example.description, query)}</div>
-      <div class="example-source">${example.sourceType === "official" ? "官方示例" : example.sourceType === "manual" ? "人工整理" : "AI 整理"}</div>
+      <div class="example-source">${example.sourceType === "official" ? "官方示例" : example.sourceType === "manual" ? "人工整理" : "AI 整理"}${example.sourceUrl ? ` · <a class="example-doc" href="${escapeHtml(example.sourceUrl)}" target="_blank" rel="noopener noreferrer">文档</a>` : ""}</div>
       ${example.warning ? `<div class="example-warning">⚠ ${escapeHtml(example.warning)}</div>` : ""}
       ${example.copyable !== false ? `<button class="act example-copy" data-example="${example.index}" title="复制示例" aria-label="复制示例">⧉</button>` : ""}
     </div>`).join("")}</div>` : "";

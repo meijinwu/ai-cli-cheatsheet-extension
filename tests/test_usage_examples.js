@@ -27,6 +27,21 @@ for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
         !/^(示例用途|操作场景)：/.test(example.description),
         `${toolId} ${item.cmd}: description must not use stiff label prefix`
       );
+      // 防回归：派生 value 不得把占位符类型名当成真实参数泄漏（如 /effort 级别）。
+      // 仅查裸 token（去掉引号串与括号补注），句子型操作描述里粘连的 CJK 不算泄漏。
+      if (example.sourceType === "ai-derived") {
+        const bare = example.value.replace(/["'][^"']*["']/g, "").replace(/（[^）]*）/g, "");
+        assert(
+          !/(?:^|\s)(级别|条件|名称|路径|模型|命令|问题|会话|目标|描述|指令|文件名|模式|提示)(?=\s|$)/.test(bare),
+          `${toolId} ${item.cmd}: value leaks CJK placeholder type-name -> ${example.value}`
+        );
+      } else {
+        // 人工/官方示例必须带可核验的文档链接（https）。
+        assert(
+          /^https:\/\/\S+$/.test(example.sourceUrl || ""),
+          `${toolId} ${item.cmd}: curated example must carry an https sourceUrl`
+        );
+      }
       sourceCounts[example.sourceType] += 1;
       exampleCount += 1;
     }
