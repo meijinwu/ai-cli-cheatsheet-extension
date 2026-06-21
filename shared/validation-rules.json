@@ -8,6 +8,7 @@
   "evidenceTiers": ["first-party", "authoritative-community", "community", "none"],
   "adaptations": ["verbatim", "adapted", "scenario-derived"],
   "evidenceStatuses": ["verified", "partial", "unverified"],
+  "evidenceClaims": ["existence", "semantics", "platform", "example"],
   "dangerousExample": {
     "source": "(?:\\brm(?:\\s|$)|\\b(?:reset\\s+--hard|push\\s+--force|kill\\s+-9|chmod|chown|restart)\\b|--(?:delete|yolo)\\b|dangerously-bypass\\b)|(^|\\s)>(?!>)",
     "flags": "i"

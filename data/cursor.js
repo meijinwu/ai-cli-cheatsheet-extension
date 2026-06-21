@@ -19,12 +19,15 @@ window.CHEATSHEET_DATA["cursor"] = {
     "sources": [
       {
         "id": "cursor-shortcuts",
-        "title": "Cursor keyboard shortcuts",
-        "url": "https://docs.cursor.com/ide/reference/keyboard-shortcuts",
+        "title": "Cursor Docs",
+        "url": "https://cursor.com/docs",
         "kind": "official-doc",
         "maintainer": "Cursor",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://cursor.com/docs",
+        "pageTitle": "Cursor Docs",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics"
@@ -45,8 +48,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "8ff2cda22ea7f208",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+I）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -61,8 +71,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "8a3401e170d3a97e",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+L）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -78,8 +95,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "ac8177dbfb88fc54",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+K）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -95,8 +119,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "5743ebc7c497754a",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+K）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -111,8 +142,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "e86466bd23691cc8",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+Shift+L）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -127,8 +165,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "dd119793e31485e8",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+Shift+I）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -144,8 +189,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "023a6020a0d0428b",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+Enter）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -161,8 +213,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "c656c0150f68fc84",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+Shift+Enter）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -178,8 +237,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "35a1467c6b6e5316",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+Backspace）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -194,8 +260,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "7fc91ce6772943c0",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+Shift+J）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -206,8 +279,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       "context": "Cursor Tab",
       "id": "269732e21e794743",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Tab）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -218,8 +298,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       "context": "Cursor Tab",
       "id": "c0919cfab1bb3bc7",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Esc）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -235,8 +322,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "be08a175582dd384",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+Right）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -252,8 +346,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "07f6c79962bea87f",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Option+Backspace）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -268,8 +369,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "7970689048e3c5af",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+Shift+P）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -284,8 +392,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "b307c56b96c36a78",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+P）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -300,8 +415,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "593e75031ca8145a",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+W）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -316,8 +438,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "54b8e968d8bc92e9",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+B）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -332,8 +461,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "6c2b6e114b811c5c",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Cmd+J）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -348,8 +484,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       },
       "id": "46ed23f3675ebc37",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 Ctrl+`）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -360,8 +503,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       "context": "Chat/Composer",
       "id": "89aacdb4b19fd234",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 @Files）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -372,8 +522,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       "context": "Chat/Composer",
       "id": "5b060591a6ed447e",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 @Folders）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -384,8 +541,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       "context": "Chat/Composer",
       "id": "8e57e4efabb7760d",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 @Web）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -396,8 +560,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       "context": "Chat/Composer",
       "id": "6b6156509180238d",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 @Git）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -408,8 +579,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       "context": "Chat/Composer",
       "id": "0d1aba561344300c",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 @Docs）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -420,8 +598,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       "context": "Chat/Composer",
       "id": "9d8c54e3fec1f911",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 @Codebase）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -432,8 +617,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       "context": "Chat/Composer",
       "id": "0e72e96e905147b4",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 @Chat）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -444,8 +636,15 @@ window.CHEATSHEET_DATA["cursor"] = {
       "context": "Chat/Composer",
       "id": "324e0b652fe86f1a",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "cursor-shortcuts"
+      "evidenceRefs": [
+        {
+          "sourceId": "cursor-shortcuts",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方快捷键页（页面内检索 @Definitions）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     }
   ]

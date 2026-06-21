@@ -36,8 +36,13 @@
   zh: "中文说明（讲清楚用途，不是字面翻译）",
   context: "编辑器 / 集成终端",            // 可选；相同 cmd 在不同场景出现时必填
   keywords: ["替换", "批量替换"],          // 用户常用语义词，3 到 8 个（仓库提交数据必填，见“校验契约”）
-  sourceIds: ["official-docs"],             // 支持该条目的 meta.sources[].id
-  evidenceStatus: "verified",               // verified / partial / unverified
+  evidenceRefs: [{
+    sourceId: "official-docs",
+    claims: ["existence", "semantics"],      // existence / semantics / platform / example
+    locator: "https://docs.example.com/cli#command",
+    checkedAt: "2026-06-21"
+  }],
+  evidenceStatus: "verified",               // 由 evidenceRefs 自动推导
   examples: [                              // 可选；最多 3 个
     {
       scenario: "需要批量替换配置文件中的旧域名",
@@ -92,6 +97,9 @@ meta：
     maintainer: "Example Inc.",
     evidenceTier: "first-party",
     lastVerifiedAt: "2026-06-21",
+    resolvedUrl: "https://docs.example.com/cli",
+    pageTitle: "CLI Reference",
+    checkedAt: "2026-06-21",
     version: "1.2.0",                                  // 可选
     purposes: ["command-existence", "option-semantics", "examples"]
   }],
@@ -104,8 +112,9 @@ meta：
 
 ## 多来源证据与兼容
 
-- 新增和自动更新的数据必须使用 `meta.sources[]`，由条目、案例的 `sourceIds` 精确引用。
-- 每个条目必须声明 `evidenceStatus`：`verified`/`partial` 必须绑定来源，`unverified` 不得伪挂来源。
+- 新增和自动更新的数据必须使用 `meta.sources[]`。命令证据使用 `evidenceRefs`，案例证据继续使用 `sourceIds`。
+- `verified` 必须同时有 `existence` 与 `semantics` 断言和具体 locator；只有宽泛页面或单项断言为 `partial`；无证据为 `unverified`。
+- 网页来源记录重定向后的 `resolvedUrl`、实际 `pageTitle` 和 `checkedAt`。
 - `sourceUrl/sourceTier` 保留用于读取旧数据；Native Host 会将旧字段合成来源记录。
 - `authorship` 表示案例由谁编写，`evidenceTier` 表示证据强度，`adaptation` 表示是否改写。
 - 来源优先级为：当前版本本机帮助、官方文档、官方仓库与 Release、登记权威第三方、普通社区线索。
@@ -135,7 +144,7 @@ meta：
 
 - 新增模式：先判断是 CLI 类还是 IDE 类，按上面对应的规则处理
 - 更新模式：保留原有未变化的条目，不要整份重写丢失细节
-- 新增工具应为所有条目提供 keywords、sourceIds 和 examples。CLI 提供可执行命令，IDE 提供操作场景
+- 新增工具应为所有条目提供 keywords、evidenceRefs 和 examples。CLI 提供可执行命令，IDE 提供操作场景
 - examples 覆盖不足不会阻止写入，但会产生质量警告；结构错误仍会拒绝
 - **两阶段生成**：先发现、筛选并解释来源，再依据发现结果生成逐条绑定证据的内容。
 - **来源优先级（新增与更新同样适用）**：本机帮助和第一方资料优先；官方缺失时才使用登记权威第三方。普通社区只能作为线索。永不编造。

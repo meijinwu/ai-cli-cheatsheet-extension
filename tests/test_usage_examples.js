@@ -32,6 +32,11 @@ for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
       ["verified", "partial", "unverified"].includes(item.evidenceStatus),
       `${toolId} ${item.cmd}: evidenceStatus required`
     );
+    if (item.evidenceStatus === "verified") {
+      const claims = new Set((item.evidenceRefs || []).flatMap((ref) => ref.claims));
+      assert(claims.has("existence") && claims.has("semantics"), `${toolId} ${item.cmd}: verified claims incomplete`);
+      assert(item.evidenceRefs.every((ref) => ref.locator && ref.checkedAt), `${toolId} ${item.cmd}: verified locator required`);
+    }
     const enrichment = window.CHEATSHEET_ENRICHMENTS[toolId][
       `${item.cmd}\0${item.context || ""}`
     ];

@@ -20,6 +20,7 @@ const AUTHORSHIPS = rules.authorships;
 const EVIDENCE_TIERS = rules.evidenceTiers;
 const ADAPTATIONS = rules.adaptations;
 const EVIDENCE_STATUSES = rules.evidenceStatuses;
+const EVIDENCE_CLAIMS = rules.evidenceClaims;
 const EXAMPLE_SOURCE_TYPES = ["official", "quasi-official", "manual", "ai-derived"];
 const REGISTRY_BY_ID = new Map(sourceRegistry.entries.map((entry) => [entry.id, entry]));
 
@@ -59,6 +60,12 @@ function matchesRegisteredSource(toolId, source) {
     && entry.toolIds.includes(toolId)
     && (source.kind === "local-help" || matchesPrefix(source.url, entry.urlPrefixes))
   );
+}
+
+function evidenceStatusFor(refs) {
+  if (!refs?.length) return "unverified";
+  const claims = new Set(refs.flatMap((ref) => ref.claims));
+  return claims.has("existence") && claims.has("semantics") ? "verified" : "partial";
 }
 
 for (const entry of sourceRegistry.entries || []) {
@@ -172,6 +179,7 @@ for (const id of files) {
     }
   }
   const sourceIds = new Set();
+  const usedSourceIds = new Set();
   if (tool.meta.sources !== undefined) {
     if (!Array.isArray(tool.meta.sources) || !tool.meta.sources.length) fail(`${id}: invalid sources`);
     for (const [sourceIndex, source] of tool.meta.sources.entries()) {
@@ -190,8 +198,28 @@ for (const id of files) {
       if (!matchesRegisteredSource(id, source)) fail(`${id}: source ${source.id} is not registered for this tool`);
       if (!Array.isArray(source.purposes) || !source.purposes.length) fail(`${id}: source purposes required`);
       if (!source.title || !source.maintainer) fail(`${id}: source title and maintainer required`);
+      if (source.kind !== "local-help" && (
+        !/^https:\/\/\S+$/.test(source.resolvedUrl || "")
+        || typeof source.pageTitle !== "string" || !source.pageTitle.trim()
+        || !/^\d{4}-\d{2}-\d{2}$/.test(source.checkedAt || "")
+      )) fail(`${id}: source ${source.id} requires resolvedUrl, pageTitle and checkedAt`);
+      if (source.url && source.resolvedUrl && !source.resolvedUrl.startsWith(source.url.replace(/\/$/, ""))) {
+        fail(`${id}: source ${source.id} resolvedUrl is outside declared URL`);
+      }
     }
   } else fail(`${id}: meta.sources required`);
+  if (tool.meta.references !== undefined) {
+    if (!Array.isArray(tool.meta.references)) fail(`${id}: invalid references`);
+    for (const reference of tool.meta.references) {
+      if (!matchesRegisteredSource(id, reference)) fail(`${id}: invalid background reference ${reference.id}`);
+      if (sourceIds.has(reference.id)) fail(`${id}: reference ${reference.id} duplicates an evidence source`);
+      if (!/^https:\/\/\S+$/.test(reference.resolvedUrl || "")
+        || typeof reference.pageTitle !== "string" || !reference.pageTitle.trim()
+        || !/^\d{4}-\d{2}-\d{2}$/.test(reference.checkedAt || "")) {
+        fail(`${id}: background reference ${reference.id} lacks URL verification metadata`);
+      }
+    }
+  }
   if (tool.meta.platforms !== undefined && (
     !Array.isArray(tool.meta.platforms)
     || tool.meta.platforms.some((platform) => !["mac", "windows", "linux"].includes(platform))
@@ -213,19 +241,27 @@ for (const id of files) {
     if (typeof item.id !== "string" || !/^[a-zA-Z0-9_-]{4,64}$/.test(item.id)) {
       fail(`${id}[${index}]: stable id required`);
     }
-    if (item.sourceIds !== undefined && (
-      !Array.isArray(item.sourceIds)
-      || !item.sourceIds.length
-      || item.sourceIds.some((sourceId) => !sourceIds.has(sourceId))
-    )) fail(`${id}[${index}]: invalid sourceIds`);
-    if (!EVIDENCE_STATUSES.includes(item.evidenceStatus)) {
-      fail(`${id}[${index}]: invalid evidenceStatus`);
+    if (item.evidenceRefs !== undefined && (
+      !Array.isArray(item.evidenceRefs) || !item.evidenceRefs.length
+    )) fail(`${id}[${index}]: invalid evidenceRefs`);
+    for (const [refIndex, ref] of (item.evidenceRefs || []).entries()) {
+      if (!ref || typeof ref !== "object" || !sourceIds.has(ref.sourceId)
+        || !Array.isArray(ref.claims) || !ref.claims.length
+        || ref.claims.some((claim) => !EVIDENCE_CLAIMS.includes(claim))
+        || typeof ref.locator !== "string" || !ref.locator.trim()
+        || !/^\d{4}-\d{2}-\d{2}$/.test(ref.checkedAt || "")) {
+        fail(`${id}[${index}].evidenceRefs[${refIndex}]: invalid evidence reference`);
+      }
+      usedSourceIds.add(ref.sourceId);
+      const source = tool.meta.sources.find((candidate) => candidate.id === ref.sourceId);
+      if (source.evidenceTier === "community"
+        && ref.claims.some((claim) => ["existence", "semantics"].includes(claim))) {
+        fail(`${id}[${index}].evidenceRefs[${refIndex}]: community evidence cannot prove command semantics`);
+      }
     }
-    if (["verified", "partial"].includes(item.evidenceStatus) && !item.sourceIds?.length) {
-      fail(`${id}[${index}]: ${item.evidenceStatus} requires sourceIds`);
-    }
-    if (item.evidenceStatus === "unverified" && item.sourceIds !== undefined) {
-      fail(`${id}[${index}]: unverified items must not carry sourceIds`);
+    const derivedStatus = evidenceStatusFor(item.evidenceRefs);
+    if (!EVIDENCE_STATUSES.includes(item.evidenceStatus) || item.evidenceStatus !== derivedStatus) {
+      fail(`${id}[${index}]: evidenceStatus must be derived as ${derivedStatus}`);
     }
     // 有效 keywords/examples = 条目自带 优先，否则回退到 curated 富化（旁路表，不改写数据）。
     const enrichment = enrichmentByItem.get(item) || {};
@@ -282,6 +318,7 @@ for (const id of files) {
           || !example.sourceIds.length
           || example.sourceIds.some((sourceId) => !sourceIds.has(sourceId))
         )) fail(`${id}[${index}].examples[${exampleIndex}]: invalid sourceIds`);
+        for (const sourceId of example.sourceIds || []) usedSourceIds.add(sourceId);
         if (example.warning !== undefined && (typeof example.warning !== "string" || !example.warning.trim())) {
           fail(`${id}[${index}].examples[${exampleIndex}]: invalid warning`);
         }
@@ -338,6 +375,8 @@ for (const id of files) {
       itemIds.add(item.id);
     }
   });
+  const unusedSources = [...sourceIds].filter((sourceId) => !usedSourceIds.has(sourceId));
+  if (unusedSources.length) fail(`${id}: unused evidence sources: ${unusedSources.join(", ")}`);
 }
 
 console.log(`Validated ${files.length} tools and ${files.reduce((n, id) => n + data[id].items.length, 0)} items.`);

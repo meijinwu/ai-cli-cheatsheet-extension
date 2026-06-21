@@ -79,6 +79,7 @@ AUTHORSHIPS = {"official", "editorial", "generated"}
 EVIDENCE_TIERS = {"first-party", "authoritative-community", "community", "none"}
 ADAPTATIONS = {"verbatim", "adapted", "scenario-derived"}
 EVIDENCE_STATUSES = {"verified", "partial", "unverified"}
+EVIDENCE_CLAIMS = {"existence", "semantics", "platform", "example"}
 
 
 def load_source_registry():
@@ -154,6 +155,60 @@ def validate_source_ids(value, field, known_ids):
         if source_id not in clean:
             clean.append(source_id)
     return clean
+
+
+def validate_evidence_refs(value, field, known_ids, source_by_id):
+    if value is None:
+        return []
+    if not isinstance(value, list) or not value:
+        raise ValidationError(f"{field} 必须是非空数组")
+    clean = []
+    seen = set()
+    for index, ref in enumerate(value):
+        if not isinstance(ref, dict):
+            raise ValidationError(f"{field}[{index}] 必须是对象")
+        ref_field = f"{field}[{index}]"
+        source_id = checked_text(ref.get("sourceId"), f"{ref_field}.sourceId")
+        if source_id not in known_ids:
+            raise ValidationError(f"{ref_field}.sourceId 引用了不存在的来源：{source_id}")
+        claims = ref.get("claims")
+        if not isinstance(claims, list) or not claims:
+            raise ValidationError(f"{ref_field}.claims 必须是非空数组")
+        clean_claims = []
+        for claim in claims:
+            if claim not in EVIDENCE_CLAIMS:
+                raise ValidationError(f"{ref_field}.claims 包含非法断言：{claim}")
+            if claim not in clean_claims:
+                clean_claims.append(claim)
+        source = source_by_id[source_id]
+        if source.get("evidenceTier") == "community" and any(
+            claim in {"existence", "semantics"} for claim in clean_claims
+        ):
+            raise ValidationError(f"{ref_field} 的社区来源不能证明命令存在性或语义")
+        locator = checked_text(ref.get("locator"), f"{ref_field}.locator")
+        checked_at = checked_text(ref.get("checkedAt"), f"{ref_field}.checkedAt")
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", checked_at):
+            raise ValidationError(f"{ref_field}.checkedAt 必须是 YYYY-MM-DD")
+        key = (source_id, tuple(clean_claims), locator)
+        if key in seen:
+            continue
+        seen.add(key)
+        clean.append({
+            "sourceId": source_id,
+            "claims": clean_claims,
+            "locator": locator,
+            "checkedAt": checked_at,
+        })
+    return clean
+
+
+def evidence_status_for(refs):
+    if not refs:
+        return "unverified"
+    claims = {claim for ref in refs for claim in ref.get("claims", [])}
+    if {"existence", "semantics"}.issubset(claims):
+        return "verified"
+    return "partial"
 
 
 def find_claude_binary():
@@ -482,6 +537,33 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
             "evidenceTier": evidence_tier,
             "purposes": list(dict.fromkeys(purpose.strip() for purpose in purposes)),
         }
+        resolved_url = checked_text(
+            source.get("resolvedUrl"), f"{field}.resolvedUrl", required=False
+        ) or (url if not require_structured_source else None)
+        page_title = checked_text(
+            source.get("pageTitle"), f"{field}.pageTitle", required=False
+        ) or (clean_source["title"] if not require_structured_source else None)
+        checked_at = checked_text(
+            source.get("checkedAt"), f"{field}.checkedAt", required=False
+        ) or (verified_at if not require_structured_source else None)
+        if require_structured_source and kind != "local-help" and not all(
+            [resolved_url, page_title, checked_at]
+        ):
+            raise ValidationError(
+                f"{field} 必须包含 resolvedUrl、pageTitle 和 checkedAt"
+            )
+        if resolved_url:
+            if not re.fullmatch(r"https://[^\s]+", resolved_url):
+                raise ValidationError(f"{field}.resolvedUrl 必须是 HTTPS URL")
+            if url and not url_matches_prefixes(resolved_url, [url.rstrip("/")]):
+                raise ValidationError(f"{field}.resolvedUrl 不在声明 URL 范围内")
+            clean_source["resolvedUrl"] = resolved_url
+        if page_title:
+            clean_source["pageTitle"] = page_title
+        if checked_at:
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", checked_at):
+                raise ValidationError(f"{field}.checkedAt 必须是 YYYY-MM-DD")
+            clean_source["checkedAt"] = checked_at
         if registry_id != source_id:
             clean_source["registryId"] = registry_id
         if url:
@@ -495,6 +577,33 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
     if clean_sources:
         clean_meta["sources"] = clean_sources
     source_by_id = {source["id"]: source for source in clean_sources}
+    raw_references = meta.get("references")
+    if raw_references is not None:
+        if not isinstance(raw_references, list):
+            raise ValidationError("meta.references 必须是数组")
+        clean_references = []
+        for ref_index, reference in enumerate(raw_references):
+            if not isinstance(reference, dict):
+                raise ValidationError(f"meta.references[{ref_index}] 必须是对象")
+            registry_id = reference.get("registryId") or reference.get("id")
+            entry = SOURCE_REGISTRY_BY_ID.get(registry_id)
+            if not entry or expected_tool_id not in entry.get("toolIds", []):
+                raise ValidationError(f"meta.references[{ref_index}] 不匹配来源登记")
+            url = checked_text(
+                reference.get("url"), f"meta.references[{ref_index}].url"
+            )
+            if not url_matches_prefixes(url, entry.get("urlPrefixes", [])):
+                raise ValidationError(f"meta.references[{ref_index}].url 超出登记范围")
+            clean_references.append({
+                key: value for key, value in reference.items()
+                if key in {
+                    "id", "registryId", "title", "url", "kind", "maintainer",
+                    "evidenceTier", "lastVerifiedAt", "resolvedUrl", "pageTitle",
+                    "checkedAt", "purposes",
+                }
+            })
+        if clean_references:
+            clean_meta["references"] = clean_references
 
     clean_items = []
     duplicate_keys = set()
@@ -515,25 +624,27 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         context = checked_text(item.get("context"), f"items[{index}].context", required=False)
         if context:
             clean_item["context"] = context
-        item_source_ids = validate_source_ids(
-            item.get("sourceIds"), f"items[{index}].sourceIds", source_ids
+        raw_refs = item.get("evidenceRefs")
+        if raw_refs is None and not require_structured_source:
+            raw_source_ids = validate_source_ids(
+                item.get("sourceIds"), f"items[{index}].sourceIds", source_ids
+            )
+            raw_refs = [{
+                "sourceId": source_id,
+                "claims": ["existence"],
+                "locator": source_by_id[source_id].get("url", source_id),
+                "checkedAt": source_by_id[source_id].get("lastVerifiedAt", updated_at),
+            } for source_id in raw_source_ids] or None
+        evidence_refs = validate_evidence_refs(
+            raw_refs, f"items[{index}].evidenceRefs", source_ids, source_by_id
         )
-        if item_source_ids:
-            clean_item["sourceIds"] = item_source_ids
-        evidence_status = item.get("evidenceStatus")
-        if evidence_status is None and not require_structured_source:
-            evidence_status = "verified" if item_source_ids else "unverified"
-        if evidence_status not in EVIDENCE_STATUSES:
+        if evidence_refs:
+            clean_item["evidenceRefs"] = evidence_refs
+        evidence_status = evidence_status_for(evidence_refs)
+        supplied_status = item.get("evidenceStatus")
+        if supplied_status is not None and supplied_status != evidence_status:
             raise ValidationError(
-                f"items[{index}].evidenceStatus 必须是 verified、partial 或 unverified"
-            )
-        if evidence_status in {"verified", "partial"} and not item_source_ids:
-            raise ValidationError(
-                f"items[{index}] 标记为 {evidence_status} 时必须包含 sourceIds"
-            )
-        if evidence_status == "unverified" and item_source_ids:
-            raise ValidationError(
-                f"items[{index}] 标记为 unverified 时不得包含 sourceIds"
+                f"items[{index}].evidenceStatus 应由 evidenceRefs 推导为 {evidence_status}"
             )
         clean_item["evidenceStatus"] = evidence_status
         keywords = item.get("keywords")
@@ -788,7 +899,7 @@ def build_quality_warnings(dataset, previous_dataset=None):
         warnings.append(f"示例覆盖不足：当前 {covered} 条，目标 {expected} 条")
     if keyword_covered < expected:
         warnings.append(f"语义关键词覆盖不足：当前 {keyword_covered} 条，目标 {expected} 条")
-    evidenced = sum(1 for item in items if item.get("sourceIds"))
+    evidenced = sum(1 for item in items if item.get("evidenceRefs"))
     if evidenced < expected:
         warnings.append(f"逐条证据覆盖不足：当前 {evidenced} 条，目标 {expected} 条")
     partial = sum(1 for item in items if item.get("evidenceStatus") == "partial")
@@ -991,6 +1102,9 @@ JSON 格式：
       "maintainer": "维护组织",
       "evidenceTier": "first-party|authoritative-community|community",
       "lastVerifiedAt": "YYYY-MM-DD",
+      "resolvedUrl": "打开并跟随重定向后的最终 HTTPS URL",
+      "pageTitle": "实际页面标题",
+      "checkedAt": "YYYY-MM-DD",
       "version": "可选版本",
       "purposes": ["command-existence|option-semantics|examples|release-notes|cross-check"]
     }}],
@@ -1007,8 +1121,13 @@ JSON 格式：
       "zh": "清晰中文说明",
       "context": "可选；相同 cmd 在不同场景出现时必须填写",
       "keywords": ["3到8个用户常用用途词"],
-      "sourceIds": ["支持该命令存在和语义的来源ID"],
       "evidenceStatus": "verified|partial|unverified",
+      "evidenceRefs": [{{
+        "sourceId": "来源ID",
+        "claims": ["existence|semantics|platform|example"],
+        "locator": "命令专页、章节锚点或本机帮助命令",
+        "checkedAt": "YYYY-MM-DD"
+      }}],
       "examples": [
         {{
           "scenario": "用户在什么情况下需要它",
@@ -1045,14 +1164,15 @@ JSON 格式：
 4. 同一 cat、cmd、context 组合不得重复。
 5. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。{upgrade_note}
 6. 所有字符串必须是有效 JSON 字符串。
-7. sources、updatedAt、coverage 必须填写。每个 item 必须填写 evidenceStatus：verified/partial 必须绑定 sourceIds，unverified 不得绑定 sourceIds；平台快捷键应尽量使用 platformCmds 表达。
-8. 每个条目都必须提供 keywords 和 examples；每条最多 3 个示例。
-9. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；案例应包含 scenario、goal、expected，说明何时用、结果是什么以及不要与什么混淆。
-10. 更新时保留已有 keywords 和 examples，并为所有新增条目补充关键词和示例。
-11. 官方明确示例标记 official；人工整理标记 manual；根据命令语义推导的标记 ai-derived；可信第三方补充按上面第 1 条的来源优先级处理。
-12. {tier_rule}
-13. authorship 表示谁写的案例，evidenceTier 表示证据强度，adaptation 表示是否改写，三者不得混为一个 sourceType。
-14. 高风险命令必须提供 warning，并在 description 或 caveat 中给出预览、备份或更安全替代方案。
+7. sources、updatedAt、coverage 必须填写；网页来源必须记录 resolvedUrl、pageTitle、checkedAt。每个 item 必须提供 evidenceRefs，evidenceStatus 由系统根据 claims 自动推导，不要臆测；平台快捷键应尽量使用 platformCmds 表达。
+8. verified 必须同时有 existence 与 semantics 断言且 locator 可具体定位；只有宽泛首页或只确认命令存在时只能是 partial；无证据为 unverified。
+9. 每个条目都必须提供 keywords 和 examples；每条最多 3 个示例。
+10. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；案例应包含 scenario、goal、expected，说明何时用、结果是什么以及不要与什么混淆。
+11. 更新时保留已有 keywords 和 examples，并为所有新增条目补充关键词和示例。
+12. 官方明确示例标记 official；人工整理标记 manual；根据命令语义推导的标记 ai-derived；可信第三方补充按上面第 1 条的来源优先级处理。
+13. {tier_rule}
+14. authorship 表示谁写的案例，evidenceTier 表示证据强度，adaptation 表示是否改写，三者不得混为一个 sourceType。
+15. 高风险命令必须提供 warning，并在 description 或 caveat 中给出预览、备份或更安全替代方案。
 
 来源发现结果：
 {discovered_section}
@@ -1086,10 +1206,10 @@ def _demote_quasi_official(dataset):
         if "sources" in meta:
             meta["sources"] = safe_sources
     for item in dataset.get("items", []):
-        if removed_ids:
-            item["sourceIds"] = [
-                source_id for source_id in item.get("sourceIds", []) if source_id not in removed_ids
-            ]
+        # 离线模型知识不能形成可复核的命令证据；保留内容候选，但状态必须为未核验。
+        item.pop("evidenceRefs", None)
+        item.pop("sourceIds", None)
+        item["evidenceStatus"] = "unverified"
         for example in item.get("examples", []) or []:
             if isinstance(example, dict) and example.get("sourceType") == "quasi-official":
                 example["sourceType"] = "ai-derived"
@@ -1274,7 +1394,7 @@ def item_signature(item):
         key: item.get(key)
         for key in (
             "cat", "cmd", "en", "zh", "context", "keywords", "examples",
-            "sourceIds", "evidenceStatus", "platforms", "platformCmds",
+            "evidenceRefs", "evidenceStatus", "platforms", "platformCmds",
         )
         if key in item
     }
@@ -1365,6 +1485,19 @@ def build_dataset_diff(old_dataset, new_dataset):
     ]
     if status_downgrades:
         risks.append(f"{len(status_downgrades)} 个条目的核验状态下降")
+    evidence_ref_changes = []
+    locator_losses = []
+    for item_id in new_items.keys() & old_items.keys():
+        old_refs = old_items[item_id].get("evidenceRefs") or []
+        new_refs = new_items[item_id].get("evidenceRefs") or []
+        if old_refs != new_refs:
+            evidence_ref_changes.append(item_id)
+        old_locators = {ref.get("locator") for ref in old_refs if ref.get("locator")}
+        new_locators = {ref.get("locator") for ref in new_refs if ref.get("locator")}
+        if old_locators - new_locators:
+            locator_losses.append(item_id)
+    if locator_losses:
+        risks.append(f"{len(locator_losses)} 个条目的证据定位被移除")
     old_evidence = {
         item["id"]: max(
             [evidence_rank.get(example.get("evidenceTier", "none"), 0)
@@ -1417,6 +1550,8 @@ def build_dataset_diff(old_dataset, new_dataset):
             "conflicts": source_conflicts,
             "evidenceDowngrades": evidence_downgrades,
             "statusDowngrades": status_downgrades,
+            "evidenceRefChanges": evidence_ref_changes,
+            "locatorLosses": locator_losses,
         },
         "risks": risks,
     }

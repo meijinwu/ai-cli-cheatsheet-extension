@@ -30,6 +30,9 @@ def valid_dataset(tool_id="sample"):
                 "maintainer": "Sample Vendor",
                 "evidenceTier": "first-party",
                 "lastVerifiedAt": "2026-06-20",
+                "resolvedUrl": "https://example.com/docs",
+                "pageTitle": "Sample Tool documentation",
+                "checkedAt": "2026-06-20",
                 "purposes": ["command-existence", "option-semantics", "examples"],
             }],
             "updatedAt": "2026-06-20",
@@ -43,7 +46,12 @@ def valid_dataset(tool_id="sample"):
                 "cmd": "Ctrl+K",
                 "en": "Open command",
                 "zh": "打开命令",
-                "sourceIds": ["official-docs"],
+                "evidenceRefs": [{
+                    "sourceId": "official-docs",
+                    "claims": ["existence", "semantics"],
+                    "locator": "https://example.com/docs#ctrl-k",
+                    "checkedAt": "2026-06-20",
+                }],
                 "evidenceStatus": "verified",
             }
         ],
@@ -118,6 +126,36 @@ class HostValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(host.ValidationError, "value"):
             host.validate_dataset(payload, "sample")
 
+    def test_verified_requires_locator_and_both_core_claims(self):
+        missing_locator = valid_dataset()
+        missing_locator["items"][0]["evidenceRefs"][0]["locator"] = ""
+        with self.assertRaisesRegex(host.ValidationError, "locator"):
+            host.validate_dataset(missing_locator, "sample")
+
+        missing_semantics = valid_dataset()
+        missing_semantics["items"][0]["evidenceRefs"][0]["claims"] = ["existence"]
+        with self.assertRaisesRegex(host.ValidationError, "推导为 partial"):
+            host.validate_dataset(missing_semantics, "sample")
+
+    def test_broad_or_single_claim_evidence_is_partial(self):
+        payload = valid_dataset()
+        payload["items"][0]["evidenceRefs"][0].update({
+            "claims": ["existence"],
+            "locator": "https://example.com/docs（页面内检索 Ctrl+K）",
+        })
+        payload["items"][0]["evidenceStatus"] = "partial"
+        dataset = host.validate_dataset(payload, "sample")
+        self.assertEqual(dataset["items"][0]["evidenceStatus"], "partial")
+
+    def test_community_source_cannot_prove_command_semantics(self):
+        payload = valid_dataset()
+        payload["meta"]["sources"][0].update({
+            "kind": "community",
+            "evidenceTier": "community",
+        })
+        with self.assertRaisesRegex(host.ValidationError, "社区来源不能证明"):
+            host.validate_dataset(payload, "sample")
+
     def test_rejects_unregistered_readthedocs_authoritative_source(self):
         payload = valid_dataset()
         payload["meta"]["sources"][0].update({
@@ -128,6 +166,15 @@ class HostValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(host.ValidationError, "来源登记"):
             host.validate_dataset(payload, "sample")
 
+    def test_web_source_requires_resolved_url_title_and_check_date(self):
+        for field in ("resolvedUrl", "pageTitle", "checkedAt"):
+            payload = valid_dataset()
+            payload["meta"]["sources"][0].pop(field)
+            with self.subTest(field=field), self.assertRaisesRegex(
+                host.ValidationError, "resolvedUrl、pageTitle 和 checkedAt"
+            ):
+                host.validate_dataset(payload, "sample")
+
     def test_accepts_registered_official_repository(self):
         payload = valid_dataset("codex")
         payload["meta"]["sources"][0].update({
@@ -135,8 +182,14 @@ class HostValidationTests(unittest.TestCase):
             "registryId": "openai-codex-repository",
             "url": "https://github.com/openai/codex/releases",
             "kind": "official-repository",
+            "resolvedUrl": "https://github.com/openai/codex/releases",
+            "pageTitle": "Releases · openai/codex",
+            "checkedAt": "2026-06-21",
         })
-        payload["items"][0]["sourceIds"] = ["codex-repo"]
+        payload["items"][0]["evidenceRefs"][0].update({
+            "sourceId": "codex-repo",
+            "locator": "https://github.com/openai/codex/releases",
+        })
         dataset = host.validate_dataset(payload, "codex")
         self.assertEqual(dataset["meta"]["sources"][0]["kind"], "official-repository")
 
@@ -531,6 +584,9 @@ class HostDiffEnrichmentTests(unittest.TestCase):
             "maintainer": "OpenAI",
             "evidenceTier": "first-party",
             "lastVerifiedAt": "2026-06-21",
+            "resolvedUrl": "https://github.com/openai/codex/releases",
+            "pageTitle": "Releases · openai/codex",
+            "checkedAt": "2026-06-21",
             "purposes": ["release-notes"],
         })
         new_payload["sourceConflicts"] = ["官方文档与 Release 的命令状态不同"]
@@ -543,10 +599,12 @@ class HostDiffEnrichmentTests(unittest.TestCase):
     def test_diff_flags_item_evidence_status_downgrade(self):
         old = self._with_id("item-1")
         new = self._with_id("item-1")
-        new["items"][0].pop("sourceIds")
+        new["items"][0].pop("evidenceRefs")
         new["items"][0]["evidenceStatus"] = "unverified"
         diff = host.build_dataset_diff(old, new)
         self.assertEqual(diff["sourceChanges"]["statusDowngrades"], ["item-1"])
+        self.assertEqual(diff["sourceChanges"]["evidenceRefChanges"], ["item-1"])
+        self.assertEqual(diff["sourceChanges"]["locatorLosses"], ["item-1"])
         self.assertTrue(any("核验状态下降" in risk for risk in diff["risks"]))
 
     def test_quality_warning_flags_keyword_gap(self):
@@ -588,7 +646,7 @@ class HostSourceTierGenerationTests(unittest.TestCase):
         # 白名单动态注入：每个域名都应出现在 prompt 中
         for domain in host.QUASI_OFFICIAL_DOMAINS:
             self.assertIn(domain, prompt)
-        self.assertIn("每个 item 必须填写 evidenceStatus", prompt)
+        self.assertIn("每个 item 必须提供 evidenceRefs", prompt)
         self.assertNotIn("目标 50 条以上", prompt)
 
     def test_source_discovery_prompt_precedes_content_generation(self):
@@ -609,6 +667,13 @@ class HostSourceTierGenerationTests(unittest.TestCase):
         dataset = {
             "meta": {"sourceTier": "quasi-official"},
             "items": [{
+                "evidenceRefs": [{
+                    "sourceId": "docs",
+                    "claims": ["existence", "semantics"],
+                    "locator": "https://example.com/docs#x",
+                    "checkedAt": "2026-06-21",
+                }],
+                "evidenceStatus": "verified",
                 "examples": [
                     {"value": "x", "description": "d", "sourceType": "quasi-official",
                      "sourceUrl": "https://man7.org/x"},
@@ -619,6 +684,8 @@ class HostSourceTierGenerationTests(unittest.TestCase):
         }
         host._demote_quasi_official(dataset)
         self.assertEqual(dataset["meta"]["sourceTier"], "community")
+        self.assertNotIn("evidenceRefs", dataset["items"][0])
+        self.assertEqual(dataset["items"][0]["evidenceStatus"], "unverified")
         examples = dataset["items"][0]["examples"]
         # 类官方示例降为 ai-derived 并去掉未核实的 URL
         self.assertEqual(examples[0]["sourceType"], "ai-derived")

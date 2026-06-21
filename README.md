@@ -70,6 +70,7 @@ git clone https://github.com/meijinwu/ai-cli-cheatsheet-extension.git C:\workspa
 ## 数据可信度与安全边界
 
 - 每个工具可登记多个来源，条目和案例可精确引用证据；管理页会区分本机帮助、官方文档、官方仓库、权威社区和未独立核验内容。
+- 条目的“已核验”要求同时具备命令存在性、行为语义和具体定位证据；宽泛页面或仅确认存在性的内容显示为“部分核验”。
 - `web-assisted` 表示生成时允许 Claude Code 使用联网能力，不代表每条数据都已人工逐项核验。
 - `model-knowledge` 表示通过兼容 API 基于模型知识生成，应在应用前重点核对官方来源。
 - 用法会分别标记“官方原例”“基于官方资料改写”“编辑整理场景”“自动生成”；案例作者与证据等级分开记录。
@@ -114,6 +115,7 @@ background.js               弹窗与 Native Host 的任务桥接
 native-host/host.py         模型调用、数据校验、差异计算和原子写入
 tools/validate-data.js      数据文件静态校验
 tools/migrate-built-in-evidence.js  可重复运行的内置数据证据迁移脚本
+tools/verify-source-urls.js  联网检查来源最终 URL、HTTP 状态和页面标题
 tests/                      搜索核心与 Native Host 单元测试
 ```
 
@@ -147,6 +149,12 @@ node tests/test_product_core.js
 node tests/test_usage_examples.js
 node tests/test_popup_ux.js
 python3 -m unittest discover -s tests -v
+```
+
+需要联网复核来源重定向与页面标题时，额外运行：
+
+```bash
+node tools/verify-source-urls.js
 ```
 
 GitHub Actions 会执行 JavaScript 语法检查、数据 Schema 校验和 Native Host 单元测试。

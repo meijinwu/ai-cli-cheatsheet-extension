@@ -152,6 +152,21 @@ function itemEvidence(entry) {
   return "未核验";
 }
 
+function commandEvidenceHtml(item, sources) {
+  const refs = item.evidenceRefs || [];
+  if (!refs.length) return `<div class="command-evidence">命令证据：未提供可复核定位</div>`;
+  return `<div class="command-evidence">命令证据：${refs.map((ref) => {
+    const source = sources.find((candidate) => candidate.id === ref.sourceId);
+    const claims = ref.claims.map((claim) => ({
+      existence: "存在性", semantics: "语义", platform: "平台", example: "案例",
+    })[claim] || claim).join("、");
+    const label = `${source?.title || ref.sourceId} · ${claims} · ${ref.locator}`;
+    return source?.url
+      ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`
+      : escapeHtml(label);
+  }).join("<br>")}</div>`;
+}
+
 function riskFor(command, examples) {
   return CORE.classifyCommandRisk(command, examples);
 }
@@ -324,6 +339,7 @@ function collectEntries() {
 
 function renderRow(entry, query, includeBadge = false) {
   const tool = getAllData()[entry.toolId];
+  const sources = normalizedSources(tool.meta);
   const key = `${entry.toolId}::${entry.itemId}`;
   const examples = (entry.item.examples || []).map((example, index) => ({
     ...example,
@@ -352,7 +368,7 @@ function renderRow(entry, query, includeBadge = false) {
     `<span class="trust-tag tier evidence-${escapeHtml(entry.item.evidenceStatus || "unverified")}">${escapeHtml(itemEvidence(entry))}</span>`,
   ].join("");
   const examplesId = `examples-${entry.toolId}-${entry.itemId}`;
-  const examplesHtml = examplesOpen ? `<div class="examples">${examples.map((example) => `
+  const examplesHtml = examplesOpen ? `<div class="examples">${commandEvidenceHtml(entry.item, sources)}${examples.map((example) => `
     <div class="example">
       <div class="example-value">${highlightHtml(example.platformInfo.value, query)}</div>
       <div class="example-desc">${highlightHtml(example.description, query)}</div>
@@ -391,11 +407,13 @@ function sourceCard(toolId) {
   </div>`;
   const primarySources = sources.slice(0, 6);
   const remainingSources = sources.slice(6);
+  const references = Array.isArray(meta.references) ? meta.references : [];
   return `<div class="source-card" id="source-${toolId}">
     <div>${escapeHtml(meta.coverage || meta.source)}</div>
     <div>来源档位：${escapeHtml(tierLabel)} · 更新：${escapeHtml(meta.updatedAt || "未标注")} · 平台：${escapeHtml((meta.platforms || []).join(" / ") || "未标注")}</div>
     <div class="source-list">${primarySources.map(sourceEntry).join("") || "<div>尚未登记可核验来源</div>"}
       ${remainingSources.length ? `<details><summary>查看其余 ${remainingSources.length} 个来源</summary>${remainingSources.map(sourceEntry).join("")}</details>` : ""}
+      ${references.length ? `<details><summary>背景参考 ${references.length} 个（不证明具体命令）</summary>${references.map(sourceEntry).join("")}</details>` : ""}
     </div>
   </div>`;
 }
@@ -645,6 +663,9 @@ function renderPending() {
     ...(sourceChanges.added || []).map((source) => `＋ 来源：${source.title || source.id}`),
     ...(sourceChanges.removed || []).map((source) => `－ 来源：${source.title || source.id}`),
     ...(sourceChanges.conflicts || []).map((conflict) => `⚠ 来源冲突：${conflict}`),
+    ...((sourceChanges.statusDowngrades || []).length ? [`⚠ ${sourceChanges.statusDowngrades.length} 个条目的核验状态下降`] : []),
+    ...((sourceChanges.evidenceRefChanges || []).length ? [`≈ ${sourceChanges.evidenceRefChanges.length} 个条目的证据断言发生变化`] : []),
+    ...((sourceChanges.locatorLosses || []).length ? [`⚠ ${sourceChanges.locatorLosses.length} 个条目的证据定位被移除`] : []),
   ];
   panel.hidden = false;
   panel.innerHTML = `<h2>发现 ${escapeHtml(getAllData()[pendingUpdate.toolId]?.meta.name || pendingUpdate.toolId)} 更新</h2>

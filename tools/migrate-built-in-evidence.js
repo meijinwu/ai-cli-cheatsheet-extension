@@ -34,6 +34,9 @@ function sourceFromRegistry(registryId, overrides = {}) {
     maintainer: entry.maintainer,
     evidenceTier: entry.evidenceTier,
     lastVerifiedAt: entry.lastVerifiedAt,
+    resolvedUrl: overrides.url || entry.canonicalUrl,
+    pageTitle: overrides.title || entry.title,
+    checkedAt: entry.lastVerifiedAt,
     purposes: overrides.purposes || entry.purposes,
   };
 }
@@ -65,36 +68,52 @@ function gitRoot(item) {
 }
 
 function evidenceFor(toolId, item, metaSources) {
+  const partial = (sourceId, locator) => ({
+    evidenceRefs: [{
+      sourceId,
+      claims: ["existence"],
+      locator,
+      checkedAt: "2026-06-21",
+    }],
+    evidenceStatus: "partial",
+  });
+  const verified = (sourceId, locator) => ({
+    evidenceRefs: [{
+      sourceId,
+      claims: ["existence", "semantics"],
+      locator,
+      checkedAt: "2026-06-21",
+    }],
+    evidenceStatus: "verified",
+  });
   if (toolId === "antigravity-cli") {
     return item.cmd === "agy"
-      ? { evidenceStatus: "partial", sourceIds: ["antigravity-announcement"] }
+      ? partial("antigravity-announcement", "官方迁移公告中的 Antigravity CLI 产品入口")
       : { evidenceStatus: "unverified" };
   }
   if (toolId === "claude-code") {
     const sourceId = item.cat === "shortcut" ? "claude-interactive"
       : item.cat === "slash" ? "claude-commands" : "claude-cli-reference";
-    return { evidenceStatus: "verified", sourceIds: [sourceId] };
+    return partial(sourceId, `${registryById.get(sourceId).canonicalUrl}（页面内检索 ${item.cmd}）`);
   }
   if (toolId === "codex") {
     const sourceId = item.cat === "slash" ? "codex-slash-commands"
       : item.cat === "flag" ? "codex-cli-reference" : "codex-features";
-    return { evidenceStatus: "verified", sourceIds: [sourceId] };
+    return partial(sourceId, `${registryById.get(sourceId).canonicalUrl}（页面内检索 ${item.cmd}）`);
   }
   if (toolId === "gemini-cli") {
     const sourceId = item.cat === "shortcut" ? "gemini-keyboard"
       : item.cat === "slash" ? "gemini-commands" : "gemini-cli-reference";
-    return { evidenceStatus: "verified", sourceIds: [sourceId] };
+    return partial(sourceId, `${registryById.get(sourceId).canonicalUrl}（页面内检索 ${item.cmd}）`);
   }
   if (toolId === "opencode") {
     const sourceId = item.cat === "shortcut" ? "opencode-keybinds"
       : item.cat === "slash" ? "opencode-tui" : "opencode-cli";
-    return { evidenceStatus: "verified", sourceIds: [sourceId] };
+    return partial(sourceId, `${registryById.get(sourceId).canonicalUrl}（页面内检索 ${item.cmd}）`);
   }
   if (toolId === "openclaw") {
-    return {
-      evidenceStatus: "verified",
-      sourceIds: [item.cat === "slash" ? "openclaw-slash" : "openclaw-cli"],
-    };
+    const sourceId = item.cat === "slash" ? "openclaw-slash" : "openclaw-cli";
+    return partial(sourceId, `${registryById.get(sourceId).canonicalUrl}（页面内检索 ${item.cmd}）`);
   }
   if (toolId === "git") {
     const command = gitRoot(item);
@@ -106,7 +125,7 @@ function evidenceFor(toolId, item, metaSources) {
         url: command === "git" ? "https://git-scm.com/docs/git" : `https://git-scm.com/docs/git-${command}`,
       }));
     }
-    return { evidenceStatus: "verified", sourceIds: [sourceId] };
+    return verified(sourceId, metaSources.find((source) => source.id === sourceId).url);
   }
   if (toolId === "linux") {
     const command = item.cmd.split(/\s+/)[0];
@@ -114,25 +133,27 @@ function evidenceFor(toolId, item, metaSources) {
       return { evidenceStatus: "unverified" };
     }
     if (linuxGNU.has(command)) {
-      return { evidenceStatus: "partial", sourceIds: ["gnu-manuals"] };
+      return partial("gnu-manuals", `GNU manuals（检索 ${item.cmd}）`);
     }
     if (linuxMan7.has(command)) {
       const sourceId = `linux-${command}-man`;
+      const section = command === "ping" ? "man8" : "man1";
       if (!metaSources.some((source) => source.id === sourceId)) {
+        const sectionNumber = command === "ping" ? "8" : "1";
         metaSources.push(sourceFromRegistry("linux-man7", {
           id: sourceId,
-          title: `${command}(1) manual page`,
-          url: `https://man7.org/linux/man-pages/man1/${command}.1.html`,
+          title: `${command}(${sectionNumber}) manual page`,
+          url: `https://man7.org/linux/man-pages/${section}/${command}.${sectionNumber}.html`,
         }));
       }
-      return { evidenceStatus: "partial", sourceIds: [sourceId] };
+      return partial(sourceId, metaSources.find((source) => source.id === sourceId).url);
     }
     return { evidenceStatus: "unverified" };
   }
-  if (toolId === "cursor") return { evidenceStatus: "partial", sourceIds: ["cursor-shortcuts"] };
-  if (toolId === "idea") return { evidenceStatus: "partial", sourceIds: ["idea-macos-keymap"] };
-  if (toolId === "typora") return { evidenceStatus: "verified", sourceIds: ["typora-shortcuts"] };
-  if (toolId === "vs-code") return { evidenceStatus: "verified", sourceIds: ["vscode-keybindings"] };
+  if (toolId === "cursor") return partial("cursor-shortcuts", `官方快捷键页（页面内检索 ${item.cmd}）`);
+  if (toolId === "idea") return partial("idea-macos-keymap", `官方 macOS Keymap（页面内检索 ${item.en}）`);
+  if (toolId === "typora") return partial("typora-shortcuts", `官方 Shortcut Keys（页面内检索 ${item.en}）`);
+  if (toolId === "vs-code") return partial("vscode-keybindings", `官方 Default Keyboard Shortcuts（页面内检索 ${item.en}）`);
   return { evidenceStatus: "unverified" };
 }
 
@@ -150,9 +171,16 @@ for (const [toolId, tool] of Object.entries(context.window.CHEATSHEET_DATA)) {
     }
     seenIds.add(id);
     const evidence = evidenceFor(toolId, item, metaSources);
-    return { ...item, id, ...evidence };
+    const { sourceIds: _legacySourceIds, evidenceRefs: _oldRefs, ...rest } = item;
+    return { ...rest, id, ...evidence };
   });
-  tool.meta.sources = metaSources;
+  const usedSourceIds = new Set(tool.items.flatMap((item) =>
+    (item.evidenceRefs || []).map((ref) => ref.sourceId)
+  ));
+  tool.meta.sources = metaSources.filter((source) => usedSourceIds.has(source.id));
+  const backgroundReferences = metaSources.filter((source) => !usedSourceIds.has(source.id));
+  if (backgroundReferences.length) tool.meta.references = backgroundReferences;
+  else delete tool.meta.references;
   const serializable = { meta: tool.meta, items: tool.items };
   const content = [
     "// Generated from validated structured data. Manual edits must follow data/SCHEMA.md.",

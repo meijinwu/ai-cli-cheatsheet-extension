@@ -25,20 +25,9 @@ window.CHEATSHEET_DATA["linux"] = {
         "maintainer": "GNU Project",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
-        "purposes": [
-          "command-existence",
-          "option-semantics",
-          "examples"
-        ]
-      },
-      {
-        "id": "linux-man7",
-        "title": "Linux man-pages and curated project manuals",
-        "url": "https://man7.org/linux/man-pages/index.html",
-        "kind": "authoritative-reference",
-        "maintainer": "Linux man-pages project / man7.org",
-        "evidenceTier": "authoritative-community",
-        "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://www.gnu.org/software/coreutils/manual/",
+        "pageTitle": "GNU manuals",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -54,6 +43,9 @@ window.CHEATSHEET_DATA["linux"] = {
         "maintainer": "Linux man-pages project / man7.org",
         "evidenceTier": "authoritative-community",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://man7.org/linux/man-pages/man1/ps.1.html",
+        "pageTitle": "ps(1) manual page",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -69,6 +61,9 @@ window.CHEATSHEET_DATA["linux"] = {
         "maintainer": "Linux man-pages project / man7.org",
         "evidenceTier": "authoritative-community",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://man7.org/linux/man-pages/man1/kill.1.html",
+        "pageTitle": "kill(1) manual page",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -84,6 +79,9 @@ window.CHEATSHEET_DATA["linux"] = {
         "maintainer": "Linux man-pages project / man7.org",
         "evidenceTier": "authoritative-community",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://man7.org/linux/man-pages/man1/top.1.html",
+        "pageTitle": "top(1) manual page",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -99,6 +97,9 @@ window.CHEATSHEET_DATA["linux"] = {
         "maintainer": "Linux man-pages project / man7.org",
         "evidenceTier": "authoritative-community",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://man7.org/linux/man-pages/man1/grep.1.html",
+        "pageTitle": "grep(1) manual page",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -114,6 +115,9 @@ window.CHEATSHEET_DATA["linux"] = {
         "maintainer": "Linux man-pages project / man7.org",
         "evidenceTier": "authoritative-community",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://man7.org/linux/man-pages/man1/find.1.html",
+        "pageTitle": "find(1) manual page",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -129,6 +133,9 @@ window.CHEATSHEET_DATA["linux"] = {
         "maintainer": "Linux man-pages project / man7.org",
         "evidenceTier": "authoritative-community",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://man7.org/linux/man-pages/man1/diff.1.html",
+        "pageTitle": "diff(1) manual page",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -144,6 +151,9 @@ window.CHEATSHEET_DATA["linux"] = {
         "maintainer": "Linux man-pages project / man7.org",
         "evidenceTier": "authoritative-community",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://man7.org/linux/man-pages/man1/free.1.html",
+        "pageTitle": "free(1) manual page",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -153,12 +163,34 @@ window.CHEATSHEET_DATA["linux"] = {
       {
         "id": "linux-ping-man",
         "registryId": "linux-man7",
-        "title": "ping(1) manual page",
-        "url": "https://man7.org/linux/man-pages/man1/ping.1.html",
+        "title": "ping(8) manual page",
+        "url": "https://man7.org/linux/man-pages/man8/ping.8.html",
         "kind": "authoritative-reference",
         "maintainer": "Linux man-pages project / man7.org",
         "evidenceTier": "authoritative-community",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://man7.org/linux/man-pages/man8/ping.8.html",
+        "pageTitle": "ping(8) manual page",
+        "checkedAt": "2026-06-21",
+        "purposes": [
+          "command-existence",
+          "option-semantics",
+          "examples"
+        ]
+      }
+    ],
+    "references": [
+      {
+        "id": "linux-man7",
+        "title": "Linux man-pages and curated project manuals",
+        "url": "https://man7.org/linux/man-pages/index.html",
+        "kind": "authoritative-reference",
+        "maintainer": "Linux man-pages project / man7.org",
+        "evidenceTier": "authoritative-community",
+        "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://man7.org/linux/man-pages/index.html",
+        "pageTitle": "Linux man-pages and curated project manuals",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "option-semantics",
@@ -179,8 +211,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-ls",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 ls）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -194,8 +233,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-ls-l",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 ls -l）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -209,8 +255,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-ls-a",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 ls -a）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -224,8 +277,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-ls-la",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 ls -la）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -265,8 +325,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-pwd",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 pwd）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -280,8 +347,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-mkdir",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 mkdir）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -295,8 +369,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-mkdir-p",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 mkdir -p）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -310,8 +391,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-cp",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 cp）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -325,8 +413,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-cp-r",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 cp -r）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -340,8 +435,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-mv",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 mv）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -355,8 +457,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-rm",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 rm）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -370,8 +479,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-rm-rf",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 rm -rf）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -385,8 +501,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-touch",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 touch）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -400,8 +523,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-cat",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 cat）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -427,8 +557,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-head",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 head）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -442,8 +579,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-tail",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 tail）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -457,8 +601,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-tail-f",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 tail -f）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -472,8 +623,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-chmod",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 chmod）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -487,8 +645,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-chmod-x",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 chmod +x）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -501,8 +666,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-chown",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 chown）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -516,8 +688,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-ps",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-ps-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-ps-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/ps.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -531,8 +710,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-ps-aux",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-ps-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-ps-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/ps.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -546,8 +732,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-kill",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-kill-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-kill-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/kill.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -561,8 +754,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-kill-9",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-kill-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-kill-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/kill.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -576,8 +776,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-top",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-top-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-top-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/top.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -591,8 +798,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-grep",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-grep-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-grep-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/grep.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -606,8 +820,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-grep-r",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-grep-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-grep-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/grep.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -621,8 +842,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-grep-i",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-grep-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-grep-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/grep.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -636,8 +864,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-find",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-find-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-find-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/find.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -651,8 +886,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-find-name",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-find-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-find-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/find.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -666,8 +908,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-sort",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 sort）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -681,8 +930,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-uniq",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 uniq）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -696,8 +952,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-wc",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 wc）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -711,8 +974,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-wc-l",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 wc -l）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -726,8 +996,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-diff",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-diff-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-diff-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/diff.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -741,8 +1018,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-df",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 df -h）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -756,8 +1040,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-du",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 du -sh）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -770,8 +1061,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-free",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-free-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-free-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man1/free.1.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -845,8 +1143,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-chmod-755",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 chmod 755）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -920,8 +1225,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-ping",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "linux-ping-man"
+      "evidenceRefs": [
+        {
+          "sourceId": "linux-ping-man",
+          "claims": [
+            "existence"
+          ],
+          "locator": "https://man7.org/linux/man-pages/man8/ping.8.html",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {
@@ -935,8 +1247,15 @@ window.CHEATSHEET_DATA["linux"] = {
       ],
       "id": "linux-ln-s",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "gnu-manuals"
+      "evidenceRefs": [
+        {
+          "sourceId": "gnu-manuals",
+          "claims": [
+            "existence"
+          ],
+          "locator": "GNU manuals（检索 ln -s）",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {

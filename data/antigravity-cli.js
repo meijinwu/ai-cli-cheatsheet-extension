@@ -25,6 +25,9 @@ window.CHEATSHEET_DATA["antigravity-cli"] = {
         "maintainer": "Google",
         "evidenceTier": "first-party",
         "lastVerifiedAt": "2026-06-21",
+        "resolvedUrl": "https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/",
+        "pageTitle": "Transitioning Gemini CLI to Antigravity CLI",
+        "checkedAt": "2026-06-21",
         "purposes": [
           "command-existence",
           "release-notes"
@@ -40,8 +43,15 @@ window.CHEATSHEET_DATA["antigravity-cli"] = {
       "zh": "启动交互式终端界面（是 Gemini CLI 的官方继任者，命令从 gemini 换成了 agy）",
       "id": "9214a76c9e068280",
       "evidenceStatus": "partial",
-      "sourceIds": [
-        "antigravity-announcement"
+      "evidenceRefs": [
+        {
+          "sourceId": "antigravity-announcement",
+          "claims": [
+            "existence"
+          ],
+          "locator": "官方迁移公告中的 Antigravity CLI 产品入口",
+          "checkedAt": "2026-06-21"
+        }
       ]
     },
     {

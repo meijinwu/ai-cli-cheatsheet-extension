@@ -27,5 +27,8 @@ assert(script.includes("sourceChanges.conflicts"), "update preview must display 
 assert(script.includes("已核验") && script.includes("部分核验") && script.includes("未核验"), "all item evidence states must be visible");
 assert(script.includes("条目核验："), "management view must summarize evidence states");
 assert(script.includes("查看其余") && script.includes("<details>"), "long source lists must remain compact");
+assert(script.includes("commandEvidenceHtml"), "command evidence must render separately from example provenance");
+assert(script.includes("命令证据：") && script.includes("exampleProvenanceLabel"), "command and example evidence labels must stay distinct");
+assert(script.includes("evidenceRefChanges") && script.includes("locatorLosses"), "update preview must report evidence assertion and locator changes");
 
 console.log("Popup UX contract tests passed.");
