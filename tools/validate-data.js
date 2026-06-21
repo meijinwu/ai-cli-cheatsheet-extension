@@ -55,11 +55,20 @@ for (const id of files) {
 
 const data = context.window.CHEATSHEET_DATA || {};
 const enrichmentFile = path.join(root, "usage-examples.js");
+const enrichmentDir = path.join(root, "enrichments");
+for (const filename of fs.readdirSync(enrichmentDir).filter((name) => name.endsWith(".js")).sort()) {
+  const fullPath = path.join(enrichmentDir, filename);
+  vm.runInContext(fs.readFileSync(fullPath, "utf8"), context, { filename: fullPath });
+}
 vm.runInContext(fs.readFileSync(enrichmentFile, "utf8"), context, { filename: enrichmentFile });
 if (typeof context.window.CHEATSHEET_BUILD_FULL_ENRICHMENTS !== "function") {
   fail("usage-examples.js must expose CHEATSHEET_BUILD_FULL_ENRICHMENTS");
 }
 context.window.CHEATSHEET_BUILD_FULL_ENRICHMENTS(data);
+const legacyWarnings = context.window.CHEATSHEET_ENRICHMENT_WARNINGS || [];
+if (legacyWarnings.length) {
+  console.warn(`Legacy enrichment lookups (${legacyWarnings.length}):\n${legacyWarnings.join("\n")}`);
+}
 // 把 curated 富化按 item 引用记录到旁路表，校验时按需叠加，不改写共享数据对象。
 const enrichmentByItem = new WeakMap();
 for (const [toolId, enrichments] of Object.entries(context.window.CHEATSHEET_ENRICHMENTS || {})) {
@@ -147,6 +156,12 @@ for (const id of files) {
         if (example.warning !== undefined && (typeof example.warning !== "string" || !example.warning.trim())) {
           fail(`${id}[${index}].examples[${exampleIndex}]: invalid warning`);
         }
+        if (example.riskLevels !== undefined && (
+          !Array.isArray(example.riskLevels)
+          || !example.riskLevels.length
+          || example.riskLevels.some((level) =>
+            !["deleteOrOverwrite", "permissionChange", "historyRewrite", "safetyBypass", "processDisruption"].includes(level))
+        )) fail(`${id}[${index}].examples[${exampleIndex}]: invalid riskLevels`);
         if (example.platforms !== undefined && (
           !Array.isArray(example.platforms)
           || !example.platforms.length
@@ -166,6 +181,9 @@ for (const id of files) {
         }
         if (DANGEROUS_EXAMPLE_RE.test(example.value) && !example.warning) {
           fail(`${id}[${index}].examples[${exampleIndex}]: dangerous example requires warning`);
+        }
+        if (DANGEROUS_EXAMPLE_RE.test(example.value) && example.copyable !== false) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: dangerous example must not be copyable`);
         }
         if (POSSIBLE_SECRET_RE.test(example.value)) {
           fail(`${id}[${index}].examples[${exampleIndex}]: possible secret`);

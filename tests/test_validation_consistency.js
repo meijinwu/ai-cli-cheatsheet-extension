@@ -18,6 +18,9 @@ const secret = new RegExp(rules.possibleSecret.source, rules.possibleSecret.flag
 assert(dangerous.test("rm -rf ./tmp"), "dangerous regex should match rm -rf");
 assert(!dangerous.test("git status"), "dangerous regex should not match safe command");
 assert(secret.test("api_key=abcdef012345"), "secret regex should match leaked key");
+for (const [name, source] of Object.entries(rules.riskLevels)) {
+  assert.doesNotThrow(() => new RegExp(source, "i"), `risk regex should compile: ${name}`);
+}
 
 // 2) host.py 镜像同样的正则 source（host.py 用 raw string，内容应逐字符出现）。
 assert(

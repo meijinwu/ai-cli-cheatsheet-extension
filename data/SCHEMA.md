@@ -42,6 +42,7 @@
       description: "把输出中的所有“旧文本”替换为“新文本”",
       copyable: true,                       // 可选，默认 true
       warning: "先去掉 -i 预览结果",        // 可选
+      riskLevels: ["deleteOrOverwrite"],     // 可选；高风险示例由构建器自动补充并强制不可复制
       sourceType: "ai-derived",             // 必填：official / manual / ai-derived
       sourceUrl: "https://example.com/docs", // 可选；能定位具体官方页面时填写
       platforms: ["mac", "linux"],          // 可选
@@ -95,6 +96,8 @@ meta：
 - 新增工具应为所有条目提供 keywords 和 examples。CLI 提供可执行命令，IDE 提供操作场景
 - examples 覆盖不足不会阻止写入，但会产生质量警告；结构错误仍会拒绝
 - 官方明确提供的示例标记 official，人工整理标记 manual，基于语义推导标记 ai-derived
+- manual / official 示例必须显式填写能定位到具体行为的 sourceUrl；不得用工具首页自动兜底
+- 重点精选条目应提供稳定 `item.id`，富化文件使用 `id:<item.id>` 关联；旧 cmd/context 键仅用于兼容
 - 严禁编造没有查到的命令或快捷键；查不到就如实少收录，不要为了凑数量编内容
 - Claude 只返回结构化 JSON；Native Host 校验后负责生成 JS 和原子写入
 - `meta.id` 必须与文件名一致；同一 `cat + cmd + context` 不能重复

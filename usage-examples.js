@@ -2,7 +2,20 @@
   "use strict";
 
   const SOURCE_TYPES = new Set(["official", "manual", "ai-derived"]);
-  const DANGEROUS_PATTERN = /\b(rm\s+-rf|reset\s+--hard|push\s+--force|kill\s+-9|chmod|chown|restart|--delete|--yolo|dangerously-bypass)\b|(^|\s)>(?!>)/i;
+  const RISK_PATTERNS = {
+    deleteOrOverwrite: /(?:\brm(?:\s|$)|\breset\s+--hard\b|--delete\b)|(^|\s)>(?!>)/i,
+    permissionChange: /\b(chmod|chown)\b/i,
+    historyRewrite: /\b(reset\s+--hard|push\s+--force|rebase\s+-i)\b/i,
+    safetyBypass: /(?:--yolo|dangerously-bypass)\b/i,
+    processDisruption: /\b(kill\s+-9|restart)\b/i,
+  };
+  const RISK_WARNINGS = {
+    deleteOrOverwrite: "此操作可能删除或覆盖数据，请先确认目标并做好备份",
+    permissionChange: "此操作会改变文件权限或所有者，请确认目标和权限值",
+    historyRewrite: "此操作会重写提交历史，请确认分支状态和协作影响",
+    safetyBypass: "此操作会绕过安全保护，仅限受控隔离环境使用",
+    processDisruption: "此操作会强制终止或重启进程，可能中断正在进行的工作",
+  };
   const KEYWORD_RULES = [
     [["搜索", "查找", "find", "search", "grep"], ["搜索", "查找", "定位"]],
     [["替换", "replace", "substitute", "sed"], ["替换", "取代", "文本替换"]],
@@ -225,6 +238,10 @@
     return haystack.includes(trigger);
   }
 
+  function classifyRisk(value) {
+    return Object.keys(RISK_PATTERNS).filter((level) => RISK_PATTERNS[level].test(String(value || "")));
+  }
+
   function deriveKeywords(item) {
     const haystack = `${item.cmd} ${item.zh} ${item.en} ${item.context || ""}`.toLowerCase();
     const keywords = [];
@@ -254,7 +271,7 @@
     const isOperation = isKeyboardOperation(item) || isReferenceEntry(item)
       || isDescriptiveEntry(item)
       || (toolId === "linux" && ["bg", "fg"].includes(item.cmd));
-    const dangerous = DANGEROUS_PATTERN.test(syntax);
+    const risks = classifyRisk(syntax);
     const unresolved = /[\[\]<>]|模型名|(?:\s+或\s+)|\|/.test(syntax);
     const value = isOperation ? operationValue(item) : syntax;
     const platformValues = item.platformCmds
@@ -268,17 +285,29 @@
     return {
       value,
       description: deriveDescription(item),
-      copyable: !isOperation && !unresolved && !dangerous,
+      generated: true,
+      copyable: !isOperation && !unresolved && !risks.length,
       sourceType: "ai-derived",
-      ...(dangerous ? { warning: "此操作可能修改、覆盖或删除数据，请先确认目标并做好备份" } : {}),
+      ...(risks.length ? { warning: RISK_WARNINGS[risks[0]], riskLevels: risks } : {}),
       ...(Array.isArray(item.platforms) ? { platforms: item.platforms } : {}),
       ...(platformValues ? { platformValues } : {}),
     };
   }
 
   function normalizeCuratedExample(example) {
-    const sourceType = SOURCE_TYPES.has(example.sourceType) ? example.sourceType : "manual";
-    return { ...example, sourceType };
+    const risks = classifyRisk(example.value);
+    const sourceType = SOURCE_TYPES.has(example.sourceType)
+      ? example.sourceType
+      : example.sourceUrl ? "manual" : "ai-derived";
+    return {
+      ...example,
+      sourceType,
+      ...(risks.length ? {
+        copyable: false,
+        warning: example.warning || RISK_WARNINGS[risks[0]],
+        riskLevels: risks,
+      } : {}),
+    };
   }
 
   globalScope.CHEATSHEET_ENRICHMENTS = {
@@ -293,14 +322,6 @@
       "agy models": { examples: [{ value: "agy models", description: "列出当前账号和套餐可使用的模型" }] },
       "/permissions": { examples: [{ value: "/permissions", description: "查看和编辑当前作用域的工具权限规则" }] },
       "/fast": { examples: [{ value: "/fast", description: "跳过规划阶段直接执行，适合范围明确的小任务", warning: "复杂任务建议保留规划阶段" }] },
-      "agy help": { examples: [{ value: "agy help", description: "显示外层 shell 命令（区别于会话内的斜杠命令）" }] },
-      "agy install / agy update": { examples: [{ value: "agy update", description: "安装或更新 agy 本体到最新版本" }] },
-      "/config 或 /settings": { examples: [{ value: "/config", description: "打开配置设置界面" }] },
-      "/fork": { examples: [{ value: "/fork", description: "分叉当前对话，探索不同方案而不丢失当前线程" }] },
-      "/agents": { examples: [{ value: "/agents", description: "打开代理管理面板，查看后台子代理的状态和进度" }] },
-      "/mcp": { examples: [{ value: "/mcp", description: "管理 Model Context Protocol 服务" }] },
-      "/artifacts": { examples: [{ value: "/artifacts", description: "管理实施计划（对应 Gemini CLI 的 /plan）" }] },
-      "/usage": { examples: [{ value: "/usage", description: "打开离线开发手册" }] },
     },
     "claude-code": {
       "/compact [指令]": { examples: [{ value: "/compact 保留当前实现决策和未完成任务", description: "按指定重点压缩上下文，释放可用上下文空间" }] },
@@ -321,26 +342,13 @@
         { value: "/effort auto", description: "交给 Claude 按任务复杂度自动选择推理强度", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
       ] },
       "/fast [on|off]": { examples: [
-        { value: "/fast on", description: "开启快速模式，跳过规划直接执行，适合范围明确的小任务", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
-        { value: "/fast off", description: "关闭快速模式，恢复带规划阶段的常规流程", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
+        { value: "/fast on", description: "为支持的 Opus 模型开启低延迟响应；速度更快，但 token 单价更高，能力与质量不变", sourceUrl: "https://code.claude.com/docs/en/fast-mode" },
+        { value: "/fast off", description: "关闭低延迟模式，恢复标准响应速度和标准 token 价格", sourceUrl: "https://code.claude.com/docs/en/fast-mode" },
       ] },
       "/goal [条件|clear]": { examples: [
         { value: "/goal 通过所有单元测试再停止", description: "设定一个跨多轮持续追踪的目标，直到条件满足", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
         { value: "/goal clear", description: "清除当前目标，停止跨轮追踪", sourceUrl: "https://code.claude.com/docs/en/interactive-mode" },
       ] },
-      "/status": { examples: [{ value: "/status", description: "显示版本、模型、账号和连接状态" }] },
-      "/mcp": { examples: [{ value: "/mcp", description: "管理 MCP 服务连接和 OAuth 认证" }] },
-      "/agents": { examples: [{ value: "/agents", description: "查看和管理子代理配置" }] },
-      "/diff": { examples: [{ value: "/diff", description: "交互式查看未提交改动和每轮对话产生的 diff" }] },
-      "/cost": { examples: [{ value: "/cost", description: "查看本次会话的花费和 token 用量" }] },
-      "/config [key=value]": { examples: [{ value: "/config", description: "打开设置界面调整主题、模型等偏好" }] },
-      "/memory": { examples: [{ value: "/memory", description: "编辑 CLAUDE.md 记忆文件，管理自动记忆条目" }] },
-      "/code-review [级别] [--fix]": { examples: [
-        { value: "/code-review", description: "审查当前 diff 的正确性问题" },
-        { value: "/code-review --fix", description: "审查并直接应用可修复项" },
-      ] },
-      "/rewind": { examples: [{ value: "/rewind", description: "把代码和对话回退到之前的检查点" }] },
-      "/add-dir <路径>": { examples: [{ value: "/add-dir ../shared-lib", description: "为当前会话添加额外可访问的工作目录" }] },
     },
     "codex": {
       "/model": { examples: [{ value: "/model", description: "打开当前会话的模型与推理强度选择器" }] },
@@ -368,20 +376,6 @@
         { value: "codex resume --last", description: "直接恢复最近一次会话，跳过选择器", sourceUrl: "https://developers.openai.com/codex/cli/" },
         { value: "codex resume --all", description: "跨所有目录搜索历史会话后再选择恢复", sourceUrl: "https://developers.openai.com/codex/cli/" },
       ] },
-      "/status": { examples: [{ value: "/status", description: "查看当前模型、审批策略、可写目录和 token 用量" }] },
-      "/compact": { examples: [{ value: "/compact", description: "总结对话历史，释放被占用的上下文空间" }] },
-      "/diff": { examples: [{ value: "/diff", description: "查看已暂存、未暂存和未跟踪文件的全部改动" }] },
-      "/clear": { examples: [{ value: "/clear", description: "清空终端并开始一段全新对话" }] },
-      "/new": { examples: [{ value: "/new", description: "在同一 CLI 会话里开新对话，但不清屏（区别于 /clear）" }] },
-      "/mcp [verbose]": { examples: [
-        { value: "/mcp", description: "列出已配置的 MCP 工具" },
-        { value: "/mcp verbose", description: "额外显示每个 MCP 服务器的连接详情" },
-      ] },
-      "/mention <路径>": { examples: [{ value: "/mention src/auth.ts", description: "把指定文件附加进当前对话上下文" }] },
-      "/permissions": { examples: [{ value: "/permissions", description: "调整审批策略（Auto / Read Only / Full Access）" }] },
-      "--model, -m <模型>": { examples: [{ value: "codex --model gpt-5.5", description: "用指定模型启动，覆盖配置里的默认模型" }] },
-      "--sandbox, -s <模式>": { examples: [{ value: "codex --sandbox workspace-write", description: "以指定沙盒策略启动：read-only / workspace-write / danger-full-access" }] },
-      "--yolo / --dangerously-bypass-approvals-and-sandbox": { examples: [{ value: "codex --yolo", description: "完全跳过审批和沙盒直接执行", warning: "会授予完全的文件和命令权限，仅限受控隔离环境使用" }] },
     },
     "cursor": {
       "Cmd+I": { examples: [{ value: "选中要修改的代码后按 Cmd/Ctrl+I，输入“提取为可复用函数”", description: "让 Agent 基于当前上下文直接修改代码", copyable: false }] },
@@ -440,15 +434,6 @@
         { value: "/skills enable", description: "启用某个技能，按需提供专业能力", sourceUrl: "https://geminicli.com/docs/" },
         { value: "/skills reload", description: "改动技能定义后重新加载", sourceUrl: "https://geminicli.com/docs/" },
       ] },
-      "/clear": { examples: [{ value: "/clear", description: "清空终端屏幕和可见历史（快捷键 Ctrl+L）" }] },
-      "/chat（/resume别名）": { examples: [{ value: "/chat", description: "浏览历史会话和手动检查点并恢复" }] },
-      "/copy": { examples: [{ value: "/copy", description: "把最近一次输出复制到剪贴板" }] },
-      "/editor": { examples: [{ value: "/editor", description: "选择用于编写长提示的外部编辑器" }] },
-      "/init": { examples: [{ value: "/init", description: "分析当前目录，生成定制化的项目说明文件" }] },
-      "/restore [tool_call_id]": { examples: [{ value: "/restore", description: "把项目文件恢复到某次工具执行前的状态" }] },
-      "/rewind": { examples: [{ value: "/rewind", description: "回溯对话，可选择回退聊天和/或代码改动（Esc Esc）" }] },
-      "/vim": { examples: [{ value: "/vim", description: "切换 Vim 风格的导航和编辑模式" }] },
-      "/theme": { examples: [{ value: "/theme", description: "切换界面视觉主题" }] },
     },
     "git": {
       "clone": { examples: [{ value: "git clone https://github.com/example/project.git", description: "把远程仓库克隆到当前目录" }] },
@@ -564,18 +549,6 @@
         { value: "/goal status", description: "查看当前目标及完成进度", sourceUrl: "https://docs.openclaw.ai/tools/slash-commands" },
         { value: "/goal clear", description: "清除目标，停止追踪", sourceUrl: "https://docs.openclaw.ai/tools/slash-commands" },
       ] },
-      "/stop": { examples: [{ value: "/stop", description: "中止当前正在执行的运行" }] },
-      "/think <level|default>": { examples: [
-        { value: "/think high", description: "调高思考级别，处理复杂任务时推理更充分" },
-        { value: "/think default", description: "恢复到默认思考级别" },
-      ] },
-      "/commands": { examples: [{ value: "/commands", description: "显示所有可用命令目录" }] },
-      "/whoami": { examples: [{ value: "/whoami", description: "显示当前发送者身份标识" }] },
-      "openclaw status": { examples: [{ value: "openclaw status", description: "快速显示系统、Gateway、代理和配置摘要" }] },
-      "openclaw update": { examples: [{ value: "openclaw update", description: "更新 OpenClaw 到最新版本并重启 Gateway" }] },
-      "openclaw logs --follow": { examples: [{ value: "openclaw logs --follow", description: "实时跟踪最新日志输出" }] },
-      "openclaw dashboard": { examples: [{ value: "openclaw dashboard", description: "在浏览器中打开 Control UI 控制台" }] },
-      "openclaw configure": { examples: [{ value: "openclaw configure", description: "进入交互式配置向导" }] },
     },
     "opencode": {
       "/new": { examples: [{ value: "/new", description: "清空当前上下文并开始新会话" }] },
@@ -591,16 +564,6 @@
       "opencode mcp auth [name]": { examples: [{ value: "opencode mcp auth github", description: "对名为 github 的 OAuth MCP 服务器发起认证" }] },
       "opencode plugin [module]": { examples: [{ value: "opencode plugin @opencode/git", description: "安装 @opencode/git 插件并更新配置" }] },
       "--agent [name]": { examples: [{ value: "opencode --agent build", description: "以 build agent 启动一次会话" }] },
-      "/init": { examples: [{ value: "/init", description: "引导创建或更新项目的 AGENTS.md 文件" }] },
-      "/share": { examples: [{ value: "/share", description: "为当前会话生成可分享的链接" }] },
-      "/help": { examples: [{ value: "/help", description: "打开帮助对话框" }] },
-      "opencode": { examples: [{ value: "opencode", description: "在当前目录启动交互式终端界面" }] },
-      "opencode models": { examples: [{ value: "opencode models", description: "列出所有已配置提供商的可用模型" }] },
-      "opencode auth login": { examples: [{ value: "opencode auth login", description: "交互式添加 AI 提供商的 API Key" }] },
-      "opencode serve": { examples: [{ value: "opencode serve", description: "启动无界面 HTTP API 服务器，供外部程序调用" }] },
-      "opencode run -c": { examples: [{ value: "opencode run -c", description: "在非交互模式下继续上次会话" }] },
-      "opencode session list": { examples: [{ value: "opencode session list", description: "列出所有历史会话" }] },
-      "--model / -m [provider/model]": { examples: [{ value: "opencode --model anthropic/claude-sonnet", description: "启动时指定 provider/model 格式的模型" }] },
     },
     "typora": {
       "Cmd+1": { examples: [{ value: "# 一级标题", description: "Markdown 一级标题的输入形式" }] },
@@ -628,28 +591,43 @@
     },
   };
 
+  const enrichmentModules = globalScope.CHEATSHEET_ENRICHMENT_MODULES || {};
+
   globalScope.CHEATSHEET_BUILD_FULL_ENRICHMENTS = function buildFullEnrichments(data) {
+    const legacyWarnings = [];
     Object.entries(data || {}).forEach(([toolId, tool]) => {
       const enrichments = globalScope.CHEATSHEET_ENRICHMENTS[toolId] || {};
       const byLookup = new Map(Object.entries(enrichments));
+      const byStableId = new Map(Object.entries(enrichmentModules[toolId] || {}));
       tool.items.forEach((item) => {
         const lookup = `${item.cmd}\0${item.context || ""}`;
         const legacyLookup = item.cmd;
-        const existing = byLookup.get(lookup) || byLookup.get(legacyLookup) || {};
-        const docUrl = tool.meta && tool.meta.sourceUrl;
+        const stableLookup = item.id ? `id:${item.id}` : "";
+        const stableEnrichment = byStableId.get(stableLookup);
+        const exactLegacyEnrichment = byLookup.get(lookup);
+        const commandLegacyEnrichment = byLookup.get(legacyLookup);
+        const existing = stableEnrichment
+          || exactLegacyEnrichment
+          || commandLegacyEnrichment
+          || {};
+        if (item.id && !stableEnrichment && (exactLegacyEnrichment || commandLegacyEnrichment)) {
+          legacyWarnings.push(`${toolId}:${item.id} still uses cmd/context enrichment lookup`);
+        }
         const examples = (existing.examples || item.examples || [deriveExample(toolId, tool, item)])
-          .map(normalizeCuratedExample)
-          // 人工/官方示例若未自带链接，默认挂上该工具已验证的文档地址（meta.sourceUrl），便于核验；
-          // AI 派生示例不冒充权威来源，保持无链接。
-          .map((example) => (example.sourceType !== "ai-derived" && !example.sourceUrl && docUrl)
-            ? { ...example, sourceUrl: docUrl }
-            : example);
+          .map(normalizeCuratedExample);
         const keywords = existing.keywords || item.keywords || deriveKeywords(item);
         byLookup.set(lookup, { ...existing, keywords, examples });
         if (lookup !== legacyLookup && byLookup.get(legacyLookup) === existing) byLookup.delete(legacyLookup);
+        if (stableLookup) byStableId.delete(stableLookup);
       });
+      if (byStableId.size) {
+        throw new Error(`${toolId}: enrichment references unknown item ids: ${[...byStableId.keys()].join(", ")}`);
+      }
       globalScope.CHEATSHEET_ENRICHMENTS[toolId] = Object.fromEntries(byLookup);
     });
+    globalScope.CHEATSHEET_ENRICHMENT_WARNINGS = legacyWarnings;
     return globalScope.CHEATSHEET_ENRICHMENTS;
   };
+
+  globalScope.CHEATSHEET_ENRICHMENT_TEST_API = { triggerHit, classifyRisk };
 }(typeof window !== "undefined" ? window : globalThis));
