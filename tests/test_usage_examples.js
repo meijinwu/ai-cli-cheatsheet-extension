@@ -23,6 +23,10 @@ for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
     assert(enrichment.examples.length >= 1, `${toolId} ${item.cmd}: missing examples`);
     for (const example of enrichment.examples) {
       assert(sourceCounts[example.sourceType] !== undefined, `${toolId} ${item.cmd}: bad source`);
+      assert(
+        !/^(示例用途|操作场景)：/.test(example.description),
+        `${toolId} ${item.cmd}: description must not use stiff label prefix`
+      );
       sourceCounts[example.sourceType] += 1;
       exampleCount += 1;
     }

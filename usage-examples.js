@@ -29,8 +29,12 @@
       .replace(/\[soft \[message\]\]/gi, 'soft "重新开始"')
       .replace(/\[([^\]]+)\]/g, (_match, label) => {
         const normalized = label.toLowerCase();
+        if (/^-/.test(label.trim())) return label.trim();
         if (normalized.includes("|")) return cleanSyntax(normalized.split("|")[0]);
         if (/pr/.test(normalized)) return "123";
+        if (/url|链接/.test(normalized)) return "https://example.com";
+        if (/number|编号|序号/.test(normalized)) return "123";
+        if (/commit|hash|提交/.test(normalized)) return "abc1234";
         if (/路径|path|file/.test(normalized)) return "src/app.js";
         if (/模型|model/.test(normalized)) return "model-name";
         if (/会话|session|id/.test(normalized)) return "session-id";
@@ -45,7 +49,12 @@
         return "sample-value";
       })
       .replace(/<([^>]+)>/g, (_match, label) => {
-        if (label.includes("|")) return cleanSyntax(label.split("|")[0]);
+        // 形参占位符（尖括号）取首个候选，但仍要走值映射，避免落成类型名本身（如 <level|default>→level）。
+        if (label.includes("|")) return cleanSyntax(`<${label.split("|")[0]}>`);
+        if (/^-/.test(label.trim())) return label.trim();
+        if (/commit|hash|提交/i.test(label)) return "abc1234";
+        if (/url|链接/i.test(label)) return "https://example.com";
+        if (/number|编号|序号/i.test(label)) return "123";
         if (/command/i.test(label)) return "git status";
         if (/file|path|路径/i.test(label)) return "src/app.js";
         if (/level|级别/i.test(label)) return "medium";
@@ -212,6 +221,16 @@
     return [...new Set([...keywords, ...fallback])].slice(0, 8);
   }
 
+  // 仅当 context 提供 zh 未含的场景信息时才折叠进描述；纯基础命令 token（如 git 的
+  // reset/branch）不算场景，跳过。CJK 与含分隔符的 context（如「编辑器」「Chat/Composer」）保留。
+  function deriveDescription(item) {
+    const zh = String(item.zh || "").trim();
+    const context = String(item.context || "").trim();
+    const isBaseToken = /^[\w.-]+$/.test(context);
+    if (!context || isBaseToken || zh.includes(context)) return zh;
+    return `${context}：${zh}`;
+  }
+
   function deriveExample(toolId, tool, item) {
     const syntax = completeCommonCommand(toolId, commandPrefix(toolId, cleanSyntax(item.cmd)));
     const isOperation = isKeyboardOperation(item) || isReferenceEntry(item)
@@ -230,7 +249,7 @@
       : null;
     return {
       value,
-      description: isOperation ? `操作场景：${item.zh}` : `示例用途：${item.zh}`,
+      description: deriveDescription(item),
       copyable: !isOperation && !unresolved && !dangerous,
       sourceType: "ai-derived",
       ...(dangerous ? { warning: "此操作可能修改、覆盖或删除数据，请先确认目标并做好备份" } : {}),
@@ -268,6 +287,8 @@
       "/context [all]": { examples: [{ value: "/context all", description: "查看完整上下文占用及可优化内容" }] },
       "/tasks": { examples: [{ value: "/tasks", description: "查看并管理当前会话中的后台任务" }] },
       "/permissions": { examples: [{ value: "/permissions", description: "管理工具的允许、询问和拒绝规则" }] },
+      "/clear [名称]": { examples: [{ value: "/clear", description: "开启新对话并清空上下文，项目记忆仍会保留" }] },
+      "/branch [名称]": { examples: [{ value: "/branch experiment-auth", description: "在当前节点创建名为 experiment-auth 的对话分支，独立尝试新方向" }] },
     },
     "codex": {
       "/model": { examples: [{ value: "/model", description: "打开当前会话的模型与推理强度选择器" }] },
@@ -280,6 +301,7 @@
       "!（前缀）": { examples: [{ value: "!git diff --stat", description: "在当前审批与沙盒规则下执行本地命令" }] },
       "/init": { examples: [{ value: "/init", description: "在当前目录生成项目级 AGENTS.md 说明文件" }] },
       "/skills": { examples: [{ value: "/skills", description: "浏览当前可用技能并选择一个使用" }] },
+      "--profile, -p <名称>": { examples: [{ value: "codex --profile work", description: "加载 config.toml 中名为 work 的配置档案后启动" }] },
     },
     "cursor": {
       "Cmd+I": { examples: [{ value: "选中要修改的代码后按 Cmd/Ctrl+I，输入“提取为可复用函数”", description: "让 Agent 基于当前上下文直接修改代码", copyable: false }] },
@@ -366,6 +388,9 @@
       "/bash <command>": { examples: [{ value: "/bash git status", description: "在宿主机执行 shell 命令" }] },
       "openclaw doctor": { examples: [{ value: "openclaw doctor", description: "检查配置、运行迁移并修复可识别问题", warning: "可能修改本地配置，执行前建议备份" }] },
       "openclaw gateway status": { examples: [{ value: "openclaw gateway status", description: "检查 Gateway 守护进程和 RPC 是否可达" }] },
+      "/name <title>": { examples: [{ value: "/name 登录重构", description: "把当前会话命名为「登录重构」，便于以后检索" }] },
+      "/skill <name> [input]": { examples: [{ value: "/skill commit-helper 生成本次提交信息", description: "按名称调用 commit-helper 技能并传入输入" }] },
+      "openclaw config set <path> <value>": { examples: [{ value: "openclaw config set model.default gpt-5.5", description: "把 openclaw.json 中 model.default 设为 gpt-5.5" }] },
     },
     "opencode": {
       "/new": { examples: [{ value: "/new", description: "清空当前上下文并开始新会话" }] },
@@ -378,6 +403,9 @@
       "/editor": { examples: [{ value: "/editor", description: "使用系统 EDITOR 编写较长的提示词" }] },
       "/export": { examples: [{ value: "/export", description: "将当前会话导出为 Markdown 并用编辑器打开" }] },
       "opencode stats": { examples: [{ value: "opencode stats --days 7", description: "查看最近 7 天的 token 用量和费用统计" }] },
+      "opencode mcp auth [name]": { examples: [{ value: "opencode mcp auth github", description: "对名为 github 的 OAuth MCP 服务器发起认证" }] },
+      "opencode plugin [module]": { examples: [{ value: "opencode plugin @opencode/git", description: "安装 @opencode/git 插件并更新配置" }] },
+      "--agent [name]": { examples: [{ value: "opencode --agent build", description: "以 build agent 启动一次会话" }] },
     },
     "typora": {
       "Cmd+1": { examples: [{ value: "# 一级标题", description: "Markdown 一级标题的输入形式" }] },
