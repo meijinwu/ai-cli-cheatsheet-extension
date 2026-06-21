@@ -50,7 +50,7 @@ for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
 }
 
 assert.strictEqual(itemCount, 874);
-assert(sourceCounts.manual >= 175, "curated coverage should keep growing");
+assert(sourceCounts.manual >= 232, "curated coverage should keep growing");
 assert(sourceCounts["ai-derived"] > 550, "the long tail should still receive AI-derived examples");
 
 function exampleFor(toolId, command, context = "") {
