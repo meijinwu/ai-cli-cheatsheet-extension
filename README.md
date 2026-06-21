@@ -143,6 +143,7 @@ node --check product-core.js
 node tools/validate-data.js
 node tests/test_product_core.js
 node tests/test_usage_examples.js
+node tests/test_popup_ux.js
 python3 -m unittest discover -s tests -v
 ```
 

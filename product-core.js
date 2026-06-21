@@ -77,6 +77,24 @@
     return result;
   }
 
+  function matchTypeInValue(value, term) {
+    const normalized = normalizeText(value);
+    const compact = compactText(value);
+    const normalizedTerm = normalizeText(term);
+    const termCompact = compactText(term);
+    if (!termCompact) return "";
+    if (normalized === normalizedTerm || compact === termCompact) return "exact";
+    if (/^[a-z0-9]{1,3}$/.test(termCompact)) {
+      const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`(?:^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, "i").test(normalized)
+        ? "contains"
+        : "";
+    }
+    if (normalized.startsWith(normalizedTerm) || compact.startsWith(termCompact)) return "prefix";
+    if (normalized.includes(normalizedTerm) || compact.includes(termCompact)) return "contains";
+    return "";
+  }
+
   function expandQuery(query) {
     const normalized = normalizeText(query);
     if (!normalized) return [];
@@ -101,39 +119,96 @@
   }
 
   function includesTerm(value, terms) {
-    const normalized = normalizeText(value);
-    const compact = compactText(value);
-    return terms.some((term) => normalized.includes(term) || compact.includes(compactText(term)));
+    return terms.some((term) => Boolean(matchTypeInValue(value, term)));
+  }
+
+  const MATCH_FIELDS = [
+    ["command", "命令", (item, options) => options.displayCmd || item.cmd],
+    ["zh", "中文说明", (item) => item.zh],
+    ["en", "英文说明", (item) => item.en],
+    ["keywords", "关键词", (item) => (item.keywords || []).join(" ")],
+    ["context", "使用场景", (item) => item.context],
+    ["toolName", "工具", (_item, options) => options.toolName],
+    ["examples", "用法", (item) => (item.examples || []).flatMap((example) => [
+      example.value,
+      example.description,
+      ...Object.values(example.platformValues || {}),
+    ]).join(" ")],
+    ["category", "分类", (_item, options) => options.categoryLabel],
+  ];
+
+  /**
+   * 解释查询主要命中了哪个字段。用于界面说明排序原因，不参与评分。
+   * @returns {{ field: string, term: string, value: string, label: string, matchType: string } | null}
+   */
+  function explainMatch(item, query, options = {}) {
+    const groups = splitQuery(query);
+    if (!groups.length) return null;
+    for (const [field, label, getValue] of MATCH_FIELDS) {
+      const value = String(getValue(item, options) || "");
+      for (const terms of groups) {
+        for (const term of terms) {
+          const matchType = matchTypeInValue(value, term);
+          if (matchType) return { field, term, value, label, matchType };
+        }
+      }
+    }
+    return null;
+  }
+
+  const COMMAND_RISKS = [
+    ["safetyBypass", "绕过安全保护", /(?:--yolo|dangerously-bypass|bypassPermissions)/i],
+    ["deleteOrOverwrite", "可能删除或覆盖数据", /(?:\brm(?:\s|$)|\breset\s+--hard\b|--delete\b|(^|\s)>(?!>))/i],
+    ["historyRewrite", "可能重写提交历史", /\b(?:push\s+--force|rebase\s+-i|reset\s+--hard)\b/i],
+    ["permissionChange", "会修改文件权限", /\b(?:chmod|chown)\b/i],
+    ["processDisruption", "可能中断正在运行的服务", /\b(?:kill\s+-9|restart)\b/i],
+  ];
+
+  /**
+   * 识别命令及示例中的高风险操作。
+   * @returns {{ types: string[], labels: string[], warning: string, requiresConfirmation: boolean }}
+   */
+  function classifyCommandRisk(command, examples = []) {
+    const text = [
+      command,
+      ...(Array.isArray(examples) ? examples.flatMap((example) => [
+        example?.value,
+        example?.warning,
+        ...Object.values(example?.platformValues || {}),
+      ]) : []),
+    ].filter(Boolean).join(" ");
+    const matched = COMMAND_RISKS.filter(([, , pattern]) => pattern.test(text));
+    const labels = [...new Set(matched.map(([, label]) => label))];
+    return {
+      types: [...new Set(matched.map(([type]) => type))],
+      labels,
+      warning: labels.join("；"),
+      requiresConfirmation: matched.length > 0,
+    };
   }
 
   function scoreTermGroup(item, terms, options = {}) {
     const cmd = normalizeText(options.displayCmd || item.cmd);
     const cmdCompact = compactText(options.displayCmd || item.cmd);
-    const zh = normalizeText(item.zh);
-    const en = normalizeText(item.en);
-    const keywords = normalizeText((item.keywords || []).join(" "));
-    const context = normalizeText(item.context);
-    const examples = normalizeText((item.examples || []).flatMap((example) => [
+    const examples = (item.examples || []).flatMap((example) => [
       example.value,
       example.description,
       ...Object.values(example.platformValues || {}),
-    ]).join(" "));
-    const toolName = normalizeText(options.toolName);
-    const categoryLabel = normalizeText(options.categoryLabel);
+    ]).join(" ");
     let score = -1;
 
     terms.forEach((term) => {
       const termCompact = compactText(term);
       if (cmd === term || cmdCompact === termCompact) score = Math.max(score, SCORE.EXACT);
-      else if (cmd.startsWith(term) || cmdCompact.startsWith(termCompact)) score = Math.max(score, SCORE.PREFIX);
-      else if (cmd.includes(term) || cmdCompact.includes(termCompact)) score = Math.max(score, SCORE.CONTAINS);
-      else if (zh.includes(term) || compactText(zh).includes(termCompact)) score = Math.max(score, SCORE.ZH);
-      else if (en.includes(term) || compactText(en).includes(termCompact)) score = Math.max(score, SCORE.EN);
-      else if (keywords.includes(term) || compactText(keywords).includes(termCompact)) score = Math.max(score, SCORE.KEYWORDS);
-      else if (context.includes(term) || compactText(context).includes(termCompact)) score = Math.max(score, SCORE.CONTEXT);
-      else if (toolName.includes(term) || compactText(toolName).includes(termCompact)) score = Math.max(score, SCORE.TOOL_NAME);
-      else if (examples.includes(term) || compactText(examples).includes(termCompact)) score = Math.max(score, SCORE.EXAMPLES);
-      else if (categoryLabel.includes(term) || compactText(categoryLabel).includes(termCompact)) score = Math.max(score, SCORE.CATEGORY);
+      else if (matchTypeInValue(options.displayCmd || item.cmd, term) === "prefix") score = Math.max(score, SCORE.PREFIX);
+      else if (matchTypeInValue(options.displayCmd || item.cmd, term) === "contains") score = Math.max(score, SCORE.CONTAINS);
+      else if (matchTypeInValue(item.zh, term)) score = Math.max(score, SCORE.ZH);
+      else if (matchTypeInValue(item.en, term)) score = Math.max(score, SCORE.EN);
+      else if (matchTypeInValue((item.keywords || []).join(" "), term)) score = Math.max(score, SCORE.KEYWORDS);
+      else if (matchTypeInValue(item.context, term)) score = Math.max(score, SCORE.CONTEXT);
+      else if (matchTypeInValue(options.toolName, term)) score = Math.max(score, SCORE.TOOL_NAME);
+      else if (matchTypeInValue(examples, term)) score = Math.max(score, SCORE.EXAMPLES);
+      else if (matchTypeInValue(options.categoryLabel, term)) score = Math.max(score, SCORE.CATEGORY);
     });
     return score;
   }
@@ -240,7 +315,14 @@
           recentRank: recentMap.get(key),
           matchMode: options.matchMode,
         });
-        return { ...entry, score, originalIndex };
+        const matchReason = score >= 0 && query.trim()
+          ? explainMatch(entry.item, query, {
+            displayCmd: entry.displayCmd,
+            toolName: entry.toolName,
+            categoryLabel: entry.categoryLabel,
+          })
+          : null;
+        return { ...entry, score, originalIndex, matchReason };
       })
       .filter((entry) => entry.score >= 0)
       .sort((a, b) => b.score - a.score || a.originalIndex - b.originalIndex);
@@ -249,9 +331,12 @@
   const api = {
     SYNONYM_GROUPS,
     normalizeText,
+    matchTypeInValue,
     expandQuery,
     splitQuery,
     scoreItem,
+    explainMatch,
+    classifyCommandRisk,
     getPlatformCommand,
     getPlatformExample,
     updateRecent,

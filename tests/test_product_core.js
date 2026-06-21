@@ -35,6 +35,18 @@ assert.strictEqual(
   "Replace should not be a global synonym for transform"
 );
 assert(core.scoreItem(sedItem, "old") > 0, "Example content should be searchable");
+assert.deepStrictEqual(
+  core.explainMatch(baseItem, "/clear"),
+  { field: "command", term: "/clear", value: "/clear", label: "命令", matchType: "exact" }
+);
+assert.strictEqual(core.explainMatch(baseItem, "当前").field, "zh");
+assert.strictEqual(core.explainMatch(baseItem, "conversation").field, "en");
+assert.strictEqual(core.explainMatch(sedItem, "替换").field, "keywords");
+assert.strictEqual(core.explainMatch(baseItem, "会话").field, "context");
+assert.strictEqual(core.explainMatch(sedItem, "old").field, "examples");
+assert.strictEqual(core.scoreItem({ cmd: "/permissions", zh: "权限", en: "Permissions" }, "rm"), -1);
+assert.strictEqual(core.scoreItem({ cmd: "sed", zh: "替换", en: "Transforming text" }, "rm"), -1);
+assert(core.scoreItem({ cmd: "rm -rf", zh: "删除目录", en: "Remove directory" }, "rm -rf") > 0);
 
 const platform = core.getPlatformCommand({
   cmd: "Cmd+P",
@@ -42,6 +54,10 @@ const platform = core.getPlatformCommand({
 }, "windows");
 assert.strictEqual(platform.command, "Ctrl+P");
 assert.strictEqual(platform.usedFallback, false);
+assert.strictEqual(core.getPlatformCommand({
+  cmd: "Windows only",
+  platforms: ["windows"],
+}, "mac").unsupported, true);
 assert.strictEqual(core.getPlatformExample({
   value: "sed -i 's/a/b/g' file",
   platformValues: { mac: "sed -i '' 's/a/b/g' file" },
@@ -80,5 +96,13 @@ const ranked = core.rankItems([
   },
 ], "clear", { favourites: new Set(), recents: [] });
 assert.strictEqual(ranked[0].itemId, "1");
+assert.strictEqual(ranked[0].matchReason.field, "command");
+
+assert.strictEqual(core.classifyCommandRisk("git status").requiresConfirmation, false);
+assert(core.classifyCommandRisk("rm -rf ./tmp").types.includes("deleteOrOverwrite"));
+assert(core.classifyCommandRisk("chmod 777 file").types.includes("permissionChange"));
+assert(core.classifyCommandRisk("git rebase -i HEAD~3").types.includes("historyRewrite"));
+assert(core.classifyCommandRisk("codex --yolo").types.includes("safetyBypass"));
+assert(core.classifyCommandRisk("kill -9 123").types.includes("processDisruption"));
 
 console.log("Product core tests passed.");

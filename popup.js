@@ -6,6 +6,12 @@ const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "› 命令", flag: "⚑ �
 const GROUP_INITIAL_LIMIT = 20;
 const SEARCH_INITIAL_LIMIT = 100;
 const SEARCH_DEBOUNCE_MS = 120;
+const STALE_DAYS = 180;
+const TOOL_PRESETS = {
+  ai: ["claude-code", "codex", "gemini-cli", "antigravity-cli", "opencode", "openclaw"],
+  editors: ["cursor", "vs-code", "idea", "typora"],
+  terminal: ["git", "linux"],
+};
 
 let activeTool = "all";
 let activeCat = null;
@@ -20,6 +26,9 @@ let expandedTools = new Set();
 let expandedExamples = new Set();
 let enrichmentIndex = new Map();
 let searchLimit = SEARCH_INITIAL_LIMIT;
+let lastAutoExpandedQuery = "";
+let onboardingReturnFocus = null;
+let toastTimer = null;
 
 function detectPlatform() {
   const value = navigator.userAgentData?.platform || navigator.platform || "";
@@ -65,7 +74,19 @@ function showToast(text) {
   const toast = document.getElementById("toast");
   toast.textContent = text;
   toast.classList.add("show");
-  setTimeout(() => toast.classList.remove("show"), 1200);
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+}
+
+async function copyText(value, successMessage) {
+  try {
+    await navigator.clipboard.writeText(value);
+    showToast(successMessage);
+    return true;
+  } catch (_error) {
+    showToast("复制失败，请检查浏览器剪贴板权限");
+    return false;
+  }
 }
 
 function resetResultLimits() {
@@ -78,6 +99,20 @@ function freshnessLabel(updatedAt) {
   if (!Number.isFinite(timestamp)) return "更新时间未知";
   const days = Math.floor((Date.now() - timestamp) / 86400000);
   return days > 180 ? `⚠ 已 ${days} 天未核对` : `${Math.max(0, days)} 天前核对`;
+}
+
+function freshnessDays(updatedAt) {
+  const timestamp = Date.parse(`${updatedAt || ""}T00:00:00Z`);
+  return Number.isFinite(timestamp) ? Math.max(0, Math.floor((Date.now() - timestamp) / 86400000)) : Infinity;
+}
+
+function riskFor(command, examples) {
+  return CORE.classifyCommandRisk(command, examples);
+}
+
+function confirmRiskCopy(value, risk) {
+  if (!risk.requiresConfirmation) return true;
+  return confirm(`这是高风险命令：${risk.warning}\n\n${value}\n\n确定要复制吗？`);
 }
 
 function getAllData() {
@@ -182,15 +217,21 @@ function renderFilters() {
     ["all", "全部"],
     ["recent", "🕘 最近"],
     ["favourites", "⭐ 收藏"],
-    ...visibleToolIds().map((id) => [id, getAllData()[id].meta.name]),
   ];
   quick.innerHTML = quickItems.map(([id, label]) => `<button class="chip ${activeTool === id ? "active" : ""}" data-tool="${id}">${escapeHtml(label)}</button>`).join("");
   quick.querySelectorAll("[data-tool]").forEach((button) => button.addEventListener("click", () => {
     activeTool = button.dataset.tool;
+    document.getElementById("toolSelect").value = "";
     resetResultLimits();
     renderFilters();
     render();
   }));
+
+  const toolSelect = document.getElementById("toolSelect");
+  toolSelect.innerHTML = `<option value="">所有启用工具</option>${visibleToolIds().map((id) =>
+    `<option value="${id}">${escapeHtml(getAllData()[id].meta.name)}</option>`
+  ).join("")}`;
+  toolSelect.value = ["all", "recent", "favourites"].includes(activeTool) ? "" : activeTool;
 
   const categories = document.getElementById("categoryFilters");
   categories.innerHTML = Object.entries(CAT_LABEL).map(([id, label]) =>
@@ -204,6 +245,7 @@ function renderFilters() {
   }));
   document.getElementById("clearFilters").addEventListener("click", () => {
     activeTool = "all";
+    toolSelect.value = "";
     activeCat = null;
     resetResultLimits();
     document.getElementById("search").value = "";
@@ -250,25 +292,44 @@ function renderRow(entry, query, includeBadge = false) {
     platformInfo: CORE.getPlatformExample(example, platform),
   })).filter((example) => !example.platformInfo.unsupported);
   const examplesOpen = expandedExamples.has(key);
-  const note = entry.platformInfo.unsupported ? "当前平台未覆盖" : entry.platformInfo.usedFallback ? "使用通用写法" : "";
+  const commandRisk = riskFor(entry.displayCmd, examples);
+  const isStale = includeBadge && freshnessDays(tool.meta.updatedAt) > STALE_DAYS;
+  const note = entry.platformInfo.unsupported ? "当前平台不可用" : entry.platformInfo.usedFallback ? "通用写法" : "";
+  const matchReason = query.trim() && entry.matchReason
+    ? `<span class="match-reason">主要匹配${escapeHtml(entry.matchReason.label)}：${highlightHtml(entry.matchReason.term, query)}</span>`
+    : "";
+  const summaryExample = examples[0];
+  const summary = query.trim() && !examplesOpen && summaryExample
+    ? `<span class="example-summary">常用：${highlightHtml(summaryExample.platformInfo.value, query)} · ${highlightHtml(summaryExample.description, query)}</span>`
+    : "";
+  const tags = [
+    note ? `<span class="trust-tag">${escapeHtml(note)}</span>` : "",
+    commandRisk.requiresConfirmation ? `<span class="trust-tag risk">高风险</span>` : "",
+    isStale ? `<span class="trust-tag stale">资料较旧</span>` : "",
+  ].join("");
+  const examplesId = `examples-${entry.toolId}-${entry.itemId}`;
   const examplesHtml = examplesOpen ? `<div class="examples">${examples.map((example) => `
     <div class="example">
       <div class="example-value">${highlightHtml(example.platformInfo.value, query)}</div>
       <div class="example-desc">${highlightHtml(example.description, query)}</div>
       <div class="example-source">${example.sourceType === "official" ? "官方示例" : example.sourceType === "manual" ? "人工整理" : "AI 整理"}${example.sourceUrl ? ` · <a class="example-doc" href="${escapeHtml(example.sourceUrl)}" target="_blank" rel="noopener noreferrer">文档</a>` : ""}</div>
       ${example.warning ? `<div class="example-warning">⚠ ${escapeHtml(example.warning)}</div>` : ""}
-      ${example.copyable !== false ? `<button class="act example-copy" data-example="${example.index}" title="复制示例" aria-label="复制示例">⧉</button>` : ""}
+      ${example.copyable !== false ? `<button class="act example-copy" data-example="${example.index}" title="复制此用法" aria-label="复制此用法">复制</button>` : ""}
     </div>`).join("")}</div>` : "";
-  return `<div class="entry-wrap"><div class="row" tabindex="0" data-tool="${entry.toolId}" data-item="${entry.itemId}">
-    <div class="cmd"><span class="dot" style="background:${escapeHtml(tool.meta.color)}"></span>${highlightHtml(entry.displayCmd, query)}
+  return `<article class="entry-wrap" data-tool="${entry.toolId}" data-item="${entry.itemId}">
+    <div class="row"><button class="row-main" data-copy-command ${entry.platformInfo.unsupported ? "disabled" : ""} aria-label="${entry.platformInfo.unsupported ? "当前平台不可用" : `复制命令 ${escapeHtml(entry.displayCmd)}`}">
+    <span class="cmd"><span class="dot" style="background:${escapeHtml(tool.meta.color)}"></span>${highlightHtml(entry.displayCmd, query)}
       ${includeBadge ? `<span class="context">${escapeHtml(tool.meta.name)}</span>` : ""}
       ${entry.item.context ? `<span class="context">${escapeHtml(entry.item.context)}</span>` : ""}
-      ${note ? `<span class="platform-note">${note}</span>` : ""}
+      ${tags}
+    </span>
+    <span class="zh">${highlightHtml(entry.item.zh, query)}</span><span class="en">${highlightHtml(entry.item.en, query)}</span>
+    ${matchReason}${summary}</button>
+    <div class="row-actions"><button class="act fav-btn ${favourites.has(key) ? "fav-active" : ""}" title="${favourites.has(key) ? "取消收藏" : "收藏"}" aria-label="${favourites.has(key) ? "取消收藏" : "收藏"}">${favourites.has(key) ? "♥" : "♡"}</button></div>
     </div>
-    <div class="zh">${highlightHtml(entry.item.zh, query)}</div><div class="en">${highlightHtml(entry.item.en, query)}</div>
-    ${examples.length ? `<button class="usage-toggle" aria-expanded="${examplesOpen}" data-usage>${examplesOpen ? "收起用法" : `用法 ${examples.length}`}</button>` : ""}
-    <div class="row-actions"><button class="act copy-btn" title="复制命令" aria-label="复制命令">⧉</button><button class="act fav-btn ${favourites.has(key) ? "fav-active" : ""}" title="收藏" aria-label="收藏">${favourites.has(key) ? "♥" : "♡"}</button></div>
-  </div>${examplesHtml}</div>`;
+    ${examples.length ? `<button class="usage-toggle" aria-expanded="${examplesOpen}" aria-controls="${examplesId}" data-usage>${examplesOpen ? "收起用法" : `查看用法 ${examples.length}`}</button>` : ""}
+    ${examplesOpen ? `<div id="${examplesId}">${examplesHtml}</div>` : ""}
+  </article>`;
 }
 
 function sourceCard(toolId) {
@@ -295,7 +356,7 @@ function render() {
     (recentOrder.get(`${a.toolId}::${a.itemId}`) ?? 99) - (recentOrder.get(`${b.toolId}::${b.itemId}`) ?? 99)
   );
   entries = ranked;
-  document.getElementById("countBar").textContent = `共 ${entries.length} 条结果${relaxed ? " · 已放宽为任一关键词匹配" : ""} · ${platform === "mac" ? "macOS" : platform === "windows" ? "Windows" : "Linux"}`;
+  document.getElementById("countBar").innerHTML = `共 ${entries.length} 条结果${relaxed ? ' · <span class="relaxed-note">已放宽为任一关键词匹配</span>' : ""} · ${platform === "mac" ? "macOS" : platform === "windows" ? "Windows" : "Linux"}`;
 
   if (!entries.length) {
     main.innerHTML = `<div class="empty">${activeTool === "recent" ? "还没有最近复制的命令" : activeTool === "favourites" ? "还没有收藏的命令" : "没有匹配结果，试试用途词，例如“清空”“模型”“历史”"}</div>`;
@@ -303,6 +364,15 @@ function render() {
   }
 
   if (query.trim() || activeTool === "recent" || activeTool === "favourites") {
+    const normalizedQuery = CORE.normalizeText(query);
+    if (normalizedQuery && normalizedQuery !== lastAutoExpandedQuery) {
+      if (CORE.normalizeText(entries[0]?.displayCmd) === normalizedQuery) {
+        expandedExamples.add(`${entries[0].toolId}::${entries[0].itemId}`);
+      }
+      lastAutoExpandedQuery = normalizedQuery;
+    } else if (!normalizedQuery) {
+      lastAutoExpandedQuery = "";
+    }
     const visible = entries.slice(0, searchLimit);
     main.innerHTML = visible.map((entry) => renderRow(entry, query, true)).join("")
       + (entries.length > visible.length ? `<button class="text-btn more-btn" data-more-results>继续显示（剩余 ${entries.length - visible.length} 条）</button>` : "");
@@ -318,7 +388,8 @@ function render() {
       const more = rows.length > visible.length
         ? `<button class="text-btn more-btn" data-expand="${toolId}">展开剩余 ${rows.length - visible.length} 条</button>`
         : "";
-      return `<section><div class="section-title"><span class="badge" style="background:${escapeHtml(tool.meta.color)}">${escapeHtml(tool.meta.name)}</span><span class="count">${rows.length} 条</span><button class="source-toggle" data-source="${toolId}">来源与更新时间 ▾</button></div>${sourceCard(toolId)}${visible.map((entry) => renderRow(entry, query)).join("")}${more}</section>`;
+      const stale = freshnessDays(tool.meta.updatedAt) > STALE_DAYS ? `<span class="trust-tag stale">资料较旧</span>` : "";
+      return `<section><div class="section-title"><span class="badge" style="background:${escapeHtml(tool.meta.color)}">${escapeHtml(tool.meta.name)}</span><span class="count">${rows.length} 条</span>${stale}<button class="source-toggle" data-source="${toolId}" aria-expanded="false" aria-controls="source-${toolId}">来源与更新时间 ▾</button></div>${sourceCard(toolId)}${visible.map((entry) => renderRow(entry, query)).join("")}${more}</section>`;
     }).join("");
   }
 }
@@ -341,12 +412,26 @@ function bindHomeEvents() {
     storageSet({ lastQuery: "" });
     render();
   });
+  document.getElementById("toolSelect").addEventListener("change", (event) => {
+    activeTool = event.target.value || "all";
+    resetResultLimits();
+    renderFilters();
+    render();
+  });
+  document.getElementById("filterToggle").addEventListener("click", (event) => {
+    const filters = document.getElementById("categoryFilters");
+    const expanded = event.currentTarget.getAttribute("aria-expanded") === "true";
+    event.currentTarget.setAttribute("aria-expanded", String(!expanded));
+    filters.hidden = expanded;
+  });
   document.getElementById("openManage").addEventListener("click", () => showView("manage"));
   document.getElementById("closeManage").addEventListener("click", () => showView("home"));
   document.getElementById("main").addEventListener("click", async (event) => {
     const sourceButton = event.target.closest("[data-source]");
     if (sourceButton) {
-      document.getElementById(`source-${sourceButton.dataset.source}`)?.classList.toggle("show");
+      const card = document.getElementById(`source-${sourceButton.dataset.source}`);
+      const shown = card?.classList.toggle("show");
+      sourceButton.setAttribute("aria-expanded", String(Boolean(shown)));
       return;
     }
     const expandButton = event.target.closest("[data-expand]");
@@ -360,11 +445,9 @@ function bindHomeEvents() {
       render();
       return;
     }
-    const row = event.target.closest(".row");
     const entryWrap = event.target.closest(".entry-wrap");
-    if (!row && !entryWrap) return;
-    const entryRow = row || entryWrap.querySelector(".row");
-    const entry = findEntry(entryRow.dataset.tool, entryRow.dataset.item);
+    if (!entryWrap) return;
+    const entry = findEntry(entryWrap.dataset.tool, entryWrap.dataset.item);
     if (!entry) return;
     const key = `${entry.toolId}::${entry.itemId}`;
     const exampleButton = event.target.closest("[data-example]");
@@ -372,8 +455,11 @@ function bindHomeEvents() {
       const example = entry.item.examples?.[Number(exampleButton.dataset.example)];
       if (!example) return;
       const value = CORE.getPlatformExample(example, platform).value;
-      await navigator.clipboard.writeText(value);
-      showToast(`已复制示例：${value}`);
+      const risk = riskFor(value, [example]);
+      if (!confirmRiskCopy(value, risk)) return;
+      if (!await copyText(value, `已复制用法：${value}`)) return;
+      recents = CORE.updateRecent(recents, { toolId: entry.toolId, itemId: entry.itemId, command: value }, 20);
+      await storageSet({ recentCopies: recents });
       return;
     }
     if (event.target.closest("[data-usage]")) {
@@ -381,19 +467,18 @@ function bindHomeEvents() {
       render();
       return;
     }
-    if (!event.target.closest(".fav-btn")) {
-      const copyButton = event.target.closest(".copy-btn");
+    if (event.target.closest("[data-copy-command]")) {
+      const platformInfo = CORE.getPlatformCommand(entry.item, platform);
+      if (platformInfo.unsupported) {
+        showToast("当前平台不支持此命令");
+        return;
+      }
       const command = CORE.getPlatformCommand(entry.item, platform).command;
-      await navigator.clipboard.writeText(command);
+      const risk = riskFor(command, entry.item.examples || []);
+      if (!confirmRiskCopy(command, risk)) return;
+      if (!await copyText(command, `已复制命令：${command}`)) return;
       recents = CORE.updateRecent(recents, { toolId: entry.toolId, itemId: entry.itemId, command }, 20);
       await storageSet({ recentCopies: recents });
-      showToast(`已复制：${command}`);
-      if (copyButton) {
-        copyButton.textContent = "✓";
-        setTimeout(() => {
-          if (copyButton.isConnected) copyButton.textContent = "⧉";
-        }, 1000);
-      }
       return;
     }
     if (event.target.closest(".fav-btn")) {
@@ -403,16 +488,16 @@ function bindHomeEvents() {
     }
   });
   document.getElementById("main").addEventListener("keydown", (event) => {
-    const rows = [...document.querySelectorAll("#main .row")];
+    const rows = [...document.querySelectorAll("#main .row-main:not(:disabled)")];
     const index = rows.indexOf(document.activeElement);
     if (index < 0) return;
     if (event.key === "ArrowDown" && index < rows.length - 1) rows[index + 1].focus();
     else if (event.key === "ArrowUp" && index > 0) rows[index - 1].focus();
-    else if (event.key === "Enter") rows[index].querySelector(".copy-btn")?.click();
     else return;
     event.preventDefault();
   });
   document.addEventListener("keydown", (event) => {
+    if (document.getElementById("onboarding").classList.contains("show")) return;
     const search = document.getElementById("search");
     const homeActive = document.getElementById("homeView").classList.contains("active");
     if (!homeActive) return;
@@ -614,23 +699,35 @@ function renderOnboardChoices() {
 }
 
 function showOnboarding(force = false) {
+  onboardingReturnFocus = document.activeElement;
   renderOnboardChoices();
   document.getElementById("onboarding").classList.add("show");
   if (force) document.getElementById("onboarding").dataset.forced = "true";
+  document.querySelector(".onboard-card").focus();
 }
 
-function hideOnboarding() {
+function hideOnboarding({ focusSearch = false } = {}) {
   document.getElementById("onboarding").classList.remove("show");
   delete document.getElementById("onboarding").dataset.forced;
+  const target = focusSearch ? document.getElementById("search") : onboardingReturnFocus;
+  if (target?.isConnected) target.focus();
+  onboardingReturnFocus = null;
 }
 
 function bindOnboarding() {
+  document.querySelectorAll("[data-preset]").forEach((button) => button.addEventListener("click", () => {
+    const preset = button.dataset.preset;
+    const selected = preset === "all" ? new Set(getToolIds()) : new Set(TOOL_PRESETS[preset] || []);
+    document.querySelectorAll("#onboardTools input").forEach((input) => {
+      input.checked = selected.has(input.value);
+    });
+  }));
   document.getElementById("saveOnboarding").addEventListener("click", async () => {
     const selected = [...document.querySelectorAll("#onboardTools input:checked")].map((input) => input.value);
     enabledTools = new Set(selected.length ? selected : getToolIds());
     platform = document.getElementById("onboardPlatform").value;
     await storageSet({ enabledTools: [...enabledTools], platform, onboarded: true });
-    hideOnboarding();
+    hideOnboarding({ focusSearch: true });
     renderFilters();
     render();
     renderManage();
@@ -638,9 +735,31 @@ function bindOnboarding() {
   document.getElementById("skipOnboarding").addEventListener("click", async () => {
     enabledTools = new Set(getToolIds());
     await storageSet({ enabledTools: [...enabledTools], platform, onboarded: true });
-    hideOnboarding();
+    hideOnboarding({ focusSearch: true });
     renderFilters();
     render();
+  });
+  document.getElementById("onboarding").addEventListener("keydown", (event) => {
+    const dialog = event.currentTarget;
+    if (event.key === "Escape") {
+      if (dialog.dataset.forced === "true") hideOnboarding();
+      else document.getElementById("skipOnboarding").click();
+      event.preventDefault();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = [...dialog.querySelectorAll("button, input, select, [tabindex]:not([tabindex='-1'])")]
+      .filter((element) => !element.disabled && !element.hidden);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      last.focus();
+      event.preventDefault();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      first.focus();
+      event.preventDefault();
+    }
   });
 }
 
@@ -657,6 +776,7 @@ async function initialize() {
   recents = stored.recentCopies || [];
   platform = stored.platform || platform;
   enabledTools = new Set(Array.isArray(stored.enabledTools) ? stored.enabledTools.filter((id) => getAllData()[id]) : getToolIds());
+  if (!stored.onboarded) enabledTools = new Set(TOOL_PRESETS.ai.filter((id) => getAllData()[id]));
   pendingUpdate = stored.pendingUpdate || null;
   document.getElementById("search").value = stored.lastQuery || "";
   migrateFavourites();
@@ -687,7 +807,11 @@ async function initialize() {
       chrome.storage.session.set({ taskStatus: { running: false } });
     }
   });
-  if (!stored.onboarded) showOnboarding();
+  if (!stored.onboarded) {
+    showOnboarding();
+  } else {
+    document.getElementById("search").focus();
+  }
 }
 
 document.addEventListener("DOMContentLoaded", initialize);
