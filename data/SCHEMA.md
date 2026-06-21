@@ -108,6 +108,7 @@ meta：
 - examples 覆盖不足不会阻止写入，但会产生质量警告；结构错误仍会拒绝
 - **来源优先级（新增与更新同样适用）**：官方文档优先；官方文档缺失、滞后或不完整时，从白名单可信第三方补齐缺口并标 quasi-official。永不编造，查不到就如实少收录。
 - **类官方仅联网时生成**：只有可联网的 `claude -p` 路径（`web-assisted`）能产出 quasi-official；有 API token 的离线路径（`model-knowledge`）由 `host.py` 的 `_demote_quasi_official` 强制把 quasi-official 降级（meta→community、example→ai-derived 并去 URL），避免编造未经核实的白名单 URL。
+- **联网核对开关（`prefer_web`）**：管理页的"联网核对"复选框会把 `prefer_web=true` 透传到 native host；为真时即使配置了 API token 也强制走联网 `claude -p` 路径，从而能在官方缺口处补充并核实类官方来源。默认关闭（走快速离线路径）。
 - prompt 的白名单域名由 `host.py` 的 `QUASI_OFFICIAL_DOMAINS` 常量动态注入，不要在 prompt 里硬编码域名列表。
 - 官方明确提供的示例标记 official，人工整理标记 manual，基于语义推导标记 ai-derived
 - manual / official 示例必须显式填写能定位到具体行为的 sourceUrl；不得用工具首页自动兜底

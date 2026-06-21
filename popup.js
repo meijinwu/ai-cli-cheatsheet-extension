@@ -1,7 +1,7 @@
 "use strict";
 
 const CORE = window.CHEATSHEET_CORE;
-const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate", "lastQualityWarnings"];
+const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate", "lastQualityWarnings", "webVerify"];
 const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "› 命令", flag: "⚑ 参数/选项" };
 const GROUP_INITIAL_LIMIT = 20;
 const SEARCH_INITIAL_LIMIT = 100;
@@ -19,6 +19,7 @@ let favourites = new Set();
 let recents = [];
 let enabledTools = new Set();
 let platform = detectPlatform();
+let webVerify = false;
 let pendingUpdate = null;
 let currentTaskMode = null;
 let _taskTimer = null;
@@ -521,6 +522,12 @@ function setStatus(text, kind = "") {
 
 function renderManage() {
   document.getElementById("platformSelect").value = platform;
+  const webToggle = document.getElementById("webVerifyToggle");
+  webToggle.checked = webVerify;
+  webToggle.onchange = () => {
+    webVerify = webToggle.checked;
+    storageSet({ webVerify });
+  };
   const tools = document.getElementById("manageTools");
   tools.innerHTML = getToolIds().map((toolId) => {
     const meta = getAllData()[toolId].meta;
@@ -551,7 +558,7 @@ function renderManage() {
   }));
   tools.querySelectorAll("[data-update]").forEach((button) => button.addEventListener("click", () => {
     const toolId = button.dataset.update;
-    runTask("preview_update", { tool: toolId, display_name: getAllData()[toolId].meta.name });
+    runTask("preview_update", { tool: toolId, display_name: getAllData()[toolId].meta.name, prefer_web: webVerify });
   }));
   tools.querySelectorAll("[data-remove]").forEach((button) => button.addEventListener("click", () => {
     const toolId = button.dataset.remove;
@@ -681,7 +688,7 @@ function bindManageEvents() {
     const tool = displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     if (!tool) return setStatus("工具名称需要包含英文字母或数字", "err");
     if (getAllData()[tool]) return setStatus("该工具已收录，请使用检查更新", "err");
-    runTask("add_tool", { tool, display_name: displayName });
+    runTask("add_tool", { tool, display_name: displayName, prefer_web: webVerify });
   });
 }
 
@@ -769,6 +776,7 @@ async function initialize() {
   favourites = new Set(stored.favourites || []);
   recents = stored.recentCopies || [];
   platform = stored.platform || platform;
+  webVerify = stored.webVerify === true;
   enabledTools = new Set(Array.isArray(stored.enabledTools) ? stored.enabledTools.filter((id) => getAllData()[id]) : getToolIds());
   if (!stored.onboarded) enabledTools = new Set(TOOL_PRESETS.ai.filter((id) => getAllData()[id]));
   pendingUpdate = stored.pendingUpdate || null;

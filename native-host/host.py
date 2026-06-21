@@ -212,6 +212,7 @@ def validate_request(message):
         "action": action,
         "tool": tool_id,
         "display_name": display_name,
+        "prefer_web": bool(message.get("prefer_web")),
     }
 
 
@@ -787,26 +788,33 @@ def _call_api_direct(prompt):
         conn.close()
 
 
-def run_claude_query(tool_id, display_name, mode):
+def run_claude_query(tool_id, display_name, mode, prefer_web=False):
     if mode == "add" and os.path.exists(tool_data_path(tool_id)):
         raise ValidationError(f"data/{tool_id}.js 已存在，请使用更新模式")
 
-    # 有 token 走 API（无联网），否则走 claude 子进程（已开启 web_search）。
-    # web_enabled 决定 prompt 是否允许 quasi-official 补缺，与下面的路径选择保持一致。
-    web_enabled = not _has_api_token()
+    # 有 token 时默认走 API（无联网、快速）；勾选了"联网核对"(prefer_web) 则即使有 token
+    # 也强制走 claude -p 联网路径，以便在官方缺口处补充并核实类官方来源。
+    # web_enabled 决定 prompt 是否允许 quasi-official 补缺，与路径选择保持一致。
+    use_api = _has_api_token() and not prefer_web
+    web_enabled = not use_api
     prompt = build_prompt(tool_id, display_name, mode, web_enabled)
 
-    # 优先直接调用 API，完全绕过 claude -p 的技能/计划模式系统
-    api_text = _call_api_direct(prompt)
-    if api_text is not None:
-        # 校验前先降级：离线无法核实第三方来源，去掉类官方标签（防御纵深，
-        # 即使模型无视 prompt，也避免未核实的白名单 URL 混入或导致校验失败）。
-        raw = _demote_quasi_official(extract_json_output(api_text))
-        dataset = validate_dataset(raw, tool_id)
-        dataset["meta"]["verificationStatus"] = "model-knowledge"
-        return dataset
+    if use_api:
+        # 直接调用 API，完全绕过 claude -p 的技能/计划模式系统
+        api_text = _call_api_direct(prompt)
+        if api_text is not None:
+            # 校验前先降级：离线无法核实第三方来源，去掉类官方标签（防御纵深，
+            # 即使模型无视 prompt，也避免未核实的白名单 URL 混入或导致校验失败）。
+            raw = _demote_quasi_official(extract_json_output(api_text))
+            dataset = validate_dataset(raw, tool_id)
+            dataset["meta"]["verificationStatus"] = "model-knowledge"
+            return dataset
 
     if not CLAUDE_BIN:
+        if prefer_web:
+            raise ValidationError(
+                "联网核对需要 Claude Code，请先安装后重试，或取消勾选用快速模式。"
+            )
         raise ValidationError(
             "找不到 claude 命令，请安装 Claude Code 后重新运行 native-host 安装脚本"
         )
@@ -991,10 +999,10 @@ def load_existing_dataset(tool_id):
         raise ValidationError(f"无法解析 data/{tool_id}.js") from exc
 
 
-def add_tool(tool_id, display_name):
+def add_tool(tool_id, display_name, prefer_web=False):
     if os.path.exists(tool_data_path(tool_id)):
         raise ValidationError(f"data/{tool_id}.js 已存在，请使用更新模式")
-    dataset = run_claude_query(tool_id, display_name, "add")
+    dataset = run_claude_query(tool_id, display_name, "add", prefer_web)
     data_path = tool_data_path(tool_id)
     new_content = render_data_file(dataset)
     atomic_write(data_path, new_content)
@@ -1011,9 +1019,9 @@ def add_tool(tool_id, display_name):
     }
 
 
-def preview_update(tool_id, display_name):
+def preview_update(tool_id, display_name, prefer_web=False):
     old_dataset = load_existing_dataset(tool_id)
-    new_dataset = run_claude_query(tool_id, display_name, "update")
+    new_dataset = run_claude_query(tool_id, display_name, "update", prefer_web)
     new_dataset["meta"]["builtIn"] = old_dataset["meta"].get("builtIn", False)
     new_dataset = preserve_existing_enrichment(old_dataset, new_dataset)
     diff = build_dataset_diff(old_dataset, new_dataset)
@@ -1112,9 +1120,11 @@ def handle_message(message):
     if request["action"] == "ping":
         return {"ok": True, "pong": True}
     if request["action"] == "add_tool":
-        return add_tool(request["tool"], request["display_name"])
+        return add_tool(request["tool"], request["display_name"], request.get("prefer_web", False))
     if request["action"] == "preview_update":
-        return preview_update(request["tool"], request["display_name"])
+        return preview_update(
+            request["tool"], request["display_name"], request.get("prefer_web", False)
+        )
     if request["action"] == "apply_update":
         return apply_update(request["token"], request["confirm_risk"])
     if request["action"] == "discard_update":

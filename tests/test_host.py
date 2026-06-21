@@ -222,6 +222,39 @@ class HostFileTests(unittest.TestCase):
                 host.add_tool("sample", "Sample Tool")
         self.assertFalse((self.data_dir / "sample.js").exists())
 
+    def test_prefer_web_forces_claude_even_with_token(self):
+        # 勾选"联网核对"时即使有 token 也走 claude -p 联网路径，不调用直连 API。
+        stdout = json.dumps({"result": json.dumps(valid_dataset())})
+        mock_proc = mock.MagicMock()
+        mock_proc.communicate.return_value = (stdout, "")
+        mock_proc.returncode = 0
+        api = mock.MagicMock()
+        with mock.patch.object(host, "_has_api_token", return_value=True), mock.patch.object(
+            host, "_call_api_direct", api
+        ), mock.patch.object(host, "CLAUDE_BIN", "/usr/bin/claude"), mock.patch.object(
+            host, "PROJECT_DIR", self.temp.name
+        ), mock.patch.object(host.subprocess, "Popen", return_value=mock_proc):
+            dataset = host.run_claude_query("sample", "Sample Tool", "add", prefer_web=True)
+        api.assert_not_called()
+        self.assertEqual(dataset["meta"]["verificationStatus"], "web-assisted")
+
+    def test_token_without_prefer_web_uses_offline_api(self):
+        # 不勾选时有 token 走直连 API 离线路径，不启动 claude 子进程。
+        popen = mock.MagicMock()
+        with mock.patch.object(host, "_has_api_token", return_value=True), mock.patch.object(
+            host, "_call_api_direct", return_value=json.dumps(valid_dataset())
+        ), mock.patch.object(host.subprocess, "Popen", popen):
+            dataset = host.run_claude_query("sample", "Sample Tool", "add", prefer_web=False)
+        popen.assert_not_called()
+        self.assertEqual(dataset["meta"]["verificationStatus"], "model-knowledge")
+
+    def test_prefer_web_without_claude_reports_clear_error(self):
+        with mock.patch.object(host, "_has_api_token", return_value=True), mock.patch.object(
+            host, "CLAUDE_BIN", None
+        ):
+            with self.assertRaisesRegex(host.ValidationError, "联网核对需要 Claude Code"):
+                host.run_claude_query("sample", "Sample Tool", "add", prefer_web=True)
+
     def test_preview_apply_and_discard_update(self):
         old_dataset = valid_dataset()
         old_dataset["items"][0]["id"] = "stable-item"
