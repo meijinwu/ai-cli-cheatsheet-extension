@@ -454,6 +454,48 @@ class HostDiffEnrichmentTests(unittest.TestCase):
         # 旧 keywords 在新数据缺失时被保留
         self.assertEqual(merged["items"][0]["keywords"], ["命令面板", "打开命令", "快捷操作"])
 
+
+class HostSourceTierGenerationTests(unittest.TestCase):
+    def test_prompt_web_enabled_allows_quasi_official_with_whitelist(self):
+        prompt = host.build_prompt("sample", "Sample", "add", web_enabled=True)
+        self.assertIn("quasi-official", prompt)
+        self.assertIn("官方文档优先", prompt)
+        # 白名单动态注入：每个域名都应出现在 prompt 中
+        for domain in host.QUASI_OFFICIAL_DOMAINS:
+            self.assertIn(domain, prompt)
+
+    def test_prompt_offline_forbids_quasi_official(self):
+        prompt = host.build_prompt("sample", "Sample", "add", web_enabled=False)
+        self.assertIn("禁止使用 quasi-official", prompt)
+        self.assertIn("没有联网", prompt)
+
+    def test_demote_quasi_official_downgrades_meta_and_examples(self):
+        dataset = {
+            "meta": {"sourceTier": "quasi-official"},
+            "items": [{
+                "examples": [
+                    {"value": "x", "description": "d", "sourceType": "quasi-official",
+                     "sourceUrl": "https://man7.org/x"},
+                    {"value": "y", "description": "d", "sourceType": "official",
+                     "sourceUrl": "https://official.example/y"},
+                ],
+            }],
+        }
+        host._demote_quasi_official(dataset)
+        self.assertEqual(dataset["meta"]["sourceTier"], "community")
+        examples = dataset["items"][0]["examples"]
+        # 类官方示例降为 ai-derived 并去掉未核实的 URL
+        self.assertEqual(examples[0]["sourceType"], "ai-derived")
+        self.assertNotIn("sourceUrl", examples[0])
+        # 非类官方示例不受影响
+        self.assertEqual(examples[1]["sourceType"], "official")
+        self.assertEqual(examples[1]["sourceUrl"], "https://official.example/y")
+
+    def test_demote_leaves_official_tier_untouched(self):
+        dataset = {"meta": {"sourceTier": "official"}, "items": []}
+        host._demote_quasi_official(dataset)
+        self.assertEqual(dataset["meta"]["sourceTier"], "official")
+
     def test_rejects_invalid_example_platform_values(self):
         payload = valid_dataset()
         payload["items"][0].update({

@@ -84,7 +84,7 @@ meta：
 官方文档有时滞后或维护不及时。为在不牺牲可信度的前提下保持数据新鲜，来源分三档：
 
 - **official**：厂商自有文档（git-scm.com、docs.claude.com 等）。`meta.sourceTier` 省略时按此处理。
-- **quasi-official（类官方）**：可信第三方权威参考。`meta.sourceTier` 或 example 的 `sourceType` 为该值时，对应 `sourceUrl` 的**主机名必须命中白名单**，否则校验失败。白名单与上下限一样统一声明在 `shared/validation-rules.json` 的 `quasiOfficialDomains`，由 `tests/test_validation_consistency.js` 防止 host.py 漂移。当前白名单：tldr.sh、man7.org、ss64.com、manpages.debian.org、developer.mozilla.org、wiki.archlinux.org。
+- **quasi-official（类官方）**：可信第三方权威参考。`meta.sourceTier` 或 example 的 `sourceType` 为该值时，对应 `sourceUrl` 的**主机名必须命中白名单**，否则校验失败。白名单与上下限一样统一声明在 `shared/validation-rules.json` 的 `quasiOfficialDomains`，由 `tests/test_validation_consistency.js` 防止 host.py 漂移。当前白名单：tldr.sh、man7.org、ss64.com、manpages.debian.org、developer.mozilla.org、wiki.archlinux.org、devhints.io、cheat.sh、readthedocs.io。（白名单按主机名匹配，因此不收录裸 github.com 这类会让任意仓库都算可信的泛域名。）
 - **community**：其余社区来源，UI 标注"社区"，不强制白名单。
 
 新增白名单域名时，先改 `shared/validation-rules.json`，host.py 的 `QUASI_OFFICIAL_DOMAINS` 会被一致性测试要求同步。插件 UI（源卡片、行内徽章、管理页）会按档位显示"官方/类官方/社区"。
@@ -106,6 +106,9 @@ meta：
 - 更新模式：保留原有未变化的条目，不要整份重写丢失细节
 - 新增工具应为所有条目提供 keywords 和 examples。CLI 提供可执行命令，IDE 提供操作场景
 - examples 覆盖不足不会阻止写入，但会产生质量警告；结构错误仍会拒绝
+- **来源优先级（新增与更新同样适用）**：官方文档优先；官方文档缺失、滞后或不完整时，从白名单可信第三方补齐缺口并标 quasi-official。永不编造，查不到就如实少收录。
+- **类官方仅联网时生成**：只有可联网的 `claude -p` 路径（`web-assisted`）能产出 quasi-official；有 API token 的离线路径（`model-knowledge`）由 `host.py` 的 `_demote_quasi_official` 强制把 quasi-official 降级（meta→community、example→ai-derived 并去 URL），避免编造未经核实的白名单 URL。
+- prompt 的白名单域名由 `host.py` 的 `QUASI_OFFICIAL_DOMAINS` 常量动态注入，不要在 prompt 里硬编码域名列表。
 - 官方明确提供的示例标记 official，人工整理标记 manual，基于语义推导标记 ai-derived
 - manual / official 示例必须显式填写能定位到具体行为的 sourceUrl；不得用工具首页自动兜底
 - 重点精选条目应提供稳定 `item.id`，富化文件使用 `id:<item.id>` 关联；旧 cmd/context 键仅用于兼容

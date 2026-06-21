@@ -9,7 +9,10 @@
     "ss64.com",
     "manpages.debian.org",
     "developer.mozilla.org",
-    "wiki.archlinux.org"
+    "wiki.archlinux.org",
+    "devhints.io",
+    "cheat.sh",
+    "readthedocs.io"
   ],
   "dangerousExample": {
     "source": "(?:\\brm(?:\\s|$)|\\b(?:reset\\s+--hard|push\\s+--force|kill\\s+-9|chmod|chown|restart)\\b|--(?:delete|yolo)\\b|dangerously-bypass\\b)|(^|\\s)>(?!>)",

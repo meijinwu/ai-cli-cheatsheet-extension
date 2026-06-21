@@ -78,6 +78,9 @@ QUASI_OFFICIAL_DOMAINS = (
     "manpages.debian.org",
     "developer.mozilla.org",
     "wiki.archlinux.org",
+    "devhints.io",
+    "cheat.sh",
+    "readthedocs.io",
 )
 
 
@@ -588,7 +591,7 @@ def extract_json_output(stdout):
     return parsed
 
 
-def build_prompt(tool_id, display_name, mode):
+def build_prompt(tool_id, display_name, mode, web_enabled):
     current_text = ""
     data_path = tool_data_path(tool_id)
     if mode == "update":
@@ -602,6 +605,37 @@ def build_prompt(tool_id, display_name, mode):
     current_section = (
         "当前数据文件如下，请基于它更新：\n" + current_text
         if current_text
+        else ""
+    )
+    whitelist = "、".join(QUASI_OFFICIAL_DOMAINS)
+    # 来源策略随是否联网而变：只有联网路径能可靠核对第三方页面，因此只有它能产出
+    # quasi-official；离线（纯模型知识）路径禁止类官方，避免编造看似合法的白名单 URL。
+    if web_enabled:
+        source_policy = (
+            "来源优先级：官方文档优先。当官方文档缺失、滞后或不完整时，"
+            f"可联网核对，并从可信第三方白名单（{whitelist}）补齐缺口，"
+            "把这些条目或示例标为 quasi-official，其 sourceUrl 必须是你实际确认存在的白名单域名下页面。"
+            "永不编造命令或 URL；查不到就如实少收录。"
+        )
+        tier_rule = (
+            "meta.sourceTier：以厂商自有文档为主填 official；主要依据白名单可信第三方填 quasi-official"
+            "（sourceUrl 必须是白名单域名下确实存在的页面）；其余社区来源填 community。"
+        )
+    else:
+        source_policy = (
+            "来源优先级：你当前没有联网，只能依据训练知识整理。"
+            "禁止使用 quasi-official 标签，禁止编造任何 URL。"
+            "只用 official（你高度确信的官方页面）、manual 或 ai-derived；"
+            "官方页面拿不准就省略 sourceUrl 或少收录，宁缺毋滥。"
+        )
+        tier_rule = (
+            "meta.sourceTier：只能填 official 或 community，禁止 quasi-official"
+            "（离线无法核实第三方来源）。"
+        )
+    upgrade_note = (
+        "更新时，若官方文档现已补全此前用 quasi-official 补充的条目，可将其 sourceType/sourceTier "
+        "升级回 official；官方仍缺失的则保留 quasi-official。"
+        if mode == "update"
         else ""
     )
     return f"""
@@ -655,21 +689,43 @@ JSON 格式：
 }}
 
 要求：
-1. 只收录官方资料能够确认的内容，禁止编造。
+1. {source_policy}
 2. 尽量覆盖全面，不要只给极少量常用项。CLI 工具应收录：常用子命令（slash）以及每个重要子命令下的常用选项（flag），目标 50 条以上；IDE 类工具只收录默认快捷键常用子集并在 source 标明平台和限制。
 3. flag 类条目的 cmd 写成「子命令 + 选项」的完整形式（例如 git commit -m、git log --oneline），并用 context 标注所属子命令。
 4. 同一 cat、cmd、context 组合不得重复。
-5. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。
+5. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。{upgrade_note}
 6. 所有字符串必须是有效 JSON 字符串。
 7. sourceUrl、updatedAt、coverage 必须填写；平台快捷键应尽量使用 platformCmds 表达。
 8. 每个条目都必须提供 keywords 和 examples；每条最多 3 个示例。
 9. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；Markdown 工具示例提供可复制输入。
 10. 更新时保留已有 keywords 和 examples，并为所有新增条目补充关键词和示例。
-11. 官方明确示例标记 official；可信第三方参考（tldr.sh、man7.org、ss64.com、manpages.debian.org、developer.mozilla.org、wiki.archlinux.org）标记 quasi-official 并填该域名下的 sourceUrl；人工整理标记 manual；根据命令语义推导的标记 ai-derived。
-12. meta.sourceTier：来源为厂商自有文档时填 official；主要依据上述可信第三方时填 quasi-official（sourceUrl 必须是白名单域名）；其余社区来源填 community。官方文档明显滞后时，可用 quasi-official 来源补充并保持新鲜。
+11. 官方明确示例标记 official；人工整理标记 manual；根据命令语义推导的标记 ai-derived；可信第三方补充按上面第 1 条的来源优先级处理。
+12. {tier_rule}
 
 {current_section}
 """.strip()
+
+
+def _has_api_token():
+    """是否配置了直连 API 的 token。有 token 走无联网的 API 路径，没有则走可联网的 claude 子进程。"""
+    return bool(os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get("ANTHROPIC_API_KEY"))
+
+
+def _demote_quasi_official(dataset):
+    """离线（model-knowledge）产物即使带了 quasi-official 也降级：无联网无法核实第三方来源。
+
+    meta.sourceTier quasi-official → community；example.sourceType quasi-official → ai-derived
+    并去掉其未经核实的 sourceUrl。返回同一个对象（就地清洗后由调用方写盘）。
+    """
+    meta = dataset.get("meta")
+    if isinstance(meta, dict) and meta.get("sourceTier") == "quasi-official":
+        meta["sourceTier"] = "community"
+    for item in dataset.get("items", []):
+        for example in item.get("examples", []) or []:
+            if isinstance(example, dict) and example.get("sourceType") == "quasi-official":
+                example["sourceType"] = "ai-derived"
+                example.pop("sourceUrl", None)
+    return dataset
 
 
 def _call_api_direct(prompt):
@@ -735,12 +791,18 @@ def run_claude_query(tool_id, display_name, mode):
     if mode == "add" and os.path.exists(tool_data_path(tool_id)):
         raise ValidationError(f"data/{tool_id}.js 已存在，请使用更新模式")
 
-    prompt = build_prompt(tool_id, display_name, mode)
+    # 有 token 走 API（无联网），否则走 claude 子进程（已开启 web_search）。
+    # web_enabled 决定 prompt 是否允许 quasi-official 补缺，与下面的路径选择保持一致。
+    web_enabled = not _has_api_token()
+    prompt = build_prompt(tool_id, display_name, mode, web_enabled)
 
     # 优先直接调用 API，完全绕过 claude -p 的技能/计划模式系统
     api_text = _call_api_direct(prompt)
     if api_text is not None:
-        dataset = validate_dataset(extract_json_output(api_text), tool_id)
+        # 校验前先降级：离线无法核实第三方来源，去掉类官方标签（防御纵深，
+        # 即使模型无视 prompt，也避免未核实的白名单 URL 混入或导致校验失败）。
+        raw = _demote_quasi_official(extract_json_output(api_text))
+        dataset = validate_dataset(raw, tool_id)
         dataset["meta"]["verificationStatus"] = "model-knowledge"
         return dataset
 
