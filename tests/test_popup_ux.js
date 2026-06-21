@@ -8,8 +8,9 @@ const root = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "popup.html"), "utf8");
 const script = fs.readFileSync(path.join(root, "popup.js"), "utf8");
 
-assert(html.includes('id="toolSelect"'), "compact tool selector is required");
-assert(html.includes('aria-controls="categoryFilters"'), "filter toggle must expose its controlled region");
+assert(!html.includes('id="toolSelect"'), "tool filters should remain directly visible");
+assert(html.includes('id="categoryFilters" class="filters"'), "category filters should remain directly visible");
+assert(script.includes("...visibleToolIds().map"), "enabled tools should remain available as top-level filter chips");
 assert(html.includes('aria-labelledby="onboardTitle"'), "onboarding dialog needs an accessible name");
 assert(html.includes('data-preset="ai"') && html.includes('data-preset="terminal"'), "onboarding presets are required");
 assert(script.includes('class="row-main"'), "result primary action must be a semantic button");

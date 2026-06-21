@@ -217,21 +217,15 @@ function renderFilters() {
     ["all", "全部"],
     ["recent", "🕘 最近"],
     ["favourites", "⭐ 收藏"],
+    ...visibleToolIds().map((id) => [id, getAllData()[id].meta.name]),
   ];
   quick.innerHTML = quickItems.map(([id, label]) => `<button class="chip ${activeTool === id ? "active" : ""}" data-tool="${id}">${escapeHtml(label)}</button>`).join("");
   quick.querySelectorAll("[data-tool]").forEach((button) => button.addEventListener("click", () => {
     activeTool = button.dataset.tool;
-    document.getElementById("toolSelect").value = "";
     resetResultLimits();
     renderFilters();
     render();
   }));
-
-  const toolSelect = document.getElementById("toolSelect");
-  toolSelect.innerHTML = `<option value="">所有启用工具</option>${visibleToolIds().map((id) =>
-    `<option value="${id}">${escapeHtml(getAllData()[id].meta.name)}</option>`
-  ).join("")}`;
-  toolSelect.value = ["all", "recent", "favourites"].includes(activeTool) ? "" : activeTool;
 
   const categories = document.getElementById("categoryFilters");
   categories.innerHTML = Object.entries(CAT_LABEL).map(([id, label]) =>
@@ -245,7 +239,6 @@ function renderFilters() {
   }));
   document.getElementById("clearFilters").addEventListener("click", () => {
     activeTool = "all";
-    toolSelect.value = "";
     activeCat = null;
     resetResultLimits();
     document.getElementById("search").value = "";
@@ -411,18 +404,6 @@ function bindHomeEvents() {
     resetResultLimits();
     storageSet({ lastQuery: "" });
     render();
-  });
-  document.getElementById("toolSelect").addEventListener("change", (event) => {
-    activeTool = event.target.value || "all";
-    resetResultLimits();
-    renderFilters();
-    render();
-  });
-  document.getElementById("filterToggle").addEventListener("click", (event) => {
-    const filters = document.getElementById("categoryFilters");
-    const expanded = event.currentTarget.getAttribute("aria-expanded") === "true";
-    event.currentTarget.setAttribute("aria-expanded", String(!expanded));
-    filters.hidden = expanded;
   });
   document.getElementById("openManage").addEventListener("click", () => showView("manage"));
   document.getElementById("closeManage").addEventListener("click", () => showView("home"));
