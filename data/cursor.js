@@ -9,6 +9,9 @@ window.CHEATSHEET_DATA["cursor"] = {
     "builtIn": false,
     "sourceUrl": "https://docs.cursor.com/ide/reference/keyboard-shortcuts",
     "updatedAt": "2026-06-20",
+    "contentCheckedAt": "2026-06-20",
+    "sourceCheckedAt": "2026-06-21",
+    "updatePolicy": "manual-only",
     "coverage": "macOS 默认键位 Cursor AI 功能常用子集，Windows/Linux 差异见条目 platformCmds",
     "platforms": [
       "mac",

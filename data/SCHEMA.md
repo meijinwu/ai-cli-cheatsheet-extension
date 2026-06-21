@@ -86,7 +86,11 @@ meta：
   source: "官方文档 docs.claude.com，整理于 2026-06",  // 数据来源+时间，如果是非官方/未逐字核对/IDE类工具的子集，要明确写清楚限制
   sourceUrl: "https://docs.example.com/reference",     // 官方来源，必须是 HTTPS
   sourceTier: "official",                              // 可选：official / quasi-official / community，省略按 official 处理
-  updatedAt: "2026-06-20",                             // 最后核对日期，YYYY-MM-DD
+  updatedAt: "2026-06-20",                             // 旧字段，兼容历史数据
+  updatePolicy: "version-driven",                      // version-driven / release-driven / manual-only
+  verifiedVersion: "1.2.0",                            // 可选；内容最后核验到的产品版本或发布标识
+  contentCheckedAt: "2026-06-20",                      // 内容最后核验日期，仅用于追溯
+  sourceCheckedAt: "2026-06-21",                       // 来源可访问性最后检查日期
   coverage: "完整命令列表 / macOS 默认键位常用子集",    // 数据覆盖范围
   sources: [{
     id: "official-docs",
@@ -113,6 +117,8 @@ meta：
 ## 多来源证据与兼容
 
 - 新增和自动更新的数据必须使用 `meta.sources[]`。命令证据使用 `evidenceRefs`，案例证据继续使用 `sourceIds`。
+- `updatePolicy` 决定更新触发方式：动态 CLI 优先比较本机版本，发布驱动工具比较官方 Release，稳定快捷键和基础命令只允许手动深度核验。
+- 不得根据 `contentCheckedAt` 或 `sourceCheckedAt` 的时间间隔自动判定资料过期。
 - `verified` 必须同时有 `existence` 与 `semantics` 断言和具体 locator；只有宽泛页面或单项断言为 `partial`；无证据为 `unverified`。
 - 网页来源记录重定向后的 `resolvedUrl`、实际 `pageTitle` 和 `checkedAt`。
 - `sourceUrl/sourceTier` 保留用于读取旧数据；Native Host 会将旧字段合成来源记录。
@@ -146,10 +152,11 @@ meta：
 - 更新模式：保留原有未变化的条目，不要整份重写丢失细节
 - 新增工具应为所有条目提供 keywords、evidenceRefs 和 examples。CLI 提供可执行命令，IDE 提供操作场景
 - examples 覆盖不足不会阻止写入，但会产生质量警告；结构错误仍会拒绝
-- **两阶段生成**：先发现、筛选并解释来源，再依据发现结果生成逐条绑定证据的内容。
+- **按信号更新**：动态 CLI 先比较本机版本，未安装时再查询已登记官方 Release；版本未变时不调用模型。普通更新复用已登记来源，只有来源明确返回 404/410 或用户主动深度核验时重新执行来源发现。
+- **两阶段生成**：新增工具和深度核验先发现、筛选并解释来源，再依据发现结果生成逐条绑定证据的内容。
 - **来源优先级（新增与更新同样适用）**：本机帮助和第一方资料优先；官方缺失时才使用登记权威第三方。普通社区只能作为线索。永不编造。
 - **类官方仅联网时生成**：只有可联网的 `claude -p` 路径（`web-assisted`）能产出 quasi-official；有 API token 的离线路径（`model-knowledge`）由 `host.py` 的 `_demote_quasi_official` 强制把 quasi-official 降级（meta→community、example→ai-derived 并去 URL），避免编造未经核实的白名单 URL。
-- **联网核对开关（`prefer_web`）**：管理页的"联网核对"复选框会把 `prefer_web=true` 透传到 native host；为真时即使配置了 API token 也强制走联网 `claude -p` 路径，从而能在官方缺口处补充并核实类官方来源。默认关闭（走快速离线路径）。
+- **联网核对（`prefer_web`）**：版本变化后的更新和强制深度核验固定使用联网 `claude -p`，保证能够核对官方资料；版本未变时不启动模型。管理页开关只控制新增工具是否强制联网。
 - prompt 的白名单域名由 `host.py` 的 `QUASI_OFFICIAL_DOMAINS` 常量动态注入，不要在 prompt 里硬编码域名列表。
 - 官方明确提供的示例标记 official，人工整理标记 manual，基于语义推导标记 ai-derived
 - manual / official 示例必须显式填写能定位到具体行为的 sourceUrl；不得用工具首页自动兜底

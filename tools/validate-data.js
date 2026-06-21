@@ -167,6 +167,18 @@ for (const id of files) {
   if (tool.meta.updatedAt !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(tool.meta.updatedAt)) {
     fail(`${id}: invalid updatedAt`);
   }
+  if (!["version-driven", "release-driven", "manual-only"].includes(tool.meta.updatePolicy)) {
+    fail(`${id}: invalid updatePolicy`);
+  }
+  for (const field of ["contentCheckedAt", "sourceCheckedAt"]) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tool.meta[field] || "")) {
+      fail(`${id}: invalid ${field}`);
+    }
+  }
+  if (tool.meta.verifiedVersion !== undefined
+    && (typeof tool.meta.verifiedVersion !== "string" || !tool.meta.verifiedVersion.trim())) {
+    fail(`${id}: invalid verifiedVersion`);
+  }
   if (tool.meta.verificationStatus !== undefined
     && !["web-assisted", "model-knowledge", "manual"].includes(tool.meta.verificationStatus)) {
     fail(`${id}: invalid verificationStatus`);

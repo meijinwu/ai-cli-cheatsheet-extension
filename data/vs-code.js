@@ -8,6 +8,9 @@ window.CHEATSHEET_DATA["vs-code"] = {
     "source": "官方文档 code.visualstudio.com/docs/configure/keybindings，整理于 2026-06（⚠️ 仅收录 macOS 默认键位常用子集，完整列表请查官方 Keybindings 文档）",
     "sourceUrl": "https://code.visualstudio.com/docs/configure/keybindings",
     "updatedAt": "2026-06-20",
+    "contentCheckedAt": "2026-06-20",
+    "sourceCheckedAt": "2026-06-21",
+    "updatePolicy": "manual-only",
     "coverage": "macOS 默认键位常用子集，Windows/Linux 差异见条目说明",
     "platforms": [
       "mac",

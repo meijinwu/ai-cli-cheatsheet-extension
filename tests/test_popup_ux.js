@@ -30,5 +30,11 @@ assert(script.includes("查看其余") && script.includes("<details>"), "long so
 assert(script.includes("commandEvidenceHtml"), "command evidence must render separately from example provenance");
 assert(script.includes("命令证据：") && script.includes("exampleProvenanceLabel"), "command and example evidence labels must stay distinct");
 assert(script.includes("evidenceRefChanges") && script.includes("locatorLosses"), "update preview must report evidence assertion and locator changes");
+assert(!script.includes("STALE_DAYS"), "stable data must not become stale solely because time passed");
+assert(!script.includes("资料较旧"), "the UI must not show age-based stale warnings");
+assert(script.includes("updatePolicy") && script.includes("manual-only"), "tool-specific update policies must drive the UI");
+assert(script.includes("data-deep-update"), "stable tools need an explicit advanced re-verification action");
+assert(script.includes("检查版本更新") && script.includes("检查发布变化"), "dynamic update actions must describe their actual signal");
+assert(script.includes("prefer_web: true"), "version-triggered updates must use source-backed web verification");
 
 console.log("Popup UX contract tests passed.");

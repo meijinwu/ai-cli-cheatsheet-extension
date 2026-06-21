@@ -8,6 +8,9 @@ window.CHEATSHEET_DATA["antigravity-cli"] = {
     "source": "⚠️轻量版：官方公告+第三方实测整理，2026-06（非逐字核对官方文档，命令仍在快速变化中）",
     "sourceUrl": "https://developers.googleblog.com/",
     "updatedAt": "2026-06-20",
+    "contentCheckedAt": "2026-06-20",
+    "sourceCheckedAt": "2026-06-21",
+    "updatePolicy": "manual-only",
     "coverage": "官方公告与实测整理的常用子集，非完整官方清单",
     "platforms": [
       "mac",

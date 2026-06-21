@@ -8,6 +8,9 @@ window.CHEATSHEET_DATA["claude-code"] = {
     "source": "官方文档 code.claude.com，整理于 2026-06",
     "sourceUrl": "https://code.claude.com/docs/en/interactive-mode",
     "updatedAt": "2026-06-20",
+    "contentCheckedAt": "2026-06-20",
+    "sourceCheckedAt": "2026-06-21",
+    "updatePolicy": "version-driven",
     "coverage": "官方交互快捷键与斜杠命令",
     "platforms": [
       "mac",

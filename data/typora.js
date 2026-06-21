@@ -9,6 +9,9 @@ window.CHEATSHEET_DATA["typora"] = {
     "builtIn": false,
     "sourceUrl": "https://support.typora.io/Shortcut-Keys/",
     "updatedAt": "2026-06-20",
+    "contentCheckedAt": "2026-06-20",
+    "sourceCheckedAt": "2026-06-21",
+    "updatePolicy": "manual-only",
     "coverage": "macOS / Windows / Linux 默认快捷键常用子集",
     "platforms": [
       "mac",

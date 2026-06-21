@@ -11,6 +11,9 @@ window.CHEATSHEET_DATA["git"] = {
     "sourceTier": "official",
     "verificationStatus": "web-assisted",
     "updatedAt": "2026-06-21",
+    "contentCheckedAt": "2026-06-21",
+    "sourceCheckedAt": "2026-06-21",
+    "updatePolicy": "manual-only",
     "coverage": "涵盖常用子命令及选项，共包含 90 条命令",
     "platforms": [
       "mac",

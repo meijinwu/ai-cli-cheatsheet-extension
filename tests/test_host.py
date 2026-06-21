@@ -36,6 +36,9 @@ def valid_dataset(tool_id="sample"):
                 "purposes": ["command-existence", "option-semantics", "examples"],
             }],
             "updatedAt": "2026-06-20",
+            "contentCheckedAt": "2026-06-20",
+            "sourceCheckedAt": "2026-06-20",
+            "updatePolicy": "manual-only",
             "coverage": "Complete command list",
             "platforms": ["mac", "windows", "linux"],
             "order": 9,
@@ -268,6 +271,97 @@ class HostFileTests(unittest.TestCase):
             host.remove_tool("sample")
         self.assertTrue(target.exists())
 
+    def test_manual_only_update_skips_model_without_deep_check(self):
+        dataset = valid_dataset()
+        target = self.data_dir / "sample.js"
+        target.write_text(host.render_data_file(dataset), encoding="utf-8")
+        with mock.patch.object(host, "run_claude_query") as generate:
+            result = host.preview_update("sample", "Sample Tool")
+        generate.assert_not_called()
+        self.assertFalse(result["changed"])
+        self.assertIn("稳定资料策略", result["output"])
+
+    def test_matching_local_version_skips_model(self):
+        dataset = valid_dataset()
+        dataset["meta"].update({
+            "updatePolicy": "version-driven",
+            "verifiedVersion": "1.2.3",
+        })
+        target = self.data_dir / "sample.js"
+        target.write_text(host.render_data_file(dataset), encoding="utf-8")
+        signal = {
+            "policy": "version-driven",
+            "signalType": "local-version",
+            "marker": "1.2.3",
+            "detail": "sample --version",
+        }
+        with mock.patch.object(host, "detect_update_signal", return_value=signal), mock.patch.object(
+            host, "run_claude_query"
+        ) as generate:
+            result = host.preview_update("sample", "Sample Tool")
+        generate.assert_not_called()
+        self.assertFalse(result["changed"])
+        self.assertIn("无需更新", result["output"])
+
+    def test_version_change_reuses_signal_for_generation(self):
+        old_dataset = valid_dataset()
+        old_dataset["meta"].update({
+            "updatePolicy": "version-driven",
+            "verifiedVersion": "1.2.3",
+        })
+        target = self.data_dir / "sample.js"
+        target.write_text(host.render_data_file(old_dataset), encoding="utf-8")
+        new_dataset = valid_dataset()
+        new_dataset["meta"].update({
+            "updatePolicy": "version-driven",
+            "verifiedVersion": "1.3.0",
+        })
+        signal = {
+            "policy": "version-driven",
+            "signalType": "local-version",
+            "marker": "1.3.0",
+            "detail": "sample --version",
+        }
+        with mock.patch.object(host, "detect_update_signal", return_value=signal), mock.patch.object(
+            host, "run_claude_query", return_value=host.validate_dataset(new_dataset, "sample")
+        ) as generate:
+            result = host.preview_update("sample", "Sample Tool")
+        self.assertTrue(result["changed"])
+        self.assertEqual(result["updateSignal"]["marker"], "1.3.0")
+        self.assertTrue(generate.call_args.args[3])
+        self.assertEqual(generate.call_args.kwargs["update_context"], signal)
+
+    def test_uninstalled_version_driven_tool_falls_back_to_official_release(self):
+        dataset = valid_dataset()
+        dataset["meta"]["updatePolicy"] = "version-driven"
+        local = mock.MagicMock(return_value=None)
+        release = mock.MagicMock(return_value={
+            "policy": "version-driven",
+            "signalType": "official-release",
+            "marker": "2.0.0",
+            "detail": "GitHub Release vendor/tool",
+        })
+        with mock.patch.object(host, "detect_local_version", local), mock.patch.object(
+            host, "detect_official_release", release
+        ):
+            signal = host.detect_update_signal("sample", dataset)
+        local.assert_called_once_with("sample")
+        release.assert_called_once_with(dataset)
+        self.assertEqual(signal["marker"], "2.0.0")
+
+    def test_only_definitive_source_failure_forces_rediscovery(self):
+        source = {"kind": "official-doc", "url": "https://example.com/docs"}
+        not_found = host.urllib.error.HTTPError(
+            source["url"], 404, "Not Found", hdrs=None, fp=None
+        )
+        with mock.patch.object(host.urllib.request, "urlopen", side_effect=not_found):
+            self.assertTrue(host.has_definitively_missing_sources([source]))
+        not_found.close()
+        with mock.patch.object(
+            host.urllib.request, "urlopen", side_effect=host.urllib.error.URLError("offline")
+        ):
+            self.assertFalse(host.has_definitively_missing_sources([source]))
+
     def test_add_uses_read_only_claude_and_writes_validated_files(self):
         discovery = {"sources": valid_dataset()["meta"]["sources"], "conflicts": [], "notes": []}
         stdout = json.dumps({"result": json.dumps(valid_dataset())})
@@ -382,7 +476,7 @@ class HostFileTests(unittest.TestCase):
         with mock.patch.object(
             host, "run_claude_query", return_value=host.validate_dataset(new_dataset, "sample")
         ):
-            preview = host.preview_update("sample", "Sample Tool")
+            preview = host.preview_update("sample", "Sample Tool", deep_check=True)
         self.assertTrue(preview["changed"])
         self.assertEqual(preview["diff"]["counts"]["added"], 1)
         self.assertEqual(preview["diff"]["counts"]["modified"], 1)
@@ -393,7 +487,7 @@ class HostFileTests(unittest.TestCase):
         with mock.patch.object(
             host, "run_claude_query", return_value=host.validate_dataset(old_dataset, "sample")
         ):
-            second_preview = host.preview_update("sample", "Sample Tool")
+            second_preview = host.preview_update("sample", "Sample Tool", deep_check=True)
         discarded = host.discard_update(second_preview["pendingToken"])
         self.assertFalse(discarded["changed"])
 
@@ -409,7 +503,7 @@ class HostFileTests(unittest.TestCase):
         with mock.patch.object(
             host, "run_claude_query", return_value=host.validate_dataset(new_dataset, "sample")
         ):
-            preview = host.preview_update("sample", "Sample Tool")
+            preview = host.preview_update("sample", "Sample Tool", deep_check=True)
         self.assertEqual(preview["diff"]["counts"]["added"], 0)
         self.assertEqual(preview["diff"]["counts"]["removed"], 0)
         self.assertEqual(preview["diff"]["counts"]["modified"], 1)
@@ -434,7 +528,7 @@ class HostFileTests(unittest.TestCase):
         with mock.patch.object(
             host, "run_claude_query", return_value=host.validate_dataset(new_dataset, "sample")
         ):
-            preview = host.preview_update("sample", "Sample Tool")
+            preview = host.preview_update("sample", "Sample Tool", deep_check=True)
         _, pending = host.load_pending(preview["pendingToken"])
         item = pending["dataset"]["items"][0]
         self.assertEqual(item["keywords"], ["命令面板", "打开命令", "快捷操作"])
@@ -451,7 +545,7 @@ class HostFileTests(unittest.TestCase):
         with mock.patch.object(
             host, "run_claude_query", return_value=host.validate_dataset(new_dataset, "sample")
         ):
-            preview = host.preview_update("sample", "Sample Tool")
+            preview = host.preview_update("sample", "Sample Tool", deep_check=True)
         target.write_text("externally changed", encoding="utf-8")
         with self.assertRaisesRegex(host.ValidationError, "重新检查更新"):
             host.apply_update(preview["pendingToken"])
@@ -475,7 +569,7 @@ class HostFileTests(unittest.TestCase):
         with mock.patch.object(
             host, "run_claude_query", return_value=host.validate_dataset(new_dataset, "sample")
         ):
-            preview = host.preview_update("sample", "Sample Tool")
+            preview = host.preview_update("sample", "Sample Tool", deep_check=True)
         self.assertTrue(preview["diff"]["risks"])
         with self.assertRaisesRegex(host.ValidationError, "高风险变化"):
             host.apply_update(preview["pendingToken"])
@@ -568,6 +662,18 @@ class HostDiffEnrichmentTests(unittest.TestCase):
         diff = host.build_dataset_diff(old, new)
         self.assertEqual(diff["risks"], [])
         self.assertEqual(diff["counts"]["modified"], 1)
+
+    def test_diff_ignores_tracking_date_only_changes(self):
+        old = self._with_id()
+        new = self._with_id()
+        new["meta"]["updatedAt"] = "2026-07-01"
+        new["meta"]["contentCheckedAt"] = "2026-07-01"
+        new["meta"]["sourceCheckedAt"] = "2026-07-01"
+        new["meta"]["sources"][0]["checkedAt"] = "2026-07-01"
+        new["meta"]["sources"][0]["lastVerifiedAt"] = "2026-07-01"
+        diff = host.build_dataset_diff(old, new)
+        self.assertEqual(diff["counts"], {"added": 0, "modified": 0, "removed": 0, "meta": 0})
+        self.assertEqual(diff["sourceChanges"]["modified"], [])
 
     def test_diff_flags_new_repository_and_source_conflict(self):
         old_payload = valid_dataset("codex")

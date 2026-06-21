@@ -8,6 +8,9 @@ window.CHEATSHEET_DATA["codex"] = {
     "source": "官方文档 developers.openai.com/codex，整理于 2026-06",
     "sourceUrl": "https://developers.openai.com/codex/cli/",
     "updatedAt": "2026-06-20",
+    "contentCheckedAt": "2026-06-20",
+    "sourceCheckedAt": "2026-06-21",
+    "updatePolicy": "version-driven",
     "coverage": "官方 CLI 快捷键、斜杠命令与启动参数",
     "platforms": [
       "mac",

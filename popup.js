@@ -6,7 +6,6 @@ const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "› 命令", flag: "⚑ �
 const GROUP_INITIAL_LIMIT = 20;
 const SEARCH_INITIAL_LIMIT = 100;
 const SEARCH_DEBOUNCE_MS = 120;
-const STALE_DAYS = 180;
 const TOOL_PRESETS = {
   ai: ["claude-code", "codex", "gemini-cli", "antigravity-cli", "opencode", "openclaw"],
   editors: ["cursor", "vs-code", "idea", "typora"],
@@ -95,18 +94,6 @@ function resetResultLimits() {
   searchLimit = SEARCH_INITIAL_LIMIT;
 }
 
-function freshnessLabel(updatedAt) {
-  const timestamp = Date.parse(`${updatedAt || ""}T00:00:00Z`);
-  if (!Number.isFinite(timestamp)) return "更新时间未知";
-  const days = Math.floor((Date.now() - timestamp) / 86400000);
-  return days > 180 ? `⚠ 已 ${days} 天未核对` : `${Math.max(0, days)} 天前核对`;
-}
-
-function freshnessDays(updatedAt) {
-  const timestamp = Date.parse(`${updatedAt || ""}T00:00:00Z`);
-  return Number.isFinite(timestamp) ? Math.max(0, Math.floor((Date.now() - timestamp) / 86400000)) : Infinity;
-}
-
 // 来源信任档位：缺省按官方处理，向后兼容历史数据。
 function sourceTierLabel(sourceTier) {
   if (sourceTier === "quasi-official") return "类官方";
@@ -150,6 +137,25 @@ function itemEvidence(entry) {
   if (entry.item.evidenceStatus === "verified") return "已核验";
   if (entry.item.evidenceStatus === "partial") return "部分核验";
   return "未核验";
+}
+
+function updatePolicy(meta) {
+  if (["version-driven", "release-driven", "manual-only"].includes(meta.updatePolicy)) {
+    return meta.updatePolicy;
+  }
+  return "release-driven";
+}
+
+function updateStatusLabel(meta) {
+  const policy = updatePolicy(meta);
+  if (meta.verifiedVersion) return `已核验至版本 ${meta.verifiedVersion}`;
+  if (policy === "manual-only") return "默认键位或稳定命令参考";
+  if (policy === "version-driven") return "尚未记录核验版本";
+  return "按官方发布信号检查";
+}
+
+function updateActionLabel(meta) {
+  return updatePolicy(meta) === "release-driven" ? "检查发布变化" : "检查版本更新";
 }
 
 function commandEvidenceHtml(item, sources) {
@@ -348,7 +354,6 @@ function renderRow(entry, query, includeBadge = false) {
   })).filter((example) => !example.platformInfo.unsupported);
   const examplesOpen = expandedExamples.has(key);
   const commandRisk = riskFor(entry.displayCmd, examples);
-  const isStale = includeBadge && freshnessDays(tool.meta.updatedAt) > STALE_DAYS;
   const note = entry.platformInfo.unsupported ? "当前平台不可用" : entry.platformInfo.usedFallback ? "通用写法" : "";
   const matchReason = query.trim() && entry.matchReason
     ? `<span class="match-reason">主要匹配${escapeHtml(entry.matchReason.label)}：${highlightHtml(entry.matchReason.term, query)}</span>`
@@ -363,7 +368,6 @@ function renderRow(entry, query, includeBadge = false) {
   const tags = [
     note ? `<span class="trust-tag">${escapeHtml(note)}</span>` : "",
     commandRisk.requiresConfirmation ? `<span class="trust-tag risk">高风险</span>` : "",
-    isStale ? `<span class="trust-tag stale">资料较旧</span>` : "",
     tierTag,
     `<span class="trust-tag tier evidence-${escapeHtml(entry.item.evidenceStatus || "unverified")}">${escapeHtml(itemEvidence(entry))}</span>`,
   ].join("");
@@ -399,7 +403,6 @@ function renderRow(entry, query, includeBadge = false) {
 
 function sourceCard(toolId) {
   const meta = getAllData()[toolId].meta;
-  const tierLabel = sourceTierLabel(meta.sourceTier);
   const sources = normalizedSources(meta);
   const sourceEntry = (source) => `<div class="source-entry">
     <span>${escapeHtml(evidenceLabel(source.evidenceTier, source.kind))} · ${escapeHtml(source.title || source.id)} · ${escapeHtml(source.maintainer || "维护者未标注")}${source.lastVerifiedAt ? ` · ${escapeHtml(source.lastVerifiedAt)}` : ""}</span>
@@ -410,7 +413,7 @@ function sourceCard(toolId) {
   const references = Array.isArray(meta.references) ? meta.references : [];
   return `<div class="source-card" id="source-${toolId}">
     <div>${escapeHtml(meta.coverage || meta.source)}</div>
-    <div>来源档位：${escapeHtml(tierLabel)} · 更新：${escapeHtml(meta.updatedAt || "未标注")} · 平台：${escapeHtml((meta.platforms || []).join(" / ") || "未标注")}</div>
+    <div>${escapeHtml(updateStatusLabel(meta))} · 内容核验：${escapeHtml(meta.contentCheckedAt || meta.updatedAt || "未标注")} · 来源检查：${escapeHtml(meta.sourceCheckedAt || "未标注")} · 平台：${escapeHtml((meta.platforms || []).join(" / ") || "未标注")}</div>
     <div class="source-list">${primarySources.map(sourceEntry).join("") || "<div>尚未登记可核验来源</div>"}
       ${remainingSources.length ? `<details><summary>查看其余 ${remainingSources.length} 个来源</summary>${remainingSources.map(sourceEntry).join("")}</details>` : ""}
       ${references.length ? `<details><summary>背景参考 ${references.length} 个（不证明具体命令）</summary>${references.map(sourceEntry).join("")}</details>` : ""}
@@ -465,8 +468,7 @@ function render() {
       const more = rows.length > visible.length
         ? `<button class="text-btn more-btn" data-expand="${toolId}">展开剩余 ${rows.length - visible.length} 条</button>`
         : "";
-      const stale = freshnessDays(tool.meta.updatedAt) > STALE_DAYS ? `<span class="trust-tag stale">资料较旧</span>` : "";
-      return `<section><div class="section-title"><span class="badge" style="background:${escapeHtml(tool.meta.color)}">${escapeHtml(tool.meta.name)}</span><span class="count">${rows.length} 条</span>${stale}<button class="source-toggle" data-source="${toolId}" aria-expanded="false" aria-controls="source-${toolId}">来源与更新时间 ▾</button></div>${sourceCard(toolId)}${visible.map((entry) => renderRow(entry, query)).join("")}${more}</section>`;
+      return `<section><div class="section-title"><span class="badge" style="background:${escapeHtml(tool.meta.color)}">${escapeHtml(tool.meta.name)}</span><span class="count">${rows.length} 条</span><button class="source-toggle" data-source="${toolId}" aria-expanded="false" aria-controls="source-${toolId}">来源与核验状态 ▾</button></div>${sourceCard(toolId)}${visible.map((entry) => renderRow(entry, query)).join("")}${more}</section>`;
     }).join("");
   }
 }
@@ -602,6 +604,7 @@ function renderManage() {
   tools.innerHTML = getToolIds().map((toolId) => {
     const meta = getAllData()[toolId].meta;
     const canDelete = !meta.builtIn;
+    const policy = updatePolicy(meta);
     const sources = normalizedSources(meta);
     const evidenceCounts = { verified: 0, partial: 0, unverified: 0 };
     getAllData()[toolId].items.forEach((item) => {
@@ -620,10 +623,14 @@ function renderManage() {
       if (sourceCounts[example.sourceType] !== undefined) sourceCounts[example.sourceType] += 1;
     }));
     return `<div class="tool-card"><div class="tool-title"><input type="checkbox" data-enabled="${toolId}" ${enabledTools.has(toolId) ? "checked" : ""}><label>${escapeHtml(meta.name)}</label></div>
-      <div class="meta">${escapeHtml(meta.coverage || meta.source)}<br>来源 ${sources.length} 个 · 更新：${escapeHtml(meta.updatedAt || "未标注")}（${escapeHtml(freshnessLabel(meta.updatedAt))}） · <span class="verify">${escapeHtml(verification)}</span></div>
+      <div class="meta">${escapeHtml(meta.coverage || meta.source)}<br>来源 ${sources.length} 个 · ${escapeHtml(updateStatusLabel(meta))} · <span class="verify">${escapeHtml(verification)}</span></div>
       <div class="meta">条目核验：已核验 ${evidenceCounts.verified} / 部分核验 ${evidenceCounts.partial} / 未核验 ${evidenceCounts.unverified}</div>
       <div class="meta">用法覆盖：${exampleItems.length}/${getAllData()[toolId].items.length} · 官方依据 ${sourceCounts.official} / 权威社区 ${sourceCounts["quasi-official"]} / 编辑整理 ${sourceCounts.manual} / 自动生成 ${sourceCounts["ai-derived"]}</div>
-      <div class="tool-actions"><button class="text-btn" data-update="${toolId}">检查更新</button>${canDelete ? `<button class="text-btn danger" data-remove="${toolId}">删除</button>` : `<span class="meta">内置工具可隐藏，不可删除</span>`}</div></div>`;
+      ${policy === "manual-only" ? "" : `<div class="tool-actions"><button class="text-btn" data-update="${toolId}">${escapeHtml(updateActionLabel(meta))}</button></div>`}
+      <details class="advanced-actions"><summary>高级操作</summary>
+        <div class="meta">强制深度检查会联网重新发现来源并调用模型，耗时更长且会计入模型用量。</div>
+        <div class="tool-actions"><button class="text-btn" data-deep-update="${toolId}">重新核验资料</button>${canDelete ? `<button class="text-btn danger" data-remove="${toolId}">删除</button>` : `<span class="meta">内置工具可隐藏，不可删除</span>`}</div>
+      </details></div>`;
   }).join("");
   tools.querySelectorAll("[data-enabled]").forEach((checkbox) => checkbox.addEventListener("change", async () => {
     checkbox.checked ? enabledTools.add(checkbox.dataset.enabled) : enabledTools.delete(checkbox.dataset.enabled);
@@ -634,7 +641,21 @@ function renderManage() {
   }));
   tools.querySelectorAll("[data-update]").forEach((button) => button.addEventListener("click", () => {
     const toolId = button.dataset.update;
-    runTask("preview_update", { tool: toolId, display_name: getAllData()[toolId].meta.name, prefer_web: webVerify });
+    runTask("preview_update", {
+      tool: toolId,
+      display_name: getAllData()[toolId].meta.name,
+      prefer_web: true,
+    });
+  }));
+  tools.querySelectorAll("[data-deep-update]").forEach((button) => button.addEventListener("click", () => {
+    const toolId = button.dataset.deepUpdate;
+    if (!confirm("强制深度检查会重新发现来源并调用模型，可能需要数分钟。继续吗？")) return;
+    runTask("preview_update", {
+      tool: toolId,
+      display_name: getAllData()[toolId].meta.name,
+      prefer_web: true,
+      deep_check: true,
+    });
   }));
   tools.querySelectorAll("[data-remove]").forEach((button) => button.addEventListener("click", () => {
     const toolId = button.dataset.remove;
@@ -657,6 +678,7 @@ function renderPending() {
   const qualityWarnings = pendingUpdate.qualityWarnings || pendingUpdate.diff?.qualityWarnings || [];
   const sourceChanges = pendingUpdate.diff?.sourceChanges || {};
   const detailRows = [
+    ...(pendingUpdate.updateSignal?.marker ? [`版本信号：${pendingUpdate.updateSignal.marker}（${pendingUpdate.updateSignal.detail || pendingUpdate.updateSignal.signalType}）`] : []),
     ...(pendingUpdate.diff?.added || []).map((item) => `＋ ${item.cmd} · ${item.zh}`),
     ...(pendingUpdate.diff?.modified || []).map((item) => `≈ ${item.before} → ${item.after}`),
     ...(pendingUpdate.diff?.removed || []).map((item) => `－ ${item.cmd} · ${item.zh}`),
@@ -686,7 +708,7 @@ function renderPending() {
 }
 
 function taskBaseMsg(mode) {
-  if (mode === "preview_update") return "正在整理数据并生成更新预览，关闭面板不会中断";
+  if (mode === "preview_update") return "正在检查实际版本变化；如需生成预览会继续核对资料，关闭面板不会中断";
   if (mode === "add_tool") return "正在整理并生成工具数据，关闭面板不会中断";
   return "正在执行，请稍候";
 }

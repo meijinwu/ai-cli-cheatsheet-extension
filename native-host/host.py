@@ -2,6 +2,7 @@
 """Native Messaging host for safe, schema-validated cheatsheet updates."""
 
 import atexit
+import datetime
 import hashlib
 import http.client
 import json
@@ -16,6 +17,8 @@ import subprocess
 import sys
 import tempfile
 import urllib.parse
+import urllib.error
+import urllib.request
 
 # Track the active claude subprocess so it can be cleaned up if host.py is killed.
 _active_proc = None
@@ -80,6 +83,17 @@ EVIDENCE_TIERS = {"first-party", "authoritative-community", "community", "none"}
 ADAPTATIONS = {"verbatim", "adapted", "scenario-derived"}
 EVIDENCE_STATUSES = {"verified", "partial", "unverified"}
 EVIDENCE_CLAIMS = {"existence", "semantics", "platform", "example"}
+UPDATE_POLICIES = {"version-driven", "release-driven", "manual-only"}
+
+# Only tools with a useful local version command belong here. Stable keymaps and
+# long-lived command references intentionally have no executable probe.
+TOOL_VERSION_COMMANDS = {
+    "claude-code": (("claude", "--version"),),
+    "codex": (("codex", "--version"),),
+    "gemini-cli": (("gemini", "--version"),),
+    "openclaw": (("openclaw", "--version"),),
+    "opencode": (("opencode", "--version"),),
+}
 
 
 def load_source_registry():
@@ -328,6 +342,7 @@ def validate_request(message):
         "tool": tool_id,
         "display_name": display_name,
         "prefer_web": bool(message.get("prefer_web")),
+        "deep_check": bool(message.get("deep_check")),
     }
 
 
@@ -420,6 +435,22 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         if verification_status not in {"web-assisted", "model-knowledge", "manual"}:
             raise ValidationError("meta.verificationStatus 非法")
         clean_meta["verificationStatus"] = verification_status
+    update_policy = meta.get("updatePolicy")
+    if update_policy is not None:
+        if update_policy not in UPDATE_POLICIES:
+            raise ValidationError("meta.updatePolicy 非法")
+        clean_meta["updatePolicy"] = update_policy
+    verified_version = checked_text(
+        meta.get("verifiedVersion"), "meta.verifiedVersion", required=False
+    )
+    if verified_version:
+        clean_meta["verifiedVersion"] = verified_version
+    for date_field in ("contentCheckedAt", "sourceCheckedAt"):
+        date_value = checked_text(meta.get(date_field), f"meta.{date_field}", required=False)
+        if date_value:
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_value):
+                raise ValidationError(f"meta.{date_field} 必须是 YYYY-MM-DD")
+            clean_meta[date_field] = date_value
     source_tier = meta.get("sourceTier")
     if source_tier is not None and source_tier not in SOURCE_TIERS:
         raise ValidationError("meta.sourceTier 非法")
@@ -428,9 +459,16 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
     coverage = checked_text(meta.get("coverage"), "meta.coverage", required=False)
     platforms = meta.get("platforms")
     if require_structured_source and (
-        not updated_at or not coverage or (not source_url and not meta.get("sources"))
+        not coverage
+        or not meta.get("updatePolicy")
+        or not meta.get("contentCheckedAt")
+        or not meta.get("sourceCheckedAt")
+        or (not source_url and not meta.get("sources"))
     ):
-        raise ValidationError("新生成的数据必须包含 meta.sources、meta.updatedAt 和 meta.coverage")
+        raise ValidationError(
+            "新生成的数据必须包含 meta.sources、meta.updatePolicy、"
+            "meta.contentCheckedAt、meta.sourceCheckedAt 和 meta.coverage"
+        )
     if source_url:
         if not re.fullmatch(r"https://[^\s]+", source_url):
             raise ValidationError("meta.sourceUrl 必须是 HTTPS URL")
@@ -1023,7 +1061,9 @@ GitHub 仅认可已登记的厂商仓库。精确登记范围如下：
 """.strip()
 
 
-def build_prompt(tool_id, display_name, mode, web_enabled, discovered_sources=None):
+def build_prompt(
+    tool_id, display_name, mode, web_enabled, discovered_sources=None, update_context=None
+):
     current_text = ""
     data_path = tool_data_path(tool_id)
     if mode == "update":
@@ -1039,6 +1079,17 @@ def build_prompt(tool_id, display_name, mode, web_enabled, discovered_sources=No
         if current_text
         else ""
     )
+    update_signal_section = ""
+    if update_context:
+        update_signal_section = (
+            "\n本次更新由实际变化信号触发：\n"
+            f"- 更新策略：{update_context.get('policy')}\n"
+            f"- 信号类型：{update_context.get('signalType')}\n"
+            f"- 当前版本或发布标识：{update_context.get('marker')}\n"
+            "只修改被该版本实际影响的命令、参数、快捷键和证据。"
+            "若发布内容未改变命令界面，保持 items 不变，仅更新核验版本元数据；"
+            "不要因页面排版、发布日期或措辞变化重写条目。\n"
+        )
     whitelist = "、".join(QUASI_OFFICIAL_DOMAINS)
     # 来源策略随是否联网而变：只有联网路径能可靠核对第三方页面，因此只有它能产出
     # quasi-official；离线（纯模型知识）路径禁止类官方，避免编造看似合法的白名单 URL。
@@ -1092,7 +1143,10 @@ JSON 格式：
     "source": "官方来源与整理日期",
     "sourceUrl": "https://官方文档地址",
     "sourceTier": "official|quasi-official|community",
-    "updatedAt": "YYYY-MM-DD",
+    "updatePolicy": "version-driven | release-driven | manual-only",
+    "verifiedVersion": "可选；已核验的产品版本或发布标识",
+    "contentCheckedAt": "YYYY-MM-DD",
+    "sourceCheckedAt": "YYYY-MM-DD",
     "coverage": "完整命令列表或常用子集说明",
     "sources": [{{
       "id": "稳定来源ID",
@@ -1164,12 +1218,13 @@ JSON 格式：
 4. 同一 cat、cmd、context 组合不得重复。
 5. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。{upgrade_note}
 6. 所有字符串必须是有效 JSON 字符串。
-7. sources、updatedAt、coverage 必须填写；网页来源必须记录 resolvedUrl、pageTitle、checkedAt。每个 item 必须提供 evidenceRefs，evidenceStatus 由系统根据 claims 自动推导，不要臆测；平台快捷键应尽量使用 platformCmds 表达。
+7. sources、updatePolicy、contentCheckedAt、sourceCheckedAt、coverage 必须填写；updatedAt 仅为旧数据兼容字段，新数据可省略。网页来源必须记录 resolvedUrl、pageTitle、checkedAt。每个 item 必须提供 evidenceRefs，evidenceStatus 由系统根据 claims 自动推导，不要臆测；平台快捷键应尽量使用 platformCmds 表达。
 8. verified 必须同时有 existence 与 semantics 断言且 locator 可具体定位；只有宽泛首页或只确认命令存在时只能是 partial；无证据为 unverified。
 9. 每个条目都必须提供 keywords 和 examples；每条最多 3 个示例。
-10. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；案例应包含 scenario、goal、expected，说明何时用、结果是什么以及不要与什么混淆。
-11. 更新时保留已有 keywords 和 examples，并为所有新增条目补充关键词和示例。
-12. 官方明确示例标记 official；人工整理标记 manual；根据命令语义推导的标记 ai-derived；可信第三方补充按上面第 1 条的来源优先级处理。
+10. updatePolicy 按实际变化方式选择：可读取本机版本的动态 CLI 用 version-driven；有明确官方 Release/Changelog 但无可靠本机版本的工具用 release-driven；稳定快捷键、键位表和基础命令参考用 manual-only。不得因为核验日期较早选择更激进的策略。
+11. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；案例应包含 scenario、goal、expected，说明何时用、结果是什么以及不要与什么混淆。
+12. 更新时保留已有 keywords 和 examples，并为所有新增条目补充关键词和示例。
+13. 官方明确示例标记 official；人工整理标记 manual；根据命令语义推导的标记 ai-derived；可信第三方补充按上面第 1 条的来源优先级处理。
 13. {tier_rule}
 14. authorship 表示谁写的案例，evidenceTier 表示证据强度，adaptation 表示是否改写，三者不得混为一个 sourceType。
 15. 高风险命令必须提供 warning，并在 description 或 caveat 中给出预览、备份或更安全替代方案。
@@ -1178,6 +1233,7 @@ JSON 格式：
 {discovered_section}
 
 {current_section}
+{update_signal_section}
 """.strip()
 
 
@@ -1342,30 +1398,200 @@ def _run_generation_prompt(prompt, use_api, prefer_web=False):
     return _call_claude_cli(prompt, prefer_web)
 
 
-def run_claude_query(tool_id, display_name, mode, prefer_web=False):
+def has_definitively_missing_sources(sources):
+    """Return True only for stable not-found responses, not transient network errors."""
+    for source in sources:
+        url = source.get("resolvedUrl") or source.get("url")
+        if source.get("kind") == "local-help" or not url:
+            continue
+        request = urllib.request.Request(
+            url,
+            method="HEAD",
+            headers={"User-Agent": "ai-cli-cheatsheet-extension"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=8):
+                pass
+        except urllib.error.HTTPError as exc:
+            if exc.code in {404, 410}:
+                return True
+        except (OSError, urllib.error.URLError):
+            # Offline, rate-limited and temporary failures must not cause a noisy
+            # source rediscovery. The content pass can still report a conflict.
+            continue
+    return False
+
+
+def run_claude_query(
+    tool_id, display_name, mode, prefer_web=False, update_context=None, deep_check=False
+):
     if mode == "add" and os.path.exists(tool_data_path(tool_id)):
         raise ValidationError(f"data/{tool_id}.js 已存在，请使用更新模式")
 
     use_api = _has_api_token() and not prefer_web
     web_enabled = not use_api
-    discovery_prompt = build_source_discovery_prompt(
-        tool_id, display_name, mode, web_enabled
-    )
-    discovered = _run_generation_prompt(discovery_prompt, use_api, prefer_web)
-    if not isinstance(discovered, dict) or not isinstance(discovered.get("sources"), list):
-        raise ValidationError("来源发现阶段没有返回合法的 sources 数组")
+    discovered = None
+    current = None
+    if mode == "update" and not deep_check:
+        current = load_existing_dataset(tool_id)
+        current_sources = current.get("meta", {}).get("sources") or []
+        if current_sources and not has_definitively_missing_sources(current_sources):
+            discovered = {
+                "sources": current_sources,
+                "conflicts": [],
+                "notes": ["复用现有已登记来源；仅在深度核验时重新发现来源。"],
+            }
+    if discovered is None:
+        discovery_prompt = build_source_discovery_prompt(
+            tool_id, display_name, mode, web_enabled
+        )
+        discovered = _run_generation_prompt(discovery_prompt, use_api, prefer_web)
+        if not isinstance(discovered, dict) or not isinstance(discovered.get("sources"), list):
+            raise ValidationError("来源发现阶段没有返回合法的 sources 数组")
 
     content_prompt = build_prompt(
-        tool_id, display_name, mode, web_enabled, discovered_sources=discovered
+        tool_id,
+        display_name,
+        mode,
+        web_enabled,
+        discovered_sources=discovered,
+        update_context=update_context,
     )
     raw = _run_generation_prompt(content_prompt, use_api, prefer_web)
     if use_api:
         raw = _demote_quasi_official(raw)
+    if not isinstance(raw, dict) or not isinstance(raw.get("meta"), dict):
+        raise ValidationError("生成结果缺少 meta 对象")
+    if mode == "update" and current is None:
+        current = load_existing_dataset(tool_id)
+    today = datetime.date.today().isoformat()
+    raw["meta"]["contentCheckedAt"] = today
+    raw["meta"]["sourceCheckedAt"] = today
+    raw["meta"]["updatePolicy"] = (
+        update_context.get("policy") if update_context else
+        (current or {}).get("meta", {}).get("updatePolicy") or
+        raw["meta"].get("updatePolicy") or
+        "release-driven"
+    )
+    if update_context:
+        raw["meta"]["verifiedVersion"] = update_context["marker"]
+    elif current and current.get("meta", {}).get("verifiedVersion"):
+        raw["meta"]["verifiedVersion"] = current["meta"]["verifiedVersion"]
     dataset = validate_dataset(raw, tool_id)
     dataset["meta"]["verificationStatus"] = (
         "model-knowledge" if use_api else "web-assisted"
     )
     return dataset
+
+
+def normalize_version_marker(value):
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text:
+        return None
+    match = re.search(r"\bv?(\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?)\b", text)
+    return match.group(1) if match else text[:100]
+
+
+def find_tool_binary(name):
+    found = shutil.which(name)
+    if found:
+        return found
+    suffixes = (".cmd", ".exe", "") if sys.platform == "win32" else ("",)
+    directories = [
+        os.path.expanduser("~/.local/bin"),
+        os.path.expanduser("~/.npm-global/bin"),
+        os.path.expanduser("~/.cargo/bin"),
+        "/usr/local/bin",
+        "/opt/homebrew/bin",
+        "/usr/bin",
+    ]
+    if sys.platform == "win32":
+        directories.insert(0, os.path.join(os.environ.get("APPDATA", ""), "npm"))
+    for directory in directories:
+        for suffix in suffixes:
+            candidate = os.path.join(directory, f"{name}{suffix}")
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+    return None
+
+
+def detect_local_version(tool_id):
+    for command in TOOL_VERSION_COMMANDS.get(tool_id, ()):
+        executable = find_tool_binary(command[0])
+        if not executable:
+            continue
+        try:
+            result = subprocess.run(
+                [executable, *command[1:]],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        output = (result.stdout or result.stderr or "").strip()
+        marker = normalize_version_marker(output)
+        if result.returncode == 0 and marker:
+            return {
+                "policy": "version-driven",
+                "signalType": "local-version",
+                "marker": marker,
+                "detail": f"{command[0]} --version",
+            }
+    return None
+
+
+def github_repository_slug(dataset):
+    candidates = [
+        *(dataset.get("meta", {}).get("references") or []),
+        *(dataset.get("meta", {}).get("sources") or []),
+    ]
+    for source in candidates:
+        if source.get("kind") != "official-repository":
+            continue
+        match = re.match(
+            r"https://github\.com/([^/]+)/([^/#?]+)", source.get("url", "")
+        )
+        if match:
+            return f"{match.group(1)}/{match.group(2).removesuffix('.git')}"
+    return None
+
+
+def detect_official_release(dataset):
+    slug = github_repository_slug(dataset)
+    if not slug:
+        return None
+    request = urllib.request.Request(
+        f"https://api.github.com/repos/{slug}/releases/latest",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "ai-cli-cheatsheet-extension",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, urllib.error.URLError, json.JSONDecodeError):
+        return None
+    marker = normalize_version_marker(payload.get("tag_name") or payload.get("name"))
+    if not marker:
+        return None
+    return {
+        "policy": dataset.get("meta", {}).get("updatePolicy") or "release-driven",
+        "signalType": "official-release",
+        "marker": marker,
+        "detail": f"GitHub Release {slug}",
+    }
+
+
+def detect_update_signal(tool_id, dataset):
+    policy = dataset.get("meta", {}).get("updatePolicy")
+    if policy == "version-driven":
+        return detect_local_version(tool_id) or detect_official_release(dataset)
+    if policy == "release-driven":
+        return detect_official_release(dataset)
+    return None
 
 
 def file_sha256(path):
@@ -1400,6 +1626,19 @@ def item_signature(item):
     }
 
 
+def source_signature(source):
+    return {
+        key: value for key, value in source.items()
+        if key not in {"checkedAt", "lastVerifiedAt"}
+    }
+
+
+def meaningful_meta_value(key, value):
+    if key in {"sources", "references"}:
+        return [source_signature(source) for source in (value or [])]
+    return value
+
+
 def preserve_existing_enrichment(old_dataset, new_dataset):
     old_items = {item.get("id"): item for item in old_dataset.get("items", []) if item.get("id")}
     for item in new_dataset.get("items", []):
@@ -1431,11 +1670,17 @@ def build_dataset_diff(old_dataset, new_dataset):
         for item_id in new_items.keys() & old_items.keys()
         if item_signature(old_items[item_id]) != item_signature(new_items[item_id])
     ]
-    meta_changes = {
-        key: {"before": old_dataset.get("meta", {}).get(key), "after": new_dataset["meta"].get(key)}
-        for key in new_dataset["meta"]
-        if old_dataset.get("meta", {}).get(key) != new_dataset["meta"].get(key)
-    }
+    ignored_meta_fields = {"updatedAt", "contentCheckedAt", "sourceCheckedAt", "source"}
+    old_meta = old_dataset.get("meta", {})
+    new_meta = new_dataset.get("meta", {})
+    meta_changes = {}
+    for key in set(old_meta) | set(new_meta):
+        if key in ignored_meta_fields:
+            continue
+        before = old_meta.get(key)
+        after = new_meta.get(key)
+        if meaningful_meta_value(key, before) != meaningful_meta_value(key, after):
+            meta_changes[key] = {"before": before, "after": after}
     old_count = len(old_dataset.get("items", []))
     new_count = len(new_dataset.get("items", []))
     removed_count = len(removed)
@@ -1462,7 +1707,7 @@ def build_dataset_diff(old_dataset, new_dataset):
     modified_sources = [
         {"before": old_sources[source_id], "after": new_sources[source_id]}
         for source_id in old_sources.keys() & new_sources.keys()
-        if old_sources[source_id] != new_sources[source_id]
+        if source_signature(old_sources[source_id]) != source_signature(new_sources[source_id])
     ]
     for source in added_sources:
         if source.get("kind") in {"authoritative-reference", "community", "official-repository"}:
@@ -1605,10 +1850,42 @@ def add_tool(tool_id, display_name, prefer_web=False):
     }
 
 
-def preview_update(tool_id, display_name, prefer_web=False):
+def preview_update(tool_id, display_name, prefer_web=False, deep_check=False):
     old_dataset = load_existing_dataset(tool_id)
-    new_dataset = run_claude_query(tool_id, display_name, "update", prefer_web)
+    policy = old_dataset.get("meta", {}).get("updatePolicy")
+    signal = None
+    if not deep_check and policy == "manual-only":
+        return {
+            "ok": True,
+            "changed": False,
+            "output": "该工具使用稳定资料策略，不按时间检查。需要时可使用“强制深度检查”。",
+        }
+    if not deep_check and policy in {"version-driven", "release-driven"}:
+        signal = detect_update_signal(tool_id, old_dataset)
+        if not signal:
+            return {
+                "ok": True,
+                "changed": False,
+                "output": "未找到可用的本机版本或官方发布信号；未调用模型。需要时可使用“强制深度检查”。",
+            }
+        if normalize_version_marker(old_dataset["meta"].get("verifiedVersion")) == signal["marker"]:
+            return {
+                "ok": True,
+                "changed": False,
+                "output": f"当前为 {signal['marker']}，与已核验版本一致，无需更新。",
+                "updateSignal": signal,
+            }
+    new_dataset = run_claude_query(
+        tool_id,
+        display_name,
+        "update",
+        True if (signal or deep_check) else prefer_web,
+        update_context=signal,
+        deep_check=deep_check,
+    )
     new_dataset["meta"]["builtIn"] = old_dataset["meta"].get("builtIn", False)
+    if policy:
+        new_dataset["meta"]["updatePolicy"] = policy
     new_dataset = preserve_existing_enrichment(old_dataset, new_dataset)
     diff = build_dataset_diff(old_dataset, new_dataset)
     diff["qualityWarnings"] = new_dataset.get("qualityWarnings", [])
@@ -1619,7 +1896,11 @@ def preview_update(tool_id, display_name, prefer_web=False):
             "changed": False,
             "diff": diff,
             "qualityWarnings": new_dataset.get("qualityWarnings", []),
-            "output": "数据没有变化",
+            "updateSignal": signal,
+            "output": (
+                f"已核对 {signal['marker']}，命令集没有变化"
+                if signal else "数据没有变化"
+            ),
         }
     token = secrets.token_hex(16)
     payload = {
@@ -1637,7 +1918,10 @@ def preview_update(tool_id, display_name, prefer_web=False):
         "toolId": tool_id,
         "diff": diff,
         "qualityWarnings": new_dataset.get("qualityWarnings", []),
-        "output": new_dataset["summary"] or "发现可用更新",
+        "updateSignal": signal,
+        "output": new_dataset["summary"] or (
+            f"检测到 {signal['marker']}，发现可用更新" if signal else "发现可用更新"
+        ),
     }
 
 
@@ -1709,7 +1993,10 @@ def handle_message(message):
         return add_tool(request["tool"], request["display_name"], request.get("prefer_web", False))
     if request["action"] == "preview_update":
         return preview_update(
-            request["tool"], request["display_name"], request.get("prefer_web", False)
+            request["tool"],
+            request["display_name"],
+            request.get("prefer_web", False),
+            request.get("deep_check", False),
         )
     if request["action"] == "apply_update":
         return apply_update(request["token"], request["confirm_risk"])

@@ -52,7 +52,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return false;
     }
 
-    const { tool, display_name, mode, token, confirm_risk, prefer_web } = msg;
+    const { tool, display_name, mode, token, confirm_risk, prefer_web, deep_check } = msg;
     const tokenMode = ['apply_update', 'discard_update'].includes(mode);
     const validToken = typeof token === 'string' && /^[a-f0-9]{32}$/.test(token);
     const validTool = typeof tool === 'string'
@@ -97,7 +97,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       broadcastCompletion(response);
     });
 
-    nativePort.postMessage({ action: mode, tool, display_name, token, confirm_risk: confirm_risk === true, prefer_web: prefer_web === true });
+    nativePort.postMessage({
+      action: mode,
+      tool,
+      display_name,
+      token,
+      confirm_risk: confirm_risk === true,
+      prefer_web: prefer_web === true,
+      deep_check: deep_check === true,
+    });
     return false;
   }
 });
