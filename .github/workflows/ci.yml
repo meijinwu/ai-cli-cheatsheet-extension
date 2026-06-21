@@ -25,6 +25,7 @@ jobs:
       - name: Validate cheatsheet data
         run: |
           node tools/validate-data.js
+          node tests/test_validation_consistency.js
           node tests/test_product_core.js
           node tests/test_usage_examples.js
       - name: Run native host tests

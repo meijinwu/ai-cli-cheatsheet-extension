@@ -395,5 +395,100 @@ class HostApiTests(unittest.TestCase):
                 host._call_api_direct("prompt")
 
 
+class HostDiffEnrichmentTests(unittest.TestCase):
+    def _with_id(self, item_id="i1"):
+        dataset = valid_dataset()
+        dataset["items"][0]["id"] = item_id
+        return dataset
+
+    def test_diff_flags_source_domain_change(self):
+        old = self._with_id()
+        new = self._with_id()
+        new["meta"]["sourceUrl"] = "https://other-host.example.org/docs"
+        diff = host.build_dataset_diff(old, new)
+        self.assertTrue(any("域名" in risk for risk in diff["risks"]))
+
+    def test_diff_flags_builtin_toggle(self):
+        old = self._with_id()
+        old["meta"]["builtIn"] = False
+        new = self._with_id()
+        new["meta"]["builtIn"] = True
+        diff = host.build_dataset_diff(old, new)
+        self.assertTrue(any("内置工具标记" in risk for risk in diff["risks"]))
+
+    def test_diff_clean_update_has_no_risks(self):
+        old = self._with_id()
+        new = self._with_id()
+        new["items"][0]["zh"] = "打开命令面板"
+        diff = host.build_dataset_diff(old, new)
+        self.assertEqual(diff["risks"], [])
+        self.assertEqual(diff["counts"]["modified"], 1)
+
+    def test_quality_warning_flags_keyword_gap(self):
+        warnings = host.build_quality_warnings(valid_dataset())
+        self.assertTrue(any("语义关键词覆盖不足" in warning for warning in warnings))
+
+    def test_quality_warning_flags_example_regression(self):
+        previous = valid_dataset()
+        previous["items"][0]["examples"] = [
+            {"value": "Ctrl+K", "description": "打开命令", "sourceType": "manual"}
+        ]
+        current = valid_dataset()  # 当前条目无 examples，覆盖率从 1 降至 0
+        warnings = host.build_quality_warnings(current, previous)
+        self.assertTrue(any("降至" in warning for warning in warnings))
+
+    def test_preserve_keeps_reviewed_examples_over_new(self):
+        old = self._with_id()
+        old["items"][0]["keywords"] = ["命令面板", "打开命令", "快捷操作"]
+        old["items"][0]["examples"] = [
+            {"value": "old", "description": "旧示例", "sourceType": "manual"}
+        ]
+        new = self._with_id()
+        new["items"][0]["examples"] = [
+            {"value": "new", "description": "新示例", "sourceType": "ai-derived"}
+        ]
+        # new 缺 keywords
+        merged = host.preserve_existing_enrichment(old, new)
+        # 已人工审核(manual)的旧示例优先于新生成的 ai-derived
+        self.assertEqual(merged["items"][0]["examples"][0]["value"], "old")
+        # 旧 keywords 在新数据缺失时被保留
+        self.assertEqual(merged["items"][0]["keywords"], ["命令面板", "打开命令", "快捷操作"])
+
+    def test_rejects_invalid_example_platform_values(self):
+        payload = valid_dataset()
+        payload["items"][0].update({
+            "keywords": ["a", "b", "c"],
+            "examples": [{
+                "value": "cmd",
+                "description": "示例",
+                "sourceType": "ai-derived",
+                "platformValues": {"solaris": "cmd"},
+            }],
+        })
+        with self.assertRaisesRegex(host.ValidationError, "平台非法"):
+            host.validate_dataset(payload, "sample")
+
+    def test_lenient_contract_accepts_missing_keywords_and_examples(self):
+        # 锁定“生成端宽松”契约：缺 keywords/examples 不报错，但两项都产生覆盖告警。
+        # 与仓库端 validate-data.js 的严格必填刻意不同（见 data/SCHEMA.md 校验契约）。
+        dataset = host.validate_dataset(valid_dataset(), "sample")
+        self.assertNotIn("keywords", dataset["items"][0])
+        self.assertNotIn("examples", dataset["items"][0])
+        self.assertTrue(any("示例覆盖不足" in warning for warning in dataset["qualityWarnings"]))
+        self.assertTrue(any("语义关键词覆盖不足" in warning for warning in dataset["qualityWarnings"]))
+
+    def test_id_collisions_recover_with_command_hash(self):
+        # 同 cat/en、无 context 但 cmd 不同：稳定 ID 会碰撞，应通过追加 cmd 重哈希恢复唯一
+        payload = valid_dataset()
+        payload["items"] = [
+            {"cat": "slash", "cmd": f"/cmd-{index}", "en": "Run", "zh": f"运行 {index}"}
+            for index in range(3)
+        ]
+        dataset = host.validate_dataset(payload, "sample")
+        ids = [item["id"] for item in dataset["items"]]
+        self.assertEqual(len(dataset["items"]), 3)
+        self.assertEqual(len(set(ids)), 3, "碰撞条目应重哈希为唯一 ID")
+
+
 if __name__ == "__main__":
     unittest.main()
