@@ -18,6 +18,7 @@ let currentTaskMode = null;
 let _taskTimer = null;
 let expandedTools = new Set();
 let expandedExamples = new Set();
+let enrichmentIndex = new Map();
 let searchLimit = SEARCH_INITIAL_LIMIT;
 
 function detectPlatform() {
@@ -83,20 +84,29 @@ function getAllData() {
   return window.CHEATSHEET_DATA || {};
 }
 
-function applyCuratedEnrichments() {
+// 构建 toolId\0cmd\0context -> enrichment 的索引，不改写共享数据。
+// 富化在读取时通过 enrichItem 以副本形式叠加（见不可变原则）。
+function buildEnrichmentIndex() {
   window.CHEATSHEET_BUILD_FULL_ENRICHMENTS?.(getAllData());
+  const index = new Map();
   Object.entries(window.CHEATSHEET_ENRICHMENTS || {}).forEach(([toolId, enrichments]) => {
-    const items = getAllData()[toolId]?.items || [];
     Object.entries(enrichments).forEach(([lookup, enrichment]) => {
       const [cmd, context = ""] = lookup.split("\0");
-      const item = items.find((candidate) =>
-        candidate.cmd === cmd && (candidate.context || "") === context
-      );
-      if (!item) return;
-      if (!item.keywords && enrichment.keywords) item.keywords = enrichment.keywords;
-      if (!item.examples && enrichment.examples) item.examples = enrichment.examples;
+      index.set(`${toolId}\0${cmd}\0${context}`, enrichment);
     });
   });
+  enrichmentIndex = index;
+}
+
+// 返回叠加了 keywords/examples 的条目副本；无需叠加时原样返回（避免多余复制）。
+function enrichItem(toolId, item) {
+  if (item.keywords && item.examples) return item;
+  const enrichment = enrichmentIndex.get(`${toolId}\0${item.cmd}\0${item.context || ""}`);
+  if (!enrichment) return item;
+  const enriched = { ...item };
+  if (!enriched.keywords && enrichment.keywords) enriched.keywords = enrichment.keywords;
+  if (!enriched.examples && enrichment.examples) enriched.examples = enrichment.examples;
+  return enriched;
 }
 
 function getToolIds() {
@@ -220,7 +230,7 @@ function collectEntries() {
       entries.push({
         toolId,
         itemId: itemId(toolId, item),
-        item,
+        item: enrichItem(toolId, item),
         displayCmd: platformInfo.command,
         platformInfo,
         toolName: data[toolId].meta.name,
@@ -315,7 +325,7 @@ function render() {
 
 function findEntry(toolId, itemIdValue) {
   const item = getAllData()[toolId]?.items.find((candidate) => itemId(toolId, candidate) === itemIdValue);
-  return item ? { toolId, itemId: itemIdValue, item } : null;
+  return item ? { toolId, itemId: itemIdValue, item: enrichItem(toolId, item) } : null;
 }
 
 function bindHomeEvents() {
@@ -441,7 +451,9 @@ function renderManage() {
       : meta.verificationStatus === "model-knowledge"
         ? "模型知识生成，待人工核验"
         : "来源状态未标注";
-    const exampleItems = (getAllData()[toolId].items || []).filter((item) => item.examples?.length);
+    const exampleItems = (getAllData()[toolId].items || [])
+      .map((item) => enrichItem(toolId, item))
+      .filter((item) => item.examples?.length);
     const sourceCounts = { official: 0, manual: 0, "ai-derived": 0 };
     exampleItems.forEach((item) => item.examples.forEach((example) => {
       if (sourceCounts[example.sourceType] !== undefined) sourceCounts[example.sourceType] += 1;
@@ -635,7 +647,7 @@ function bindOnboarding() {
 async function initialize() {
   try {
     await loadCheatsheetData();
-    applyCuratedEnrichments();
+    buildEnrichmentIndex();
   } catch (error) {
     document.getElementById("main").innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
     return;

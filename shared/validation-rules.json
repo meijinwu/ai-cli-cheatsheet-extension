@@ -1,0 +1,13 @@
+{
+  "_comment": "校验规则单一来源。validate-data.js 直接消费；host.py 必须镜像同样的值，由 tests/test_validation_consistency.js 防止漂移。改这里后同步更新 host.py 常量。",
+  "keywords": { "min": 3, "max": 8 },
+  "examples": { "max": 3 },
+  "dangerousExample": {
+    "source": "\\b(rm\\s+-rf|reset\\s+--hard|push\\s+--force|kill\\s+-9|chmod|chown|restart|--delete|--yolo|dangerously-bypass)\\b|(^|\\s)>(?!>)",
+    "flags": "i"
+  },
+  "possibleSecret": {
+    "source": "api[_-]?key|secret|token\\s*[=:]\\s*[a-z0-9_-]{12,}",
+    "flags": "i"
+  }
+}

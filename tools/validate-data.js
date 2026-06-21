@@ -7,6 +7,13 @@ const vm = require("vm");
 
 const root = path.resolve(__dirname, "..");
 const dataDir = path.join(root, "data");
+
+const rules = require(path.join(root, "shared", "validation-rules.json"));
+const { min: MIN_KEYWORDS, max: MAX_KEYWORDS } = rules.keywords;
+const MAX_EXAMPLES = rules.examples.max;
+const DANGEROUS_EXAMPLE_RE = new RegExp(rules.dangerousExample.source, rules.dangerousExample.flags);
+const POSSIBLE_SECRET_RE = new RegExp(rules.possibleSecret.source, rules.possibleSecret.flags);
+
 const context = { window: {} };
 vm.createContext(context);
 
@@ -53,6 +60,8 @@ if (typeof context.window.CHEATSHEET_BUILD_FULL_ENRICHMENTS !== "function") {
   fail("usage-examples.js must expose CHEATSHEET_BUILD_FULL_ENRICHMENTS");
 }
 context.window.CHEATSHEET_BUILD_FULL_ENRICHMENTS(data);
+// 把 curated 富化按 item 引用记录到旁路表，校验时按需叠加，不改写共享数据对象。
+const enrichmentByItem = new WeakMap();
 for (const [toolId, enrichments] of Object.entries(context.window.CHEATSHEET_ENRICHMENTS || {})) {
   if (!data[toolId]) fail(`usage-examples.js: unknown tool ${toolId}`);
   if (Object.keys(enrichments).length < 10) {
@@ -64,8 +73,7 @@ for (const [toolId, enrichments] of Object.entries(context.window.CHEATSHEET_ENR
       candidate.cmd === command && (candidate.context || "") === itemContext
     );
     if (!item) fail(`usage-examples.js: missing target ${toolId} ${command} (${itemContext})`);
-    if (!item.keywords && enrichment.keywords) item.keywords = enrichment.keywords;
-    if (!item.examples && enrichment.examples) item.examples = enrichment.examples;
+    enrichmentByItem.set(item, enrichment);
   }
 }
 
@@ -107,17 +115,21 @@ for (const id of files) {
     if (item.context !== undefined && (typeof item.context !== "string" || !item.context.trim())) {
       fail(`${id}[${index}]: invalid context`);
     }
-    if (item.keywords !== undefined) {
-      if (!Array.isArray(item.keywords) || item.keywords.length < 3 || item.keywords.length > 8
-        || item.keywords.some((keyword) => typeof keyword !== "string" || !keyword.trim())) {
+    // 有效 keywords/examples = 条目自带 优先，否则回退到 curated 富化（旁路表，不改写数据）。
+    const enrichment = enrichmentByItem.get(item) || {};
+    const keywords = item.keywords ?? enrichment.keywords;
+    const examples = item.examples ?? enrichment.examples;
+    if (keywords !== undefined) {
+      if (!Array.isArray(keywords) || keywords.length < MIN_KEYWORDS || keywords.length > MAX_KEYWORDS
+        || keywords.some((keyword) => typeof keyword !== "string" || !keyword.trim())) {
         fail(`${id}[${index}]: invalid keywords`);
       }
     } else fail(`${id}[${index}]: keywords required`);
-    if (item.examples !== undefined) {
-      if (!Array.isArray(item.examples) || item.examples.length === 0 || item.examples.length > 3) {
+    if (examples !== undefined) {
+      if (!Array.isArray(examples) || examples.length === 0 || examples.length > MAX_EXAMPLES) {
         fail(`${id}[${index}]: invalid examples`);
       }
-      item.examples.forEach((example, exampleIndex) => {
+      examples.forEach((example, exampleIndex) => {
         if (!example || typeof example !== "object" || Array.isArray(example)
           || typeof example.value !== "string" || !example.value.trim()
           || typeof example.description !== "string" || !example.description.trim()) {
@@ -152,11 +164,10 @@ for (const id of files) {
             }
           }
         }
-        if (/\b(rm\s+-rf|reset\s+--hard|push\s+--force|kill\s+-9|chmod|chown|restart|--delete|--yolo|dangerously-bypass)\b|(^|\s)>(?!>)/i.test(example.value)
-          && !example.warning) {
+        if (DANGEROUS_EXAMPLE_RE.test(example.value) && !example.warning) {
           fail(`${id}[${index}].examples[${exampleIndex}]: dangerous example requires warning`);
         }
-        if (/api[_-]?key|secret|token\s*[=:]\s*[a-z0-9_-]{12,}/i.test(example.value)) {
+        if (POSSIBLE_SECRET_RE.test(example.value)) {
           fail(`${id}[${index}].examples[${exampleIndex}]: possible secret`);
         }
       });

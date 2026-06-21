@@ -35,7 +35,7 @@
   en: "英文官方说明（简短）",
   zh: "中文说明（讲清楚用途，不是字面翻译）",
   context: "编辑器 / 集成终端",            // 可选；相同 cmd 在不同场景出现时必填
-  keywords: ["替换", "批量替换"],          // 可选；用户常用语义词，最多 20 个
+  keywords: ["替换", "批量替换"],          // 用户常用语义词，3 到 8 个（仓库提交数据必填，见“校验契约”）
   examples: [                              // 可选；最多 3 个
     {
       value: "sed 's/旧文本/新文本/g' file.txt",
@@ -76,6 +76,17 @@ meta：
   order: 1,                  // 可选，控制在列表里的显示顺序，数字小的排前面，省略则按字母顺序排在最后
 }
 ```
+
+## 校验契约（生成端宽松，仓库端严格）
+
+`keywords` 与 `examples` 在两条链路上有意采用不同强度，这是设计而非 bug：
+
+- **生成端（`native-host/host.py`，宽松）**：`keywords`/`examples` 缺失不报错，仅由 `build_quality_warnings` 产生质量警告。目的是不因模型偶发漏填而中断整次生成；用户可在预览里看到覆盖告警。
+- **仓库端（`tools/validate-data.js`，严格）**：提交进仓库的数据，每条目都**必须**带合法的 `keywords`（3..8）与 `examples`（1..3）。CI 会对全量数据执行，缺失即失败。
+
+两侧的数量上下限与危险/密钥正则保持一致，统一声明在 `shared/validation-rules.json`，并由 `tests/test_validation_consistency.js` 防止漂移。改任一侧规则前先更新该 JSON。
+
+含义：本地用 host.py 生成的工具即使个别条目缺 examples 也能正常使用（仅少了示例），但若要回贡献到仓库，需补齐到满足仓库端严格校验。
 
 ## 给自动化流程（Native Messaging + claude -p）的额外要求
 
