@@ -107,7 +107,8 @@ popup.html / popup.js       弹窗界面、筛选、复制和本地偏好
 product-core.js             搜索排序、同义词和平台命令逻辑
 data/*.js                   各工具数据
 data/index.js               数据文件索引
-usage-examples.js           人工核验的高频用法与语义关键词
+usage-examples.js           公共示例派生、风险分类与兼容富化
+enrichments/                按工具拆分、以稳定 item.id 关联的人工核验示例
 background.js               弹窗与 Native Host 的任务桥接
 native-host/host.py         模型调用、数据校验、差异计算和原子写入
 tools/validate-data.js      数据文件静态校验

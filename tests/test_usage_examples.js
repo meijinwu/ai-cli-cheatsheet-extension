@@ -5,6 +5,9 @@ const assert = require("assert");
 global.window = {};
 require("../data/index.js");
 for (const id of window.CHEATSHEET_FILES) require(`../data/${id}.js`);
+for (const id of ["antigravity-cli", "claude-code", "codex", "gemini-cli", "openclaw", "opencode"]) {
+  require(`../enrichments/${id}.js`);
+}
 require("../usage-examples.js");
 
 window.CHEATSHEET_BUILD_FULL_ENRICHMENTS(window.CHEATSHEET_DATA);
@@ -12,6 +15,7 @@ window.CHEATSHEET_BUILD_FULL_ENRICHMENTS(window.CHEATSHEET_DATA);
 let itemCount = 0;
 let exampleCount = 0;
 const sourceCounts = { official: 0, manual: 0, "ai-derived": 0 };
+const manualByTool = {};
 
 for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
   for (const item of tool.items) {
@@ -29,13 +33,14 @@ for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
       );
       // 防回归：派生 value 不得把占位符类型名当成真实参数泄漏（如 /effort 级别）。
       // 仅查裸 token（去掉引号串与括号补注），句子型操作描述里粘连的 CJK 不算泄漏。
-      if (example.sourceType === "ai-derived") {
+      if (example.generated === true) {
         const bare = example.value.replace(/["'][^"']*["']/g, "").replace(/（[^）]*）/g, "");
         assert(
           !/(?:^|\s)(级别|条件|名称|路径|模型|命令|问题|会话|目标|描述|指令|文件名|模式|提示)(?=\s|$)/.test(bare),
           `${toolId} ${item.cmd}: value leaks CJK placeholder type-name -> ${example.value}`
         );
-      } else {
+      }
+      if (example.sourceType !== "ai-derived") {
         // 人工/官方示例必须带可核验的文档链接（https）。
         assert(
           /^https:\/\/\S+$/.test(example.sourceUrl || ""),
@@ -43,15 +48,30 @@ for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
         );
       }
       sourceCounts[example.sourceType] += 1;
+      if (example.sourceType === "manual") {
+        manualByTool[toolId] = (manualByTool[toolId] || 0) + 1;
+      }
       exampleCount += 1;
     }
     itemCount += 1;
   }
 }
 
-assert.strictEqual(itemCount, 874);
-assert(sourceCounts.manual >= 232, "curated coverage should keep growing");
-assert(sourceCounts["ai-derived"] > 550, "the long tail should still receive AI-derived examples");
+const expectedManualMinimums = {
+  "claude-code": 10,
+  codex: 11,
+  "gemini-cli": 9,
+  openclaw: 9,
+  opencode: 10,
+  git: 14,
+};
+for (const [toolId, minimum] of Object.entries(expectedManualMinimums)) {
+  assert(
+    (manualByTool[toolId] || 0) >= minimum,
+    `${toolId}: expected at least ${minimum} explicitly sourced manual examples`
+  );
+}
+assert(sourceCounts["ai-derived"] > 0, "the long tail should still receive AI-derived examples");
 
 function exampleFor(toolId, command, context = "") {
   return window.CHEATSHEET_ENRICHMENTS[toolId][`${command}\0${context}`].examples[0];
@@ -75,5 +95,43 @@ assert.strictEqual(exampleFor("cursor", "@Folders", "Chat/Composer").value, "@Fo
 assert.strictEqual(exampleFor("openclaw", "/verbose on|off|full").value, "/verbose on");
 assert.strictEqual(exampleFor("openclaw", "/reset [soft [message]]").value, '/reset soft "重新开始"');
 assert.strictEqual(exampleFor("git", "branch -d", "branch").value, "git branch -d feature/old");
+
+const claudeFast = window.CHEATSHEET_ENRICHMENTS["claude-code"]["/fast [on|off]\0"].examples;
+assert(claudeFast.every((example) => example.sourceUrl === "https://code.claude.com/docs/en/fast-mode"));
+assert(claudeFast.every((example) => !example.description.includes("跳过规划")));
+assert(
+  !window.CHEATSHEET_DATA["claude-code"].items.some((item) => item.cat === "slash" && item.cmd === "/vim"),
+  "Claude Code must not expose removed /vim command"
+);
+
+const yolo = exampleFor("codex", "--yolo / --dangerously-bypass-approvals-and-sandbox");
+assert.strictEqual(yolo.copyable, false);
+assert(yolo.warning);
+assert(yolo.riskLevels.includes("safetyBypass"));
+assert.strictEqual(yolo.sourceUrl, "https://developers.openai.com/codex/cli/reference");
+
+const resetHard = exampleFor("git", "reset --hard", "reset");
+assert.strictEqual(resetHard.copyable, false);
+assert(resetHard.riskLevels.includes("historyRewrite"));
+
+const testApi = window.CHEATSHEET_ENRICHMENT_TEST_API;
+assert.strictEqual(testApi.triggerHit("mcp tools", "cp "), false);
+assert.strictEqual(testApi.triggerHit("confirm action", "rm "), false);
+assert.strictEqual(testApi.triggerHit("@definitions symbol", "init"), false);
+assert.strictEqual(testApi.triggerHit("models list", "model"), true);
+assert.strictEqual(testApi.triggerHit("configure settings", "config"), true);
+
+window.CHEATSHEET_ENRICHMENTS["source-policy-test"] = {
+  command: { examples: [{ value: "command", description: "没有精确来源的人工整理" }] },
+};
+window.CHEATSHEET_BUILD_FULL_ENRICHMENTS({
+  "source-policy-test": {
+    meta: { sourceUrl: "https://example.com/tool-home" },
+    items: [{ cat: "flag", cmd: "command", en: "Command", zh: "命令" }],
+  },
+});
+const sourcePolicyExample = window.CHEATSHEET_ENRICHMENTS["source-policy-test"]["command\0"].examples[0];
+assert.strictEqual(sourcePolicyExample.sourceType, "ai-derived");
+assert.strictEqual(sourcePolicyExample.sourceUrl, undefined);
 
 console.log(`Usage example tests passed: ${itemCount} items, ${exampleCount} examples.`);

@@ -3,8 +3,15 @@
   "keywords": { "min": 3, "max": 8 },
   "examples": { "max": 3 },
   "dangerousExample": {
-    "source": "\\b(rm\\s+-rf|reset\\s+--hard|push\\s+--force|kill\\s+-9|chmod|chown|restart|--delete|--yolo|dangerously-bypass)\\b|(^|\\s)>(?!>)",
+    "source": "(?:\\brm(?:\\s|$)|\\b(?:reset\\s+--hard|push\\s+--force|kill\\s+-9|chmod|chown|restart)\\b|--(?:delete|yolo)\\b|dangerously-bypass\\b)|(^|\\s)>(?!>)",
     "flags": "i"
+  },
+  "riskLevels": {
+    "deleteOrOverwrite": "(?:\\brm(?:\\s|$)|\\breset\\s+--hard\\b|--delete\\b)|(^|\\s)>(?!>)",
+    "permissionChange": "\\b(chmod|chown)\\b",
+    "historyRewrite": "\\b(reset\\s+--hard|push\\s+--force|rebase\\s+-i)\\b",
+    "safetyBypass": "(?:--yolo|dangerously-bypass)\\b",
+    "processDisruption": "\\b(kill\\s+-9|restart)\\b"
   },
   "possibleSecret": {
     "source": "api[_-]?key|secret|token\\s*[=:]\\s*[a-z0-9_-]{12,}",
