@@ -1,6 +1,249 @@
 (function initUsageExamples(globalScope) {
   "use strict";
 
+  const SOURCE_TYPES = new Set(["official", "manual", "ai-derived"]);
+  const DANGEROUS_PATTERN = /\b(rm\s+-rf|reset\s+--hard|push\s+--force|kill\s+-9|chmod|chown|restart|--delete|--yolo|dangerously-bypass)\b|(^|\s)>(?!>)/i;
+  const KEYWORD_RULES = [
+    [["搜索", "查找", "find", "search", "grep"], ["搜索", "查找", "定位"]],
+    [["替换", "replace", "substitute", "sed"], ["替换", "取代", "文本替换"]],
+    [["删除", "移除", "remove", "delete", "rm "], ["删除", "移除", "清理"]],
+    [["创建", "新建", "create", "init", "mkdir"], ["创建", "新建", "初始化"]],
+    [["复制", "copy", "clone", "cp "], ["复制", "克隆", "拷贝"]],
+    [["移动", "重命名", "move", "rename", "mv "], ["移动", "重命名", "改名"]],
+    [["显示", "查看", "list", "show", "status"], ["查看", "显示", "状态"]],
+    [["配置", "设置", "config", "settings"], ["配置", "设置", "偏好"]],
+    [["模型", "model"], ["模型", "切换模型", "模型选择"]],
+    [["会话", "session", "resume"], ["会话", "恢复会话", "历史会话"]],
+    [["压缩", "compact", "compress"], ["压缩", "精简上下文", "节省上下文"]],
+    [["格式", "format"], ["格式化", "代码格式", "排版"]],
+    [["帮助", "help", "docs"], ["帮助", "说明", "文档"]],
+  ];
+
+  function cleanSyntax(value) {
+    return String(value || "")
+      .replace(/（[^）]*别名[^）]*）/g, "")
+      .replace(/（或[^）]+）/g, "")
+      .replace(/\s+或\s+.+$/, "")
+      .replace(/\s+\/\s*.+$/, "")
+      .replace(/,\s+-\w\b/g, "")
+      .replace(/\[soft \[message\]\]/gi, 'soft "重新开始"')
+      .replace(/\[([^\]]+)\]/g, (_match, label) => {
+        const normalized = label.toLowerCase();
+        if (normalized.includes("|")) return cleanSyntax(normalized.split("|")[0]);
+        if (/pr/.test(normalized)) return "123";
+        if (/路径|path|file/.test(normalized)) return "src/app.js";
+        if (/模型|model/.test(normalized)) return "model-name";
+        if (/会话|session|id/.test(normalized)) return "session-id";
+        if (/级别|level/.test(normalized)) return "medium";
+        if (/命令|command/.test(normalized)) return "git status";
+        if (/提示|任务|指令|prompt|问题|question|描述|报告/.test(normalized)) return "检查当前改动";
+        if (/文件名/.test(normalized)) return "session.md";
+        if (/名称|name|title/.test(normalized)) return "sample-name";
+        if (/key=value/.test(normalized)) return "theme=dark";
+        if (/^n$/i.test(normalized)) return "1";
+        if (/copy|verbose|last/.test(normalized)) return normalized.split("|")[0];
+        return "sample-value";
+      })
+      .replace(/<([^>]+)>/g, (_match, label) => {
+        if (label.includes("|")) return cleanSyntax(label.split("|")[0]);
+        if (/command/i.test(label)) return "git status";
+        if (/file|path|路径/i.test(label)) return "src/app.js";
+        if (/level|级别/i.test(label)) return "medium";
+        if (/value|值/i.test(label)) return "sample-value";
+        if (/text|question|message|input|问题|任务|目标|指令/i.test(label)) return '"检查当前改动"';
+        if (/recipient/i.test(label)) return "user@example.com";
+        if (/channel/i.test(label)) return "stable";
+        if (/code/i.test(label)) return "123456";
+        if (/plugin/i.test(label)) return "example-plugin";
+        if (/name|title|名称/i.test(label)) return "sample-name";
+        if (/shell/i.test(label)) return "zsh";
+        if (/模式/i.test(label)) return "workspace-write";
+        if (/模型/i.test(label)) return "gpt-5.5";
+        return "sample-value";
+      })
+      .replace(/\b([a-z][\w-]*)\|[\w|#-]+\b/gi, "$1")
+      .trim();
+  }
+
+  function commandPrefix(toolId, command) {
+    if (toolId === "git" && !/^git\b/.test(command)) return `git ${command}`;
+    const cliNames = {
+      codex: "codex",
+      "claude-code": "claude",
+      "gemini-cli": "gemini",
+      opencode: "opencode",
+      openclaw: "openclaw",
+    };
+    if (/^-{1,2}[\w-]+/.test(command) && cliNames[toolId]) return `${cliNames[toolId]} ${command}`;
+    return command;
+  }
+
+  function completeCommonCommand(toolId, value) {
+    if (toolId === "linux") {
+      const completeValues = {
+        cd: "cd ./example-dir",
+        mkdir: "mkdir example-dir",
+        "mkdir -p": "mkdir -p parent/example-dir",
+        cp: "cp source.txt copy.txt",
+        "cp -r": "cp -r source-dir copy-dir",
+        mv: "mv old-name new-name",
+        rm: "rm ./example.tmp",
+        touch: "touch notes.txt",
+        cat: "cat README.md",
+        less: "less app.log",
+        head: "head README.md",
+        tail: "tail app.log",
+        chmod: "chmod 644 notes.txt",
+        "chmod 755": "chmod 755 scripts/deploy.sh",
+        chown: "chown user:group notes.txt",
+        kill: "kill 12345",
+        "kill -9": "kill -9 12345",
+        grep: 'grep "TODO" README.md',
+        "grep -i": 'grep -i "error" app.log',
+        find: 'find . -name "*.js"',
+        sort: "sort names.txt",
+        uniq: "uniq sorted-names.txt",
+        wc: "wc README.md",
+        diff: "diff old.txt new.txt",
+        curl: "curl https://example.com",
+        wget: "wget https://example.com/archive.zip",
+        tar: "tar -tf archive.tar",
+        "tar -czf": "tar -czf archive.tar.gz example-dir",
+        "|": 'cat app.log | grep "ERROR"',
+        ">": 'echo "example" > output.txt',
+        ">>": 'echo "next line" >> output.txt',
+        ssh: "ssh user@example.com",
+        scp: "scp file.txt user@example.com:/tmp/",
+        ping: "ping example.com",
+        "ln -s": "ln -s target.txt shortcut.txt",
+        which: "which node",
+      };
+      return completeValues[value] || value;
+    }
+
+    if (toolId === "git") {
+      const completeValues = {
+        "git reset <file>": "git reset src/app.js",
+        "git rm": "git rm obsolete.txt",
+        "git rm --cached": "git rm --cached .env",
+        "git mv": "git mv old-name.js new-name.js",
+        "git branch -d": "git branch -d feature/old",
+        "git checkout": "git checkout main",
+        "git checkout -b": "git checkout -b feature/search",
+        "git checkout -- <file>": "git checkout -- src/app.js",
+        "git switch": "git switch main",
+        "git merge": "git merge feature/search",
+        "git merge --no-ff": "git merge --no-ff feature/search",
+        "git rebase": "git rebase main",
+        "git rebase -i": "git rebase -i HEAD~3",
+        "git cherry-pick": "git cherry-pick abc1234",
+        "git stash drop": "git stash drop stash@{0}",
+        "git remote add": "git remote add origin https://github.com/example/project.git",
+        "git remote remove": "git remote remove upstream",
+        "git push -u": "git push -u origin feature/search",
+        "git push --force": "git push --force origin feature/search",
+        "git log --author": 'git log --author="Alice"',
+        "git show <commit>": "git show abc1234",
+        "git tag": "git tag v1.0.0",
+        "git tag -a": 'git tag -a v1.0.0 -m "Release v1.0.0"',
+        "git tag -d": "git tag -d v1.0.0",
+        "git blame": "git blame src/app.js",
+        "git blame -L": "git blame -L 10,30 src/app.js",
+        "git config": "git config user.name",
+        "git config --global": 'git config --global user.name "Alice"',
+        "git bisect": "git bisect start",
+        "git grep": 'git grep "TODO"',
+      };
+      return completeValues[value] || value;
+    }
+
+    const completeValues = {
+      "@Folders": "@Folders src/components",
+      "@Web": "@Web 查询当前浏览器兼容性",
+      "@Git": "@Git 最近一次提交修改了什么？",
+      "@Docs": "@Docs https://example.com/docs",
+      "@Chat": "@Chat 总结上一次讨论的决定",
+      "@Definitions": "@Definitions UserService",
+    };
+    return completeValues[value] || value;
+  }
+
+  function isKeyboardOperation(item) {
+    return item.cat === "shortcut"
+      || /^(?:Cmd|Ctrl|Alt|Option|Shift|Enter|Esc|Tab|F\d+|PageUp|PageDown|Up|Down)\b/i.test(item.cmd)
+      || /(?:^|\s)(?:Cmd|Ctrl|Alt|Option|Shift)\+/i.test(item.cmd);
+  }
+
+  function isReferenceEntry(item) {
+    return /(?:^|\/)(?:AGENTS\.md|[^/\s]+\.(?:md|json|toml|yaml|yml))(?:（.*）)?$/i.test(item.cmd)
+      || /^~\//.test(item.cmd)
+      || /^\.[\w-]+\//.test(item.cmd);
+  }
+
+  function isDescriptiveEntry(item) {
+    if (["|", ">", ">>"].includes(item.cmd)) return false;
+    return !/^(?:\/|--?|[\w.-]+(?:\s|$)|[@?!])/.test(item.cmd)
+      || /^(?:首次启动|安装命令)/.test(item.cmd);
+  }
+
+  function operationValue(item) {
+    if (isReferenceEntry(item)) {
+      return `查看或编辑 ${item.cmd.replace("<名称>", "lint")}`;
+    }
+    if (item.cmd.startsWith("@路径")) return "输入 @src/app.js，把示例文件加入当前对话上下文";
+    if (item.cmd === "首次启动自动检测迁移") return "首次启动 agy，按界面提示选择要迁移的 Gemini CLI 配置";
+    if (/^安装命令/.test(item.cmd)) return item.zh;
+    if (item.cmd === "bg") return "先按 Ctrl+Z 挂起任务，再输入 bg 让任务在后台继续运行";
+    if (item.cmd === "fg") return "输入 fg，把最近的后台任务切回前台";
+    return `按 ${item.cmd}${item.context ? `（${item.context}）` : ""}`;
+  }
+
+  function deriveKeywords(item) {
+    const haystack = `${item.cmd} ${item.zh} ${item.en} ${item.context || ""}`.toLowerCase();
+    const keywords = [];
+    KEYWORD_RULES.forEach(([triggers, values]) => {
+      if (triggers.some((trigger) => haystack.includes(trigger))) keywords.push(...values);
+    });
+    const fallback = [
+      item.zh,
+      item.en,
+      String(item.cmd).split(/\s+/)[0],
+    ].filter(Boolean);
+    return [...new Set([...keywords, ...fallback])].slice(0, 8);
+  }
+
+  function deriveExample(toolId, tool, item) {
+    const syntax = completeCommonCommand(toolId, commandPrefix(toolId, cleanSyntax(item.cmd)));
+    const isOperation = isKeyboardOperation(item) || isReferenceEntry(item)
+      || isDescriptiveEntry(item)
+      || (toolId === "linux" && ["bg", "fg"].includes(item.cmd));
+    const dangerous = DANGEROUS_PATTERN.test(syntax);
+    const unresolved = /[\[\]<>]|模型名|(?:\s+或\s+)|\|/.test(syntax);
+    const value = isOperation ? operationValue(item) : syntax;
+    const platformValues = item.platformCmds
+      ? Object.fromEntries(Object.entries(item.platformCmds).map(([platform, platformCommand]) => [
+        platform,
+        isOperation
+          ? `按 ${platformCommand}${item.context ? `（${item.context}）` : ""}`
+          : completeCommonCommand(toolId, commandPrefix(toolId, cleanSyntax(platformCommand))),
+      ]))
+      : null;
+    return {
+      value,
+      description: isOperation ? `操作场景：${item.zh}` : `示例用途：${item.zh}`,
+      copyable: !isOperation && !unresolved && !dangerous,
+      sourceType: "ai-derived",
+      ...(dangerous ? { warning: "此操作可能修改、覆盖或删除数据，请先确认目标并做好备份" } : {}),
+      ...(Array.isArray(item.platforms) ? { platforms: item.platforms } : {}),
+      ...(platformValues ? { platformValues } : {}),
+    };
+  }
+
+  function normalizeCuratedExample(example) {
+    const sourceType = SOURCE_TYPES.has(example.sourceType) ? example.sourceType : "manual";
+    return { ...example, sourceType };
+  }
+
   globalScope.CHEATSHEET_ENRICHMENTS = {
     "antigravity-cli": {
       'agy -p / --print': { examples: [{ value: 'agy -p "解释这个项目的目录结构"', description: "非交互执行一次任务并把结果输出到终端" }] },
@@ -108,7 +351,7 @@
       },
       "awk": { examples: [{ value: "awk '{print $1}' access.log", description: "输出 access.log 每一行的第一列" }] },
       "tail -f": { examples: [{ value: "tail -f app.log", description: "持续显示 app.log 新追加的日志内容" }] },
-      "chmod +x": { examples: [{ value: "chmod +x scripts/deploy.sh", description: "为部署脚本添加可执行权限" }] },
+      "chmod +x": { examples: [{ value: "chmod +x scripts/deploy.sh", description: "为部署脚本添加可执行权限", warning: "会修改文件权限，请确认目标脚本可信且路径正确" }] },
       "ps aux": { examples: [{ value: "ps aux | grep node", description: "列出进程并筛选包含 node 的进程" }] },
       "curl": { examples: [{ value: "curl -i https://example.com/health", description: "请求健康检查接口并显示响应头" }] },
     },
@@ -160,5 +403,24 @@
       "Cmd+F": { examples: [{ value: "按 Cmd/Ctrl+F，输入要查找的文本", description: "在当前文件中查找匹配内容", copyable: false }] },
       "Option+Cmd+F": { examples: [{ value: "按 Option+Cmd+F（Win/Linux 为 Ctrl+H），填写查找和替换内容", description: "在当前文件中执行查找替换", copyable: false }] },
     },
+  };
+
+  globalScope.CHEATSHEET_BUILD_FULL_ENRICHMENTS = function buildFullEnrichments(data) {
+    Object.entries(data || {}).forEach(([toolId, tool]) => {
+      const enrichments = globalScope.CHEATSHEET_ENRICHMENTS[toolId] || {};
+      const byLookup = new Map(Object.entries(enrichments));
+      tool.items.forEach((item) => {
+        const lookup = `${item.cmd}\0${item.context || ""}`;
+        const legacyLookup = item.cmd;
+        const existing = byLookup.get(lookup) || byLookup.get(legacyLookup) || {};
+        const examples = (existing.examples || item.examples || [deriveExample(toolId, tool, item)])
+          .map(normalizeCuratedExample);
+        const keywords = existing.keywords || item.keywords || deriveKeywords(item);
+        byLookup.set(lookup, { ...existing, keywords, examples });
+        if (lookup !== legacyLookup && byLookup.get(legacyLookup) === existing) byLookup.delete(legacyLookup);
+      });
+      globalScope.CHEATSHEET_ENRICHMENTS[toolId] = Object.fromEntries(byLookup);
+    });
+    return globalScope.CHEATSHEET_ENRICHMENTS;
   };
 }(typeof window !== "undefined" ? window : globalThis));

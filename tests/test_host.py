@@ -76,17 +76,21 @@ class HostValidationTests(unittest.TestCase):
     def test_validates_keywords_examples_and_quality_warning(self):
         payload = valid_dataset()
         payload["items"][0].update({
-            "keywords": ["命令面板", "打开命令"],
+            "keywords": ["命令面板", "打开命令", "快捷操作"],
             "examples": [{
                 "value": "Ctrl+K",
                 "description": "打开命令面板",
                 "copyable": False,
+                "sourceType": "ai-derived",
                 "platformValues": {"mac": "Cmd+K", "windows": "Ctrl+K"},
             }],
         })
         dataset = host.validate_dataset(payload, "sample")
-        self.assertEqual(dataset["items"][0]["keywords"], ["命令面板", "打开命令"])
+        self.assertEqual(
+            dataset["items"][0]["keywords"], ["命令面板", "打开命令", "快捷操作"]
+        )
         self.assertEqual(dataset["items"][0]["examples"][0]["platformValues"]["mac"], "Cmd+K")
+        self.assertEqual(dataset["items"][0]["examples"][0]["sourceType"], "ai-derived")
         self.assertFalse(dataset["qualityWarnings"])
 
     def test_rejects_invalid_example_structure(self):
@@ -103,6 +107,19 @@ class HostValidationTests(unittest.TestCase):
         ]
         dataset = host.validate_dataset(payload, "sample")
         self.assertIn("示例覆盖不足", dataset["qualityWarnings"][0])
+
+    def test_rejects_dangerous_example_without_warning(self):
+        payload = valid_dataset()
+        payload["items"][0].update({
+            "keywords": ["删除", "清理", "目录"],
+            "examples": [{
+                "value": "rm -rf ./example",
+                "description": "删除目录",
+                "sourceType": "ai-derived",
+            }],
+        })
+        with self.assertRaisesRegex(host.ValidationError, "必须包含 warning"):
+            host.validate_dataset(payload, "sample")
 
 
 class HostFileTests(unittest.TestCase):
@@ -256,8 +273,13 @@ class HostFileTests(unittest.TestCase):
         old_dataset = valid_dataset()
         old_dataset["items"][0].update({
             "id": "stable-item",
-            "keywords": ["命令面板"],
-            "examples": [{"value": "Ctrl+K", "description": "打开命令", "copyable": False}],
+            "keywords": ["命令面板", "打开命令", "快捷操作"],
+            "examples": [{
+                "value": "Ctrl+K",
+                "description": "打开命令",
+                "copyable": False,
+                "sourceType": "manual",
+            }],
         })
         target = self.data_dir / "sample.js"
         target.write_text(host.render_data_file(old_dataset), encoding="utf-8")
@@ -270,8 +292,9 @@ class HostFileTests(unittest.TestCase):
             preview = host.preview_update("sample", "Sample Tool")
         _, pending = host.load_pending(preview["pendingToken"])
         item = pending["dataset"]["items"][0]
-        self.assertEqual(item["keywords"], ["命令面板"])
+        self.assertEqual(item["keywords"], ["命令面板", "打开命令", "快捷操作"])
         self.assertEqual(item["examples"][0]["value"], "Ctrl+K")
+        self.assertEqual(item["examples"][0]["sourceType"], "manual")
 
     def test_apply_rejects_changed_source_file(self):
         old_dataset = valid_dataset()

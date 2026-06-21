@@ -26,5 +26,6 @@ jobs:
         run: |
           node tools/validate-data.js
           node tests/test_product_core.js
+          node tests/test_usage_examples.js
       - name: Run native host tests
         run: python -m unittest discover -s tests -v

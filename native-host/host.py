@@ -58,8 +58,16 @@ RESERVED_TOOL_IDS = {"index"}
 MAX_MESSAGE_BYTES = 1024 * 1024
 MAX_ITEMS = 2000
 MAX_FIELD_LENGTH = 4000
-MAX_KEYWORDS = 20
+MIN_KEYWORDS = 3
+MAX_KEYWORDS = 8
 MAX_EXAMPLES = 3
+DANGEROUS_EXAMPLE_RE = re.compile(
+    r"\b(rm\s+-rf|reset\s+--hard|push\s+--force|kill\s+-9|chmod|chown|restart|--delete|--yolo|dangerously-bypass)\b|(^|\s)>(?!>)",
+    re.IGNORECASE,
+)
+POSSIBLE_SECRET_RE = re.compile(
+    r"api[_-]?key|secret|token\s*[=:]\s*[a-z0-9_-]{12,}", re.IGNORECASE
+)
 
 
 def find_claude_binary():
@@ -323,8 +331,13 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
             clean_item["context"] = context
         keywords = item.get("keywords")
         if keywords is not None:
-            if not isinstance(keywords, list) or len(keywords) > MAX_KEYWORDS:
-                raise ValidationError(f"items[{index}].keywords 最多包含 {MAX_KEYWORDS} 个字符串")
+            if (
+                not isinstance(keywords, list)
+                or not MIN_KEYWORDS <= len(keywords) <= MAX_KEYWORDS
+            ):
+                raise ValidationError(
+                    f"items[{index}].keywords 必须包含 {MIN_KEYWORDS} 到 {MAX_KEYWORDS} 个字符串"
+                )
             clean_keywords = []
             for keyword_index, keyword in enumerate(keywords):
                 keyword = checked_text(keyword, f"items[{index}].keywords[{keyword_index}]")
@@ -349,11 +362,27 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                         f"items[{index}].examples[{example_index}].description",
                     ),
                     "copyable": example.get("copyable", True),
+                    "sourceType": example.get("sourceType", "ai-derived"),
                 }
                 if not isinstance(clean_example["copyable"], bool):
                     raise ValidationError(
                         f"items[{index}].examples[{example_index}].copyable 必须是布尔值"
                     )
+                if clean_example["sourceType"] not in {"official", "manual", "ai-derived"}:
+                    raise ValidationError(
+                        f"items[{index}].examples[{example_index}].sourceType 非法"
+                    )
+                example_source_url = checked_text(
+                    example.get("sourceUrl"),
+                    f"items[{index}].examples[{example_index}].sourceUrl",
+                    required=False,
+                )
+                if example_source_url:
+                    if not re.fullmatch(r"https://[^\s]+", example_source_url):
+                        raise ValidationError(
+                            f"items[{index}].examples[{example_index}].sourceUrl 必须是 HTTPS URL"
+                        )
+                    clean_example["sourceUrl"] = example_source_url
                 warning = checked_text(
                     example.get("warning"),
                     f"items[{index}].examples[{example_index}].warning",
@@ -361,6 +390,14 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                 )
                 if warning:
                     clean_example["warning"] = warning
+                if DANGEROUS_EXAMPLE_RE.search(clean_example["value"]) and not warning:
+                    raise ValidationError(
+                        f"items[{index}].examples[{example_index}] 危险操作必须包含 warning"
+                    )
+                if POSSIBLE_SECRET_RE.search(clean_example["value"]):
+                    raise ValidationError(
+                        f"items[{index}].examples[{example_index}] 疑似包含密钥"
+                    )
                 example_platforms = example.get("platforms")
                 if example_platforms is not None:
                     if (
@@ -458,10 +495,13 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
 def build_quality_warnings(dataset, previous_dataset=None):
     items = dataset.get("items", [])
     covered = sum(1 for item in items if item.get("examples"))
-    expected = min(6, len(items))
+    keyword_covered = sum(1 for item in items if item.get("keywords"))
+    expected = len(items)
     warnings = []
     if covered < expected:
-        warnings.append(f"示例覆盖不足：当前 {covered} 条，建议至少 {expected} 条")
+        warnings.append(f"示例覆盖不足：当前 {covered} 条，目标 {expected} 条")
+    if keyword_covered < expected:
+        warnings.append(f"语义关键词覆盖不足：当前 {keyword_covered} 条，目标 {expected} 条")
     if previous_dataset is not None:
         previous_covered = sum(1 for item in previous_dataset.get("items", []) if item.get("examples"))
         if covered < previous_covered:
@@ -556,13 +596,15 @@ JSON 格式：
       "en": "简短英文说明",
       "zh": "清晰中文说明",
       "context": "可选；相同 cmd 在不同场景出现时必须填写",
-      "keywords": ["可选；用户常用的用途词，最多20个"],
+      "keywords": ["3到8个用户常用用途词"],
       "examples": [
         {{
           "value": "具体命令、Markdown输入或操作步骤",
           "description": "中文说明执行后会发生什么",
           "copyable": true,
           "warning": "可选；危险操作或注意事项",
+          "sourceType": "official|manual|ai-derived",
+          "sourceUrl": "可选；具体示例来源的HTTPS地址",
           "platforms": ["可选；mac/windows/linux"],
           "platformValues": {{"mac": "可选的平台专属示例"}}
         }}
@@ -582,9 +624,10 @@ JSON 格式：
 5. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。
 6. 所有字符串必须是有效 JSON 字符串。
 7. sourceUrl、updatedAt、coverage 必须填写；平台快捷键应尽量使用 platformCmds 表达。
-8. 至少为 6 个不同的高频条目提供 examples；不足 6 条时全部提供。每条最多 3 个示例。
+8. 每个条目都必须提供 keywords 和 examples；每条最多 3 个示例。
 9. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；Markdown 工具示例提供可复制输入。
-10. 更新时保留已有 keywords 和 examples，并为新增高频条目补充示例。
+10. 更新时保留已有 keywords 和 examples，并为所有新增条目补充关键词和示例。
+11. 官方明确示例标记 official；人工整理标记 manual；根据命令语义推导的标记 ai-derived。
 
 {current_section}
 """.strip()
@@ -747,9 +790,15 @@ def preserve_existing_enrichment(old_dataset, new_dataset):
         old_item = old_items.get(item.get("id"))
         if not old_item:
             continue
-        for field in ("keywords", "examples"):
-            if old_item.get(field) and not item.get(field):
-                item[field] = old_item[field]
+        if old_item.get("keywords") and not item.get("keywords"):
+            item["keywords"] = old_item["keywords"]
+        old_examples = old_item.get("examples") or []
+        new_examples = item.get("examples") or []
+        old_has_reviewed = any(
+            example.get("sourceType") in {"official", "manual"} for example in old_examples
+        )
+        if old_examples and (not new_examples or old_has_reviewed):
+            item["examples"] = old_examples
     new_dataset["qualityWarnings"] = build_quality_warnings(new_dataset, old_dataset)
     return new_dataset
 
