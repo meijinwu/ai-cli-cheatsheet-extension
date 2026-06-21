@@ -1,0 +1,107 @@
+{
+  "_comment": "精确来源登记。托管平台不能按整个域名授信；只有列出的 URL 前缀可作为对应证据类型。",
+  "entries": [
+    {
+      "id": "linux-man7",
+      "urlPrefixes": [
+        "https://man7.org/linux/man-pages/",
+        "https://www.man7.org/linux/man-pages/"
+      ],
+      "maintainer": "Linux man-pages project / man7.org",
+      "toolIds": ["linux"],
+      "purposes": ["command-existence", "option-semantics", "examples"],
+      "evidenceTier": "authoritative-community",
+      "lastVerifiedAt": "2026-06-21"
+    },
+    {
+      "id": "tldr-pages",
+      "urlPrefixes": ["https://tldr.sh/"],
+      "maintainer": "tldr-pages community",
+      "toolIds": ["linux", "git"],
+      "purposes": ["examples"],
+      "evidenceTier": "authoritative-community",
+      "lastVerifiedAt": "2026-06-21"
+    },
+    {
+      "id": "ss64",
+      "urlPrefixes": ["https://ss64.com/"],
+      "maintainer": "SS64",
+      "toolIds": ["linux"],
+      "purposes": ["cross-check", "option-semantics", "examples"],
+      "evidenceTier": "authoritative-community",
+      "lastVerifiedAt": "2026-06-21"
+    },
+    {
+      "id": "debian-manpages",
+      "urlPrefixes": ["https://manpages.debian.org/"],
+      "maintainer": "Debian Project",
+      "toolIds": ["linux"],
+      "purposes": ["command-existence", "option-semantics", "cross-check"],
+      "evidenceTier": "authoritative-community",
+      "lastVerifiedAt": "2026-06-21"
+    },
+    {
+      "id": "mdn",
+      "urlPrefixes": ["https://developer.mozilla.org/"],
+      "maintainer": "Mozilla and MDN contributors",
+      "toolIds": ["cursor", "vs-code"],
+      "purposes": ["option-semantics", "examples", "cross-check"],
+      "evidenceTier": "authoritative-community",
+      "lastVerifiedAt": "2026-06-21"
+    },
+    {
+      "id": "archwiki",
+      "urlPrefixes": ["https://wiki.archlinux.org/"],
+      "maintainer": "Arch Linux community",
+      "toolIds": ["linux"],
+      "purposes": ["option-semantics", "examples", "cross-check"],
+      "evidenceTier": "authoritative-community",
+      "lastVerifiedAt": "2026-06-21"
+    },
+    {
+      "id": "devhints",
+      "urlPrefixes": ["https://devhints.io/"],
+      "maintainer": "Devhints maintainers",
+      "toolIds": ["git", "linux"],
+      "purposes": ["examples", "cross-check"],
+      "evidenceTier": "authoritative-community",
+      "lastVerifiedAt": "2026-06-21"
+    },
+    {
+      "id": "cheat-sh",
+      "urlPrefixes": ["https://cheat.sh/"],
+      "maintainer": "cheat.sh maintainers",
+      "toolIds": ["git", "linux"],
+      "purposes": ["examples", "cross-check"],
+      "evidenceTier": "authoritative-community",
+      "lastVerifiedAt": "2026-06-21"
+    },
+    {
+      "id": "openai-codex-repository",
+      "urlPrefixes": ["https://github.com/openai/codex"],
+      "maintainer": "OpenAI",
+      "toolIds": ["codex"],
+      "purposes": ["command-existence", "release-notes", "examples"],
+      "evidenceTier": "first-party",
+      "lastVerifiedAt": "2026-06-21"
+    },
+    {
+      "id": "anthropic-claude-code-repository",
+      "urlPrefixes": ["https://github.com/anthropics/claude-code"],
+      "maintainer": "Anthropic",
+      "toolIds": ["claude-code"],
+      "purposes": ["command-existence", "release-notes", "examples"],
+      "evidenceTier": "first-party",
+      "lastVerifiedAt": "2026-06-21"
+    },
+    {
+      "id": "google-gemini-cli-repository",
+      "urlPrefixes": ["https://github.com/google-gemini/gemini-cli"],
+      "maintainer": "Google",
+      "toolIds": ["gemini-cli"],
+      "purposes": ["command-existence", "release-notes", "examples"],
+      "evidenceTier": "first-party",
+      "lastVerifiedAt": "2026-06-21"
+    }
+  ]
+}

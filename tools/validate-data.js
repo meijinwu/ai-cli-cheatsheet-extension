@@ -9,12 +9,19 @@ const root = path.resolve(__dirname, "..");
 const dataDir = path.join(root, "data");
 
 const rules = require(path.join(root, "shared", "validation-rules.json"));
+const sourceRegistry = require(path.join(root, "shared", "source-registry.json"));
 const { min: MIN_KEYWORDS, max: MAX_KEYWORDS } = rules.keywords;
 const MAX_EXAMPLES = rules.examples.max;
 const DANGEROUS_EXAMPLE_RE = new RegExp(rules.dangerousExample.source, rules.dangerousExample.flags);
 const POSSIBLE_SECRET_RE = new RegExp(rules.possibleSecret.source, rules.possibleSecret.flags);
 const SOURCE_TIERS = rules.sourceTiers;
 const QUASI_OFFICIAL_DOMAINS = rules.quasiOfficialDomains;
+const SOURCE_KINDS = rules.sourceKinds;
+const AUTHORSHIPS = rules.authorships;
+const EVIDENCE_TIERS = rules.evidenceTiers;
+const ADAPTATIONS = rules.adaptations;
+const AUTHORITATIVE_SOURCE_PREFIXES = rules.authoritativeSourcePrefixes;
+const OFFICIAL_REPOSITORY_PREFIXES = rules.officialRepositoryPrefixes;
 const EXAMPLE_SOURCE_TYPES = ["official", "quasi-official", "manual", "ai-derived"];
 
 const context = { window: {} };
@@ -34,6 +41,32 @@ function hostInQuasiOfficialWhitelist(url) {
     return false;
   }
   return QUASI_OFFICIAL_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
+function matchesPrefix(url, prefixes) {
+  return typeof url === "string"
+    && prefixes.some((prefix) => url === prefix.replace(/\/$/, "") || url.startsWith(prefix));
+}
+
+function sameSourceHost(left, right) {
+  try {
+    return new URL(left).hostname.replace(/^www\./, "") === new URL(right).hostname.replace(/^www\./, "");
+  } catch {
+    return false;
+  }
+}
+
+for (const entry of sourceRegistry.entries || []) {
+  if (!entry.id || !Array.isArray(entry.urlPrefixes) || !entry.urlPrefixes.length
+    || !entry.maintainer || !Array.isArray(entry.toolIds) || !entry.toolIds.length
+    || !Array.isArray(entry.purposes) || !entry.purposes.length
+    || !EVIDENCE_TIERS.includes(entry.evidenceTier)
+    || !/^\d{4}-\d{2}-\d{2}$/.test(entry.lastVerifiedAt || "")) {
+    fail(`source registry entry invalid: ${entry.id || "(missing id)"}`);
+  }
+  for (const prefix of entry.urlPrefixes) {
+    if (!/^https:\/\/\S+$/.test(prefix)) fail(`source registry URL invalid: ${prefix}`);
+  }
 }
 
 vm.runInContext(fs.readFileSync(path.join(dataDir, "index.js"), "utf8"), context, {
@@ -128,6 +161,34 @@ for (const id of files) {
       fail(`${id}: quasi-official sourceTier requires a whitelisted sourceUrl host`);
     }
   }
+  const sourceIds = new Set();
+  if (tool.meta.sources !== undefined) {
+    if (!Array.isArray(tool.meta.sources) || !tool.meta.sources.length) fail(`${id}: invalid sources`);
+    for (const [sourceIndex, source] of tool.meta.sources.entries()) {
+      if (!source || typeof source !== "object" || Array.isArray(source)) fail(`${id}: invalid source ${sourceIndex}`);
+      if (!/^[a-zA-Z0-9_-]{2,64}$/.test(source.id || "") || sourceIds.has(source.id)) {
+        fail(`${id}: invalid or duplicate source id ${source.id}`);
+      }
+      sourceIds.add(source.id);
+      if (!SOURCE_KINDS.includes(source.kind)) fail(`${id}: invalid source kind ${source.kind}`);
+      if (!EVIDENCE_TIERS.includes(source.evidenceTier) || source.evidenceTier === "none") {
+        fail(`${id}: invalid source evidence tier`);
+      }
+      if (source.kind !== "local-help" && !/^https:\/\/\S+$/.test(source.url || "")) {
+        fail(`${id}: source URL required`);
+      }
+      if (source.kind === "official-repository"
+        && !matchesPrefix(source.url, OFFICIAL_REPOSITORY_PREFIXES)) {
+        fail(`${id}: unregistered official repository`);
+      }
+      if (source.kind === "authoritative-reference"
+        && !matchesPrefix(source.url, AUTHORITATIVE_SOURCE_PREFIXES)) {
+        fail(`${id}: unregistered authoritative source`);
+      }
+      if (!Array.isArray(source.purposes) || !source.purposes.length) fail(`${id}: source purposes required`);
+      if (!source.title || !source.maintainer) fail(`${id}: source title and maintainer required`);
+    }
+  }
   if (tool.meta.platforms !== undefined && (
     !Array.isArray(tool.meta.platforms)
     || tool.meta.platforms.some((platform) => !["mac", "windows", "linux"].includes(platform))
@@ -146,6 +207,11 @@ for (const id of files) {
     if (item.context !== undefined && (typeof item.context !== "string" || !item.context.trim())) {
       fail(`${id}[${index}]: invalid context`);
     }
+    if (item.sourceIds !== undefined && (
+      !Array.isArray(item.sourceIds)
+      || !item.sourceIds.length
+      || item.sourceIds.some((sourceId) => !sourceIds.has(sourceId))
+    )) fail(`${id}[${index}]: invalid sourceIds`);
     // 有效 keywords/examples = 条目自带 优先，否则回退到 curated 富化（旁路表，不改写数据）。
     const enrichment = enrichmentByItem.get(item) || {};
     const keywords = item.keywords ?? enrichment.keywords;
@@ -178,6 +244,25 @@ for (const id of files) {
         if (example.sourceType === "quasi-official" && !hostInQuasiOfficialWhitelist(example.sourceUrl || "")) {
           fail(`${id}[${index}].examples[${exampleIndex}]: quasi-official sourceType requires a whitelisted sourceUrl host`);
         }
+        if (example.sourceType === "official" && example.sourceUrl
+          && !sameSourceHost(example.sourceUrl, tool.meta.sourceUrl)
+          && !matchesPrefix(example.sourceUrl, OFFICIAL_REPOSITORY_PREFIXES)) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: official source must be first-party`);
+        }
+        if (!AUTHORSHIPS.includes(example.authorship)) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: invalid authorship`);
+        }
+        if (!EVIDENCE_TIERS.includes(example.evidenceTier)) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: invalid evidenceTier`);
+        }
+        if (!ADAPTATIONS.includes(example.adaptation)) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: invalid adaptation`);
+        }
+        if (example.sourceIds !== undefined && (
+          !Array.isArray(example.sourceIds)
+          || !example.sourceIds.length
+          || example.sourceIds.some((sourceId) => !sourceIds.has(sourceId))
+        )) fail(`${id}[${index}].examples[${exampleIndex}]: invalid sourceIds`);
         if (example.warning !== undefined && (typeof example.warning !== "string" || !example.warning.trim())) {
           fail(`${id}[${index}].examples[${exampleIndex}]: invalid warning`);
         }

@@ -14,8 +14,8 @@ window.CHEATSHEET_BUILD_FULL_ENRICHMENTS(window.CHEATSHEET_DATA);
 
 let itemCount = 0;
 let exampleCount = 0;
-const sourceCounts = { official: 0, manual: 0, "ai-derived": 0 };
-const manualByTool = {};
+const sourceCounts = { official: 0, "quasi-official": 0, manual: 0, "ai-derived": 0 };
+const reviewedByTool = {};
 
 for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
   for (const item of tool.items) {
@@ -27,6 +27,9 @@ for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
     assert(enrichment.examples.length >= 1, `${toolId} ${item.cmd}: missing examples`);
     for (const example of enrichment.examples) {
       assert(sourceCounts[example.sourceType] !== undefined, `${toolId} ${item.cmd}: bad source`);
+      assert(["official", "editorial", "generated"].includes(example.authorship));
+      assert(["first-party", "authoritative-community", "community", "none"].includes(example.evidenceTier));
+      assert(["verbatim", "adapted", "scenario-derived"].includes(example.adaptation));
       assert(
         !/^(示例用途|操作场景)：/.test(example.description),
         `${toolId} ${item.cmd}: description must not use stiff label prefix`
@@ -48,8 +51,8 @@ for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
         );
       }
       sourceCounts[example.sourceType] += 1;
-      if (example.sourceType === "manual") {
-        manualByTool[toolId] = (manualByTool[toolId] || 0) + 1;
+      if (["official", "quasi-official", "manual"].includes(example.sourceType)) {
+        reviewedByTool[toolId] = (reviewedByTool[toolId] || 0) + 1;
       }
       exampleCount += 1;
     }
@@ -57,7 +60,7 @@ for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
   }
 }
 
-const expectedManualMinimums = {
+const expectedReviewedMinimums = {
   "claude-code": 10,
   codex: 11,
   "gemini-cli": 9,
@@ -65,13 +68,15 @@ const expectedManualMinimums = {
   opencode: 10,
   git: 14,
 };
-for (const [toolId, minimum] of Object.entries(expectedManualMinimums)) {
+for (const [toolId, minimum] of Object.entries(expectedReviewedMinimums)) {
   assert(
-    (manualByTool[toolId] || 0) >= minimum,
-    `${toolId}: expected at least ${minimum} explicitly sourced manual examples`
+    (reviewedByTool[toolId] || 0) >= minimum,
+    `${toolId}: expected at least ${minimum} explicitly sourced reviewed examples`
   );
 }
 assert(sourceCounts["ai-derived"] > 0, "the long tail should still receive AI-derived examples");
+assert(sourceCounts.official > 0, "first-party links should not be mislabeled as manual");
+assert(sourceCounts["quasi-official"] > 0, "explicit authoritative-community examples must survive normalization");
 
 function exampleFor(toolId, command, context = "") {
   return window.CHEATSHEET_ENRICHMENTS[toolId][`${command}\0${context}`].examples[0];
@@ -133,5 +138,15 @@ window.CHEATSHEET_BUILD_FULL_ENRICHMENTS({
 const sourcePolicyExample = window.CHEATSHEET_ENRICHMENTS["source-policy-test"]["command\0"].examples[0];
 assert.strictEqual(sourcePolicyExample.sourceType, "ai-derived");
 assert.strictEqual(sourcePolicyExample.sourceUrl, undefined);
+
+for (const toolId of ["claude-code", "codex", "git", "linux"]) {
+  const scenarioRich = Object.values(window.CHEATSHEET_ENRICHMENTS[toolId])
+    .flatMap((enrichment) => enrichment.examples)
+    .filter((example) => example.scenario && example.goal && example.expected);
+  assert(
+    scenarioRich.length >= 10,
+    `${toolId}: expected at least 10 high-frequency scenario-rich examples`
+  );
+}
 
 console.log(`Usage example tests passed: ${itemCount} items, ${exampleCount} examples.`);

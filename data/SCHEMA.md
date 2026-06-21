@@ -36,15 +36,25 @@
   zh: "中文说明（讲清楚用途，不是字面翻译）",
   context: "编辑器 / 集成终端",            // 可选；相同 cmd 在不同场景出现时必填
   keywords: ["替换", "批量替换"],          // 用户常用语义词，3 到 8 个（仓库提交数据必填，见“校验契约”）
+  sourceIds: ["official-docs"],             // 支持该条目的 meta.sources[].id
   examples: [                              // 可选；最多 3 个
     {
+      scenario: "需要批量替换配置文件中的旧域名",
+      goal: "先预览替换结果，再决定是否原地修改",
       value: "sed 's/旧文本/新文本/g' file.txt",
-      description: "把输出中的所有“旧文本”替换为“新文本”",
+      description: "不加 -i 时只输出结果，适合先确认匹配范围",
+      expected: "终端显示替换后的文本，原文件保持不变",
+      prerequisites: "确认文件编码和匹配文本",
+      caveat: "macOS 与 GNU sed 的 -i 参数不同",
       copyable: true,                       // 可选，默认 true
       warning: "先去掉 -i 预览结果",        // 可选
       riskLevels: ["deleteOrOverwrite"],     // 可选；高风险示例由构建器自动补充并强制不可复制
       sourceType: "ai-derived",             // 必填：official / quasi-official / manual / ai-derived
       sourceUrl: "https://example.com/docs", // 可选；能定位具体官方页面时填写（quasi-official 必填且须为白名单域名）
+      sourceIds: ["official-docs"],
+      authorship: "editorial",              // official / editorial / generated
+      evidenceTier: "first-party",          // first-party / authoritative-community / community / none
+      adaptation: "adapted",                // verbatim / adapted / scenario-derived
       platforms: ["mac", "linux"],          // 可选
       platformValues: {                     // 可选；平台专属示例
         mac: "sed -i '' 's/旧/新/g' file.txt",
@@ -72,6 +82,17 @@ meta：
   sourceTier: "official",                              // 可选：official / quasi-official / community，省略按 official 处理
   updatedAt: "2026-06-20",                             // 最后核对日期，YYYY-MM-DD
   coverage: "完整命令列表 / macOS 默认键位常用子集",    // 数据覆盖范围
+  sources: [{
+    id: "official-docs",
+    title: "工具官方 CLI 文档",
+    url: "https://docs.example.com/cli",                // local-help 可省略
+    kind: "official-doc",                               // local-help / official-doc / official-repository / release-notes / authoritative-reference / community
+    maintainer: "Example Inc.",
+    evidenceTier: "first-party",
+    lastVerifiedAt: "2026-06-21",
+    version: "1.2.0",                                  // 可选
+    purposes: ["command-existence", "option-semantics", "examples"]
+  }],
   platforms: ["mac", "windows", "linux"],               // 覆盖平台
   builtIn: false,                                       // 内置数据为 true，自动新增为 false
   verificationStatus: "web-assisted",                   // 可选：web-assisted / model-knowledge / manual
@@ -79,15 +100,22 @@ meta：
 }
 ```
 
-## 来源信任分级（sourceTier / sourceType=quasi-official）
+## 多来源证据与兼容
+
+- 新增和自动更新的数据必须使用 `meta.sources[]`，由条目、案例的 `sourceIds` 精确引用。
+- `sourceUrl/sourceTier` 保留用于读取旧数据；Native Host 会将旧字段合成来源记录。
+- `authorship` 表示案例由谁编写，`evidenceTier` 表示证据强度，`adaptation` 表示是否改写。
+- 来源优先级为：当前版本本机帮助、官方文档、官方仓库与 Release、登记权威第三方、普通社区线索。
+
+## 来源信任分级（旧字段兼容）
 
 官方文档有时滞后或维护不及时。为在不牺牲可信度的前提下保持数据新鲜，来源分三档：
 
 - **official**：厂商自有文档（git-scm.com、docs.claude.com 等）。`meta.sourceTier` 省略时按此处理。
-- **quasi-official（类官方）**：可信第三方权威参考。`meta.sourceTier` 或 example 的 `sourceType` 为该值时，对应 `sourceUrl` 的**主机名必须命中白名单**，否则校验失败。白名单与上下限一样统一声明在 `shared/validation-rules.json` 的 `quasiOfficialDomains`，由 `tests/test_validation_consistency.js` 防止 host.py 漂移。当前白名单：tldr.sh、man7.org、ss64.com、manpages.debian.org、developer.mozilla.org、wiki.archlinux.org、devhints.io、cheat.sh、readthedocs.io。（白名单按主机名匹配，因此不收录裸 github.com 这类会让任意仓库都算可信的泛域名。）
+- **quasi-official（类官方）**：可信第三方权威参考。新结构必须匹配 `authoritativeSourcePrefixes` 的精确 URL 前缀。`readthedocs.io`、`github.com` 等托管平台不能按整个域名授信。
 - **community**：其余社区来源，UI 标注"社区"，不强制白名单。
 
-新增白名单域名时，先改 `shared/validation-rules.json`，host.py 的 `QUASI_OFFICIAL_DOMAINS` 会被一致性测试要求同步。插件 UI（源卡片、行内徽章、管理页）会按档位显示"官方/类官方/社区"。
+来源登记见 `shared/source-registry.json`，校验前缀见 `shared/validation-rules.json`。官方 GitHub 仓库只认可登记的厂商仓库前缀。
 
 ## 校验契约（生成端宽松，仓库端严格）
 
@@ -104,9 +132,10 @@ meta：
 
 - 新增模式：先判断是 CLI 类还是 IDE 类，按上面对应的规则处理
 - 更新模式：保留原有未变化的条目，不要整份重写丢失细节
-- 新增工具应为所有条目提供 keywords 和 examples。CLI 提供可执行命令，IDE 提供操作场景
+- 新增工具应为所有条目提供 keywords、sourceIds 和 examples。CLI 提供可执行命令，IDE 提供操作场景
 - examples 覆盖不足不会阻止写入，但会产生质量警告；结构错误仍会拒绝
-- **来源优先级（新增与更新同样适用）**：官方文档优先；官方文档缺失、滞后或不完整时，从白名单可信第三方补齐缺口并标 quasi-official。永不编造，查不到就如实少收录。
+- **两阶段生成**：先发现、筛选并解释来源，再依据发现结果生成逐条绑定证据的内容。
+- **来源优先级（新增与更新同样适用）**：本机帮助和第一方资料优先；官方缺失时才使用登记权威第三方。普通社区只能作为线索。永不编造。
 - **类官方仅联网时生成**：只有可联网的 `claude -p` 路径（`web-assisted`）能产出 quasi-official；有 API token 的离线路径（`model-knowledge`）由 `host.py` 的 `_demote_quasi_official` 强制把 quasi-official 降级（meta→community、example→ai-derived 并去 URL），避免编造未经核实的白名单 URL。
 - **联网核对开关（`prefer_web`）**：管理页的"联网核对"复选框会把 `prefer_web=true` 透传到 native host；为真时即使配置了 API token 也强制走联网 `claude -p` 路径，从而能在官方缺口处补充并核实类官方来源。默认关闭（走快速离线路径）。
 - prompt 的白名单域名由 `host.py` 的 `QUASI_OFFICIAL_DOMAINS` 常量动态注入，不要在 prompt 里硬编码域名列表。
