@@ -466,6 +466,13 @@
       ] },
       "reset --hard\u0000reset": { examples: [{ value: "git reset --hard HEAD", description: "丢弃所有未提交改动，把工作区强制还原到上次提交", warning: "未提交的改动会永久丢失，执行前务必确认", sourceUrl: "https://git-scm.com/docs/git-reset" }] },
       "cherry-pick": { examples: [{ value: "git cherry-pick abc1234", description: "把指定提交的改动单独摘取到当前分支", sourceUrl: "https://git-scm.com/docs/git-cherry-pick" }] },
+      "revert": { examples: [{ value: "git revert abc1234", description: "为指定提交生成一个反向提交，安全撤销其改动且不改写历史", sourceUrl: "https://git-scm.com/docs/git-revert" }] },
+      "revert --no-commit\u0000revert": { examples: [{ value: "git revert --no-commit abc1234", description: "把反向改动放进工作区暂不提交，便于一次撤销多个提交后合并提交", sourceUrl: "https://git-scm.com/docs/git-revert" }] },
+      "restore": { examples: [{ value: "git restore src/app.js", description: "丢弃该文件未提交的改动，恢复成最近一次提交的内容", warning: "未提交的改动会被覆盖，执行前请确认", sourceUrl: "https://git-scm.com/docs/git-restore" }] },
+      "restore --staged\u0000restore": { examples: [{ value: "git restore --staged src/app.js", description: "把文件移出暂存区但保留工作区改动，相当于撤销 git add", sourceUrl: "https://git-scm.com/docs/git-restore" }] },
+      "reflog": { examples: [{ value: "git reflog", description: "查看 HEAD 的移动历史，用于找回 reset、rebase 或误删分支后丢失的提交", sourceUrl: "https://git-scm.com/docs/git-reflog" }] },
+      "worktree add\u0000worktree": { examples: [{ value: "git worktree add ../hotfix main", description: "在相邻目录基于 main 新建一个工作树，便于并行开发而不切换当前分支", sourceUrl: "https://git-scm.com/docs/git-worktree" }] },
+      "worktree list\u0000worktree": { examples: [{ value: "git worktree list", description: "列出当前仓库的所有工作树及其检出的分支", sourceUrl: "https://git-scm.com/docs/git-worktree" }] },
     },
     "idea": {
       "Double Shift": { examples: [{ value: "连续按两次 Shift，输入类名、文件名或动作名称", description: "从一个入口搜索整个项目和 IDE 功能", copyable: false }] },
@@ -481,8 +488,8 @@
     },
     "linux": {
       "rm -rf": { examples: [{ value: "rm -rf ./build-temp", description: "递归删除示例临时目录且不再确认", warning: "不可恢复；执行前先用 ls 检查目标路径" }] },
-      "grep -r": { examples: [{ value: "grep -r \"TODO\" ./src", description: "递归查找 src 目录中包含 TODO 的行" }] },
-      "find . -name": { examples: [{ value: "find . -name \"*.log\"", description: "从当前目录递归查找所有 .log 文件" }] },
+      "grep -r": { examples: [{ value: "grep -r \"TODO\" ./src", description: "递归查找 src 目录中包含 TODO 的行", sourceType: "quasi-official", sourceUrl: "https://www.man7.org/linux/man-pages/man1/grep.1.html" }] },
+      "find . -name": { examples: [{ value: "find . -name \"*.log\"", description: "从当前目录递归查找所有 .log 文件", sourceType: "quasi-official", sourceUrl: "https://www.man7.org/linux/man-pages/man1/find.1.html" }] },
       "tar -xzf": { examples: [{ value: "tar -xzf archive.tar.gz", description: "把 gzip 压缩的 tar 归档解压到当前目录" }] },
       "sed": {
         keywords: ["替换", "取代", "文本替换", "批量替换", "正则替换"],

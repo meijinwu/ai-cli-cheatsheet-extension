@@ -68,6 +68,29 @@ DANGEROUS_EXAMPLE_RE = re.compile(
 POSSIBLE_SECRET_RE = re.compile(
     r"api[_-]?key|secret|token\s*[=:]\s*[a-z0-9_-]{12,}", re.IGNORECASE
 )
+# 镜像 shared/validation-rules.json，由 tests/test_validation_consistency.js 防漂移。
+SOURCE_TIERS = {"official", "quasi-official", "community"}
+EXAMPLE_SOURCE_TYPES = {"official", "quasi-official", "manual", "ai-derived"}
+QUASI_OFFICIAL_DOMAINS = (
+    "tldr.sh",
+    "man7.org",
+    "ss64.com",
+    "manpages.debian.org",
+    "developer.mozilla.org",
+    "wiki.archlinux.org",
+)
+
+
+def host_in_quasi_official_whitelist(url):
+    """类官方来源的 sourceUrl 主机名必须命中白名单，否则视为不可信。"""
+    if not url:
+        return False
+    try:
+        host = urllib.parse.urlparse(url).hostname or ""
+    except ValueError:
+        return False
+    host = host.lower()
+    return any(host == domain or host.endswith(f".{domain}") for domain in QUASI_OFFICIAL_DOMAINS)
 
 
 def find_claude_binary():
@@ -278,6 +301,9 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         if verification_status not in {"web-assisted", "model-knowledge", "manual"}:
             raise ValidationError("meta.verificationStatus 非法")
         clean_meta["verificationStatus"] = verification_status
+    source_tier = meta.get("sourceTier")
+    if source_tier is not None and source_tier not in SOURCE_TIERS:
+        raise ValidationError("meta.sourceTier 非法")
     source_url = checked_text(meta.get("sourceUrl"), "meta.sourceUrl", required=False)
     updated_at = checked_text(meta.get("updatedAt"), "meta.updatedAt", required=False)
     coverage = checked_text(meta.get("coverage"), "meta.coverage", required=False)
@@ -288,6 +314,10 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         if not re.fullmatch(r"https://[^\s]+", source_url):
             raise ValidationError("meta.sourceUrl 必须是 HTTPS URL")
         clean_meta["sourceUrl"] = source_url
+    if source_tier is not None:
+        if source_tier == "quasi-official" and not host_in_quasi_official_whitelist(source_url):
+            raise ValidationError("meta.sourceTier 为 quasi-official 时，sourceUrl 主机名必须在白名单内")
+        clean_meta["sourceTier"] = source_tier
     if updated_at:
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", updated_at):
             raise ValidationError("meta.updatedAt 必须是 YYYY-MM-DD")
@@ -368,7 +398,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                     raise ValidationError(
                         f"items[{index}].examples[{example_index}].copyable 必须是布尔值"
                     )
-                if clean_example["sourceType"] not in {"official", "manual", "ai-derived"}:
+                if clean_example["sourceType"] not in EXAMPLE_SOURCE_TYPES:
                     raise ValidationError(
                         f"items[{index}].examples[{example_index}].sourceType 非法"
                     )
@@ -383,6 +413,13 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                             f"items[{index}].examples[{example_index}].sourceUrl 必须是 HTTPS URL"
                         )
                     clean_example["sourceUrl"] = example_source_url
+                if clean_example["sourceType"] == "quasi-official" and not host_in_quasi_official_whitelist(
+                    example_source_url
+                ):
+                    raise ValidationError(
+                        f"items[{index}].examples[{example_index}].sourceType 为 quasi-official 时，"
+                        "sourceUrl 主机名必须在白名单内"
+                    )
                 warning = checked_text(
                     example.get("warning"),
                     f"items[{index}].examples[{example_index}].warning",
@@ -582,6 +619,7 @@ JSON 格式：
     "color": "#RRGGBB",
     "source": "官方来源与整理日期",
     "sourceUrl": "https://官方文档地址",
+    "sourceTier": "official|quasi-official|community",
     "updatedAt": "YYYY-MM-DD",
     "coverage": "完整命令列表或常用子集说明",
     "platforms": ["mac", "windows", "linux"],
@@ -603,7 +641,7 @@ JSON 格式：
           "description": "中文说明执行后会发生什么",
           "copyable": true,
           "warning": "可选；危险操作或注意事项",
-          "sourceType": "official|manual|ai-derived",
+          "sourceType": "official|quasi-official|manual|ai-derived",
           "sourceUrl": "可选；具体示例来源的HTTPS地址",
           "platforms": ["可选；mac/windows/linux"],
           "platformValues": {{"mac": "可选的平台专属示例"}}
@@ -627,7 +665,8 @@ JSON 格式：
 8. 每个条目都必须提供 keywords 和 examples；每条最多 3 个示例。
 9. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；Markdown 工具示例提供可复制输入。
 10. 更新时保留已有 keywords 和 examples，并为所有新增条目补充关键词和示例。
-11. 官方明确示例标记 official；人工整理标记 manual；根据命令语义推导的标记 ai-derived。
+11. 官方明确示例标记 official；可信第三方参考（tldr.sh、man7.org、ss64.com、manpages.debian.org、developer.mozilla.org、wiki.archlinux.org）标记 quasi-official 并填该域名下的 sourceUrl；人工整理标记 manual；根据命令语义推导的标记 ai-derived。
+12. meta.sourceTier：来源为厂商自有文档时填 official；主要依据上述可信第三方时填 quasi-official（sourceUrl 必须是白名单域名）；其余社区来源填 community。官方文档明显滞后时，可用 quasi-official 来源补充并保持新鲜。
 
 {current_section}
 """.strip()

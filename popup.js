@@ -106,6 +106,13 @@ function freshnessDays(updatedAt) {
   return Number.isFinite(timestamp) ? Math.max(0, Math.floor((Date.now() - timestamp) / 86400000)) : Infinity;
 }
 
+// 来源信任档位：缺省按官方处理，向后兼容历史数据。
+function sourceTierLabel(sourceTier) {
+  if (sourceTier === "quasi-official") return "类官方";
+  if (sourceTier === "community") return "社区";
+  return "官方";
+}
+
 function riskFor(command, examples) {
   return CORE.classifyCommandRisk(command, examples);
 }
@@ -295,17 +302,21 @@ function renderRow(entry, query, includeBadge = false) {
   const summary = query.trim() && !examplesOpen && summaryExample
     ? `<span class="example-summary">常用：${highlightHtml(summaryExample.platformInfo.value, query)} · ${highlightHtml(summaryExample.description, query)}</span>`
     : "";
+  const tierTag = tool.meta.sourceTier && tool.meta.sourceTier !== "official"
+    ? `<span class="trust-tag tier">${escapeHtml(sourceTierLabel(tool.meta.sourceTier))}</span>`
+    : "";
   const tags = [
     note ? `<span class="trust-tag">${escapeHtml(note)}</span>` : "",
     commandRisk.requiresConfirmation ? `<span class="trust-tag risk">高风险</span>` : "",
     isStale ? `<span class="trust-tag stale">资料较旧</span>` : "",
+    tierTag,
   ].join("");
   const examplesId = `examples-${entry.toolId}-${entry.itemId}`;
   const examplesHtml = examplesOpen ? `<div class="examples">${examples.map((example) => `
     <div class="example">
       <div class="example-value">${highlightHtml(example.platformInfo.value, query)}</div>
       <div class="example-desc">${highlightHtml(example.description, query)}</div>
-      <div class="example-source">${example.sourceType === "official" ? "官方示例" : example.sourceType === "manual" ? "人工整理" : "AI 整理"}${example.sourceUrl ? ` · <a class="example-doc" href="${escapeHtml(example.sourceUrl)}" target="_blank" rel="noopener noreferrer">文档</a>` : ""}</div>
+      <div class="example-source">${example.sourceType === "official" ? "官方示例" : example.sourceType === "quasi-official" ? "类官方示例" : example.sourceType === "manual" ? "人工整理" : "AI 整理"}${example.sourceUrl ? ` · <a class="example-doc" href="${escapeHtml(example.sourceUrl)}" target="_blank" rel="noopener noreferrer">文档</a>` : ""}</div>
       ${example.warning ? `<div class="example-warning">⚠ ${escapeHtml(example.warning)}</div>` : ""}
       ${example.copyable !== false ? `<button class="act example-copy" data-example="${example.index}" title="复制此用法" aria-label="复制此用法">复制</button>` : ""}
     </div>`).join("")}</div>` : "";
@@ -327,10 +338,12 @@ function renderRow(entry, query, includeBadge = false) {
 
 function sourceCard(toolId) {
   const meta = getAllData()[toolId].meta;
+  const tierLabel = sourceTierLabel(meta.sourceTier);
+  const linkLabel = meta.sourceTier === "official" || !meta.sourceTier ? "打开官方来源" : `打开${tierLabel}来源`;
   return `<div class="source-card" id="source-${toolId}">
     <div>${escapeHtml(meta.coverage || meta.source)}</div>
-    <div>更新：${escapeHtml(meta.updatedAt || "未标注")} · 平台：${escapeHtml((meta.platforms || []).join(" / ") || "未标注")}</div>
-    ${meta.sourceUrl ? `<a href="${escapeHtml(meta.sourceUrl)}" target="_blank">打开官方来源 ↗</a>` : ""}
+    <div>来源档位：${escapeHtml(tierLabel)} · 更新：${escapeHtml(meta.updatedAt || "未标注")} · 平台：${escapeHtml((meta.platforms || []).join(" / ") || "未标注")}</div>
+    ${meta.sourceUrl ? `<a href="${escapeHtml(meta.sourceUrl)}" target="_blank">${escapeHtml(linkLabel)} ↗</a>` : ""}
   </div>`;
 }
 
@@ -520,13 +533,13 @@ function renderManage() {
     const exampleItems = (getAllData()[toolId].items || [])
       .map((item) => enrichItem(toolId, item))
       .filter((item) => item.examples?.length);
-    const sourceCounts = { official: 0, manual: 0, "ai-derived": 0 };
+    const sourceCounts = { official: 0, "quasi-official": 0, manual: 0, "ai-derived": 0 };
     exampleItems.forEach((item) => item.examples.forEach((example) => {
       if (sourceCounts[example.sourceType] !== undefined) sourceCounts[example.sourceType] += 1;
     }));
     return `<div class="tool-card"><div class="tool-title"><input type="checkbox" data-enabled="${toolId}" ${enabledTools.has(toolId) ? "checked" : ""}><label>${escapeHtml(meta.name)}</label></div>
-      <div class="meta">${escapeHtml(meta.coverage || meta.source)}<br>更新：${escapeHtml(meta.updatedAt || "未标注")}（${escapeHtml(freshnessLabel(meta.updatedAt))}） · <span class="verify">${escapeHtml(verification)}</span>${meta.sourceUrl ? ` · <a href="${escapeHtml(meta.sourceUrl)}" target="_blank">官方来源</a>` : ""}</div>
-      <div class="meta">用法覆盖：${exampleItems.length}/${getAllData()[toolId].items.length} · 官方 ${sourceCounts.official} / 人工 ${sourceCounts.manual} / AI ${sourceCounts["ai-derived"]}</div>
+      <div class="meta">${escapeHtml(meta.coverage || meta.source)}<br>来源档位：${escapeHtml(sourceTierLabel(meta.sourceTier))} · 更新：${escapeHtml(meta.updatedAt || "未标注")}（${escapeHtml(freshnessLabel(meta.updatedAt))}） · <span class="verify">${escapeHtml(verification)}</span>${meta.sourceUrl ? ` · <a href="${escapeHtml(meta.sourceUrl)}" target="_blank">${escapeHtml(sourceTierLabel(meta.sourceTier))}来源</a>` : ""}</div>
+      <div class="meta">用法覆盖：${exampleItems.length}/${getAllData()[toolId].items.length} · 官方 ${sourceCounts.official} / 类官方 ${sourceCounts["quasi-official"]} / 人工 ${sourceCounts.manual} / AI ${sourceCounts["ai-derived"]}</div>
       <div class="tool-actions"><button class="text-btn" data-update="${toolId}">检查更新</button>${canDelete ? `<button class="text-btn danger" data-remove="${toolId}">删除</button>` : `<span class="meta">内置工具可隐藏，不可删除</span>`}</div></div>`;
   }).join("");
   tools.querySelectorAll("[data-enabled]").forEach((checkbox) => checkbox.addEventListener("change", async () => {

@@ -8,6 +8,7 @@ window.CHEATSHEET_DATA["linux"] = {
     "source": "GNU Coreutils 9.7, util-linux 2.40, procps-ng 4.0, POSIX.1-2024; man7.org; 整理于 2026-06-20",
     "builtIn": false,
     "sourceUrl": "https://www.man7.org/linux/man-pages/",
+    "sourceTier": "quasi-official",
     "updatedAt": "2026-06-20",
     "coverage": "常用命令子集，覆盖 GNU Coreutils、util-linux、procps-ng 及 POSIX 标准，选取开发者高频使用的约 40 条命令",
     "platforms": [

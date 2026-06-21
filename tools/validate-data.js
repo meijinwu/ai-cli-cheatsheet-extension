@@ -13,12 +13,27 @@ const { min: MIN_KEYWORDS, max: MAX_KEYWORDS } = rules.keywords;
 const MAX_EXAMPLES = rules.examples.max;
 const DANGEROUS_EXAMPLE_RE = new RegExp(rules.dangerousExample.source, rules.dangerousExample.flags);
 const POSSIBLE_SECRET_RE = new RegExp(rules.possibleSecret.source, rules.possibleSecret.flags);
+const SOURCE_TIERS = rules.sourceTiers;
+const QUASI_OFFICIAL_DOMAINS = rules.quasiOfficialDomains;
+const EXAMPLE_SOURCE_TYPES = ["official", "quasi-official", "manual", "ai-derived"];
 
 const context = { window: {} };
 vm.createContext(context);
 
 function fail(message) {
   throw new Error(message);
+}
+
+// 类官方来源（tier / sourceType = quasi-official）的 sourceUrl 主机名必须命中白名单，
+// 防止把任意第三方页面冒充成可信参考。空 URL 由各调用点单独处理。
+function hostInQuasiOfficialWhitelist(url) {
+  let host;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return QUASI_OFFICIAL_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
 }
 
 vm.runInContext(fs.readFileSync(path.join(dataDir, "index.js"), "utf8"), context, {
@@ -106,6 +121,13 @@ for (const id of files) {
     && !["web-assisted", "model-knowledge", "manual"].includes(tool.meta.verificationStatus)) {
     fail(`${id}: invalid verificationStatus`);
   }
+  if (tool.meta.sourceTier !== undefined) {
+    if (!SOURCE_TIERS.includes(tool.meta.sourceTier)) fail(`${id}: invalid sourceTier`);
+    if (tool.meta.sourceTier === "quasi-official"
+      && !hostInQuasiOfficialWhitelist(tool.meta.sourceUrl || "")) {
+      fail(`${id}: quasi-official sourceTier requires a whitelisted sourceUrl host`);
+    }
+  }
   if (tool.meta.platforms !== undefined && (
     !Array.isArray(tool.meta.platforms)
     || tool.meta.platforms.some((platform) => !["mac", "windows", "linux"].includes(platform))
@@ -147,11 +169,14 @@ for (const id of files) {
         if (example.copyable !== undefined && typeof example.copyable !== "boolean") {
           fail(`${id}[${index}].examples[${exampleIndex}]: invalid copyable`);
         }
-        if (!["official", "manual", "ai-derived"].includes(example.sourceType)) {
+        if (!EXAMPLE_SOURCE_TYPES.includes(example.sourceType)) {
           fail(`${id}[${index}].examples[${exampleIndex}]: invalid sourceType`);
         }
         if (example.sourceUrl !== undefined && !/^https:\/\/\S+$/.test(example.sourceUrl)) {
           fail(`${id}[${index}].examples[${exampleIndex}]: invalid sourceUrl`);
+        }
+        if (example.sourceType === "quasi-official" && !hostInQuasiOfficialWhitelist(example.sourceUrl || "")) {
+          fail(`${id}[${index}].examples[${exampleIndex}]: quasi-official sourceType requires a whitelisted sourceUrl host`);
         }
         if (example.warning !== undefined && (typeof example.warning !== "string" || !example.warning.trim())) {
           fail(`${id}[${index}].examples[${exampleIndex}]: invalid warning`);

@@ -42,4 +42,12 @@ assert.strictEqual(hostConstant("MIN_KEYWORDS"), rules.keywords.min, "MIN_KEYWOR
 assert.strictEqual(hostConstant("MAX_KEYWORDS"), rules.keywords.max, "MAX_KEYWORDS 不一致");
 assert.strictEqual(hostConstant("MAX_EXAMPLES"), rules.examples.max, "MAX_EXAMPLES 不一致");
 
+// 4) host.py 镜像同样的来源信任档位与类官方白名单域名。
+for (const tier of rules.sourceTiers) {
+  assert(hostPy.includes(`"${tier}"`), `host.py SOURCE_TIERS 缺少档位 ${tier}`);
+}
+for (const domain of rules.quasiOfficialDomains) {
+  assert(hostPy.includes(`"${domain}"`), `host.py QUASI_OFFICIAL_DOMAINS 缺少域名 ${domain}`);
+}
+
 console.log("Validation consistency tests passed.");

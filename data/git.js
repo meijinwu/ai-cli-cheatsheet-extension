@@ -5,11 +5,13 @@ window.CHEATSHEET_DATA["git"] = {
     "id": "git",
     "name": "Git",
     "color": "#F05032",
-    "source": "Git 官方文档 (https://git-scm.com/docs) 整理于 2025-04-05",
+    "source": "Git 官方文档 (https://git-scm.com/docs) 整理于 2026-06-21",
     "builtIn": false,
     "sourceUrl": "https://git-scm.com/docs",
-    "updatedAt": "2025-04-05",
-    "coverage": "涵盖常用子命令及选项，共包含 77 条命令",
+    "sourceTier": "official",
+    "verificationStatus": "web-assisted",
+    "updatedAt": "2026-06-21",
+    "coverage": "涵盖常用子命令及选项，共包含 90 条命令",
     "platforms": [
       "mac",
       "windows",
@@ -146,6 +148,114 @@ window.CHEATSHEET_DATA["git"] = {
       "zh": "取消暂存文件",
       "context": "reset",
       "id": "git-reset-file"
+    },
+    {
+      "cat": "slash",
+      "cmd": "revert",
+      "en": "Revert some existing commits",
+      "zh": "撤销指定提交：生成一个反向提交来抵消其改动，不改写历史",
+      "id": "git-revert"
+    },
+    {
+      "cat": "flag",
+      "cmd": "revert --no-edit",
+      "en": "Revert without opening the commit message editor",
+      "zh": "撤销提交时直接使用默认信息，不打开编辑器",
+      "context": "revert",
+      "id": "git-revert-no-edit"
+    },
+    {
+      "cat": "flag",
+      "cmd": "revert --no-commit",
+      "en": "Apply the revert to the working tree without committing",
+      "zh": "只把反向改动应用到工作区和暂存区，先不提交（可合并多个）",
+      "context": "revert",
+      "id": "git-revert-no-commit"
+    },
+    {
+      "cat": "flag",
+      "cmd": "revert --continue",
+      "en": "Continue the revert after resolving conflicts",
+      "zh": "解决冲突后继续未完成的 revert 操作",
+      "context": "revert",
+      "id": "git-revert-continue"
+    },
+    {
+      "cat": "flag",
+      "cmd": "revert --abort",
+      "en": "Cancel the revert and restore the original state",
+      "zh": "放弃本次 revert，恢复到操作前的状态",
+      "context": "revert",
+      "id": "git-revert-abort"
+    },
+    {
+      "cat": "slash",
+      "cmd": "restore",
+      "en": "Restore working tree files",
+      "zh": "恢复工作区文件：把文件还原到指定来源的内容（取代旧的 checkout -- 用法）",
+      "id": "git-restore"
+    },
+    {
+      "cat": "flag",
+      "cmd": "restore --staged",
+      "en": "Unstage files, keeping working tree changes",
+      "zh": "把文件移出暂存区，但保留工作区里的改动（取消 add）",
+      "context": "restore",
+      "id": "git-restore-staged"
+    },
+    {
+      "cat": "flag",
+      "cmd": "restore --source",
+      "en": "Restore files from a specific commit or source",
+      "zh": "从指定提交或来源恢复文件内容",
+      "context": "restore",
+      "id": "git-restore-source"
+    },
+    {
+      "cat": "slash",
+      "cmd": "reflog",
+      "en": "Show the reference logs of HEAD and branches",
+      "zh": "查看 HEAD 和分支的引用日志：找回丢失的提交、误删分支或 reset 前的状态",
+      "id": "git-reflog"
+    },
+    {
+      "cat": "flag",
+      "cmd": "reflog show",
+      "en": "Show the reflog for a specific reference",
+      "zh": "查看某个引用（如某分支）的操作历史",
+      "context": "reflog",
+      "id": "git-reflog-show"
+    },
+    {
+      "cat": "slash",
+      "cmd": "worktree",
+      "en": "Manage multiple working trees",
+      "zh": "管理多个工作树：在不同目录同时检出多个分支，互不干扰",
+      "id": "git-worktree"
+    },
+    {
+      "cat": "flag",
+      "cmd": "worktree add",
+      "en": "Create a new working tree linked to the repository",
+      "zh": "新建一个关联当前仓库的工作树，检出到指定目录",
+      "context": "worktree",
+      "id": "git-worktree-add"
+    },
+    {
+      "cat": "flag",
+      "cmd": "worktree list",
+      "en": "List the working trees attached to the repository",
+      "zh": "列出当前仓库下的所有工作树及其分支",
+      "context": "worktree",
+      "id": "git-worktree-list"
+    },
+    {
+      "cat": "flag",
+      "cmd": "worktree remove",
+      "en": "Remove a linked working tree",
+      "zh": "移除一个已关联的工作树目录",
+      "context": "worktree",
+      "id": "git-worktree-remove"
     },
     {
       "cat": "slash",

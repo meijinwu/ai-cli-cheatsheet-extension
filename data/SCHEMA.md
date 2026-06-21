@@ -43,8 +43,8 @@
       copyable: true,                       // 可选，默认 true
       warning: "先去掉 -i 预览结果",        // 可选
       riskLevels: ["deleteOrOverwrite"],     // 可选；高风险示例由构建器自动补充并强制不可复制
-      sourceType: "ai-derived",             // 必填：official / manual / ai-derived
-      sourceUrl: "https://example.com/docs", // 可选；能定位具体官方页面时填写
+      sourceType: "ai-derived",             // 必填：official / quasi-official / manual / ai-derived
+      sourceUrl: "https://example.com/docs", // 可选；能定位具体官方页面时填写（quasi-official 必填且须为白名单域名）
       platforms: ["mac", "linux"],          // 可选
       platformValues: {                     // 可选；平台专属示例
         mac: "sed -i '' 's/旧/新/g' file.txt",
@@ -69,6 +69,7 @@ meta：
   color: "#d97757",          // 主题色（十六进制），界面自动套用，挑一个和已有工具明显不同的颜色
   source: "官方文档 docs.claude.com，整理于 2026-06",  // 数据来源+时间，如果是非官方/未逐字核对/IDE类工具的子集，要明确写清楚限制
   sourceUrl: "https://docs.example.com/reference",     // 官方来源，必须是 HTTPS
+  sourceTier: "official",                              // 可选：official / quasi-official / community，省略按 official 处理
   updatedAt: "2026-06-20",                             // 最后核对日期，YYYY-MM-DD
   coverage: "完整命令列表 / macOS 默认键位常用子集",    // 数据覆盖范围
   platforms: ["mac", "windows", "linux"],               // 覆盖平台
@@ -77,6 +78,16 @@ meta：
   order: 1,                  // 可选，控制在列表里的显示顺序，数字小的排前面，省略则按字母顺序排在最后
 }
 ```
+
+## 来源信任分级（sourceTier / sourceType=quasi-official）
+
+官方文档有时滞后或维护不及时。为在不牺牲可信度的前提下保持数据新鲜，来源分三档：
+
+- **official**：厂商自有文档（git-scm.com、docs.claude.com 等）。`meta.sourceTier` 省略时按此处理。
+- **quasi-official（类官方）**：可信第三方权威参考。`meta.sourceTier` 或 example 的 `sourceType` 为该值时，对应 `sourceUrl` 的**主机名必须命中白名单**，否则校验失败。白名单与上下限一样统一声明在 `shared/validation-rules.json` 的 `quasiOfficialDomains`，由 `tests/test_validation_consistency.js` 防止 host.py 漂移。当前白名单：tldr.sh、man7.org、ss64.com、manpages.debian.org、developer.mozilla.org、wiki.archlinux.org。
+- **community**：其余社区来源，UI 标注"社区"，不强制白名单。
+
+新增白名单域名时，先改 `shared/validation-rules.json`，host.py 的 `QUASI_OFFICIAL_DOMAINS` 会被一致性测试要求同步。插件 UI（源卡片、行内徽章、管理页）会按档位显示"官方/类官方/社区"。
 
 ## 校验契约（生成端宽松，仓库端严格）
 
