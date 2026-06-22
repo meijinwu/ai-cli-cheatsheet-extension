@@ -1777,6 +1777,45 @@ def pending_path(token):
     return path
 
 
+PENDING_MAX_AGE_SECONDS = 24 * 3600
+
+
+def prune_pending_files(current_tool_id=None, keep_token=None):
+    """Remove superseded and stale pending updates so orphans never pile up.
+
+    Each preview stages a uniquely-named file; switching tools or abandoning a
+    preview would otherwise leave the old file behind forever (the popup only
+    tracks one pending token). We drop any pending file for the same tool
+    (superseded by the new preview) and any file older than
+    PENDING_MAX_AGE_SECONDS. A corrupt or vanished file must never block an
+    update, so every filesystem error here is swallowed.
+    """
+    real_pending_dir = os.path.realpath(PENDING_DIR)
+    if not os.path.isdir(real_pending_dir):
+        return
+    now = time.time()
+    for name in os.listdir(real_pending_dir):
+        if not name.endswith(".json") or (keep_token and name == f"{keep_token}.json"):
+            continue
+        path = os.path.join(real_pending_dir, name)
+        try:
+            stale = (now - os.path.getmtime(path)) > PENDING_MAX_AGE_SECONDS
+        except OSError:
+            continue
+        superseded = False
+        if current_tool_id and not stale:
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    superseded = json.load(handle).get("toolId") == current_tool_id
+            except (OSError, json.JSONDecodeError):
+                superseded = False
+        if stale or superseded:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+
 def item_signature(item):
     return {
         key: item.get(key)
@@ -2097,6 +2136,7 @@ def preview_update(tool_id, display_name, prefer_web=False, deep_check=False):
         "diff": diff,
     }
     atomic_write(pending_path(token), json.dumps(payload, ensure_ascii=False, indent=2))
+    prune_pending_files(current_tool_id=tool_id, keep_token=token)
     return {
         "ok": True,
         "changed": True,
