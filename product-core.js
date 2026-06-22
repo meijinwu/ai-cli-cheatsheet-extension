@@ -197,10 +197,11 @@
 
   const COMMAND_RISKS = [
     ["safetyBypass", "绕过安全保护", /(?:--yolo|dangerously-bypass|bypassPermissions)/i],
-    ["deleteOrOverwrite", "可能删除或覆盖数据", /(?:\brm(?:\s|$)|\breset\s+--hard\b|--delete\b|(^|\s)>(?!>))/i],
+    ["remoteExecution", "会执行下载的远程脚本", /\b(?:curl|wget)\b[^|\n]*\|\s*(?:sudo\s+)?(?:ba)?sh\b|:\(\)\s*\{\s*:/i],
+    ["deleteOrOverwrite", "可能删除或覆盖数据", /(?:\brm(?:\s|$)|\bdd\s+(?:if|of|bs|count|conv|status|seek|skip)=|\b(?:reset\s+--hard|mkfs)\b|--delete\b|(^|\s)>(?!>))/i],
     ["historyRewrite", "可能重写提交历史", /\b(?:push\s+--force|rebase\s+-i|reset\s+--hard)\b/i],
     ["permissionChange", "会修改文件权限", /\b(?:chmod|chown)\b/i],
-    ["processDisruption", "可能中断正在运行的服务", /\b(?:kill\s+-9|restart)\b/i],
+    ["processDisruption", "可能中断正在运行的服务", /\b(?:kill\s+-9|restart|shutdown|reboot|halt|poweroff)\b/i],
   ];
 
   /**

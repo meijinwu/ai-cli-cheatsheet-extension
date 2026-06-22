@@ -66,7 +66,7 @@ MIN_KEYWORDS = 3
 MAX_KEYWORDS = 8
 MAX_EXAMPLES = 3
 DANGEROUS_EXAMPLE_RE = re.compile(
-    r"(?:\brm(?:\s|$)|\b(?:reset\s+--hard|push\s+--force|kill\s+-9|chmod|chown|restart)\b|--(?:delete|yolo)\b|dangerously-bypass\b)|(^|\s)>(?!>)",
+    r"(?:\brm(?:\s|$)|\bdd\s+(?:if|of|bs|count|conv|status|seek|skip)=|\b(?:reset\s+--hard|push\s+--force|kill\s+-9|chmod|chown|restart|shutdown|reboot|halt|poweroff|mkfs)\b|--(?:delete|yolo)\b|dangerously-bypass\b|:\(\)\s*\{\s*:)|(^|\s)>(?!>)",
     re.IGNORECASE,
 )
 POSSIBLE_SECRET_RE = re.compile(

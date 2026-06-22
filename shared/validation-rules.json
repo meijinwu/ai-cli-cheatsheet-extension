@@ -10,15 +10,16 @@
   "evidenceStatuses": ["verified", "partial", "unverified"],
   "evidenceClaims": ["existence", "semantics", "platform", "example"],
   "dangerousExample": {
-    "source": "(?:\\brm(?:\\s|$)|\\b(?:reset\\s+--hard|push\\s+--force|kill\\s+-9|chmod|chown|restart)\\b|--(?:delete|yolo)\\b|dangerously-bypass\\b)|(^|\\s)>(?!>)",
+    "source": "(?:\\brm(?:\\s|$)|\\bdd\\s+(?:if|of|bs|count|conv|status|seek|skip)=|\\b(?:reset\\s+--hard|push\\s+--force|kill\\s+-9|chmod|chown|restart|shutdown|reboot|halt|poweroff|mkfs)\\b|--(?:delete|yolo)\\b|dangerously-bypass\\b|:\\(\\)\\s*\\{\\s*:)|(^|\\s)>(?!>)",
     "flags": "i"
   },
   "riskLevels": {
-    "deleteOrOverwrite": "(?:\\brm(?:\\s|$)|\\breset\\s+--hard\\b|--delete\\b)|(^|\\s)>(?!>)",
+    "deleteOrOverwrite": "(?:\\brm(?:\\s|$)|\\bdd\\s+(?:if|of|bs|count|conv|status|seek|skip)=|\\b(?:reset\\s+--hard|mkfs)\\b|--delete\\b)|(^|\\s)>(?!>)",
     "permissionChange": "\\b(chmod|chown)\\b",
     "historyRewrite": "\\b(reset\\s+--hard|push\\s+--force|rebase\\s+-i)\\b",
     "safetyBypass": "(?:--yolo|dangerously-bypass)\\b",
-    "processDisruption": "\\b(kill\\s+-9|restart)\\b"
+    "remoteExecution": "\\b(curl|wget)\\b[^|\\n]*\\|\\s*(sudo\\s+)?(ba)?sh\\b|:\\(\\)\\s*\\{\\s*:",
+    "processDisruption": "\\b(kill\\s+-9|restart|shutdown|reboot|halt|poweroff)\\b"
   },
   "possibleSecret": {
     "source": "api[_-]?key|secret|token\\s*[=:]\\s*[a-z0-9_-]{12,}",

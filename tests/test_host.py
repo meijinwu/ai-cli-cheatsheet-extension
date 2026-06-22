@@ -263,6 +263,32 @@ class HostValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(host.ValidationError, "必须包含 warning"):
             host.validate_dataset(payload, "sample")
 
+    def test_rejects_newly_covered_dangerous_examples(self):
+        for value in (
+            "dd if=/dev/zero of=/dev/sda",
+            "mkfs.ext4 /dev/sdb",
+            ":(){ :|:& };:",
+            "shutdown -h now",
+        ):
+            payload = valid_dataset()
+            payload["items"][0].update({
+                "keywords": ["危险", "操作", "示例"],
+                "examples": [{
+                    "value": value,
+                    "description": "高风险操作",
+                    "sourceType": "ai-derived",
+                    "authorship": "generated",
+                    "evidenceTier": "none",
+                    "adaptation": "scenario-derived",
+                }],
+            })
+            with self.assertRaisesRegex(host.ValidationError, "必须包含 warning"):
+                host.validate_dataset(payload, "sample")
+
+    def test_allows_incidental_dd_substring(self):
+        self.assertIsNone(host.DANGEROUS_EXAMPLE_RE.search("npm run dd-report"))
+        self.assertIsNone(host.DANGEROUS_EXAMPLE_RE.search("echo done >> run.log"))
+
 
 class HostFileTests(unittest.TestCase):
     def setUp(self):
