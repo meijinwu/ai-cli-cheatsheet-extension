@@ -3,6 +3,7 @@ import json
 import os
 import pathlib
 import tempfile
+import time
 import types
 import unittest
 from unittest import mock
@@ -316,6 +317,39 @@ class HostFileTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 host.atomic_write(str(target), "new")
         self.assertEqual(target.read_text(encoding="utf-8"), "old")
+
+    def _stage_pending(self, token, tool_id, age_seconds=0):
+        path = host.pending_path(token)
+        host.atomic_write(path, json.dumps({"token": token, "toolId": tool_id}))
+        if age_seconds:
+            old = time.time() - age_seconds
+            os.utime(path, (old, old))
+        return path
+
+    def test_prune_pending_files_drops_superseded_and_stale(self):
+        keep = "0" * 32
+        superseded = "1" * 32
+        other_fresh = "2" * 32
+        stale = "3" * 32
+        self._stage_pending(keep, "sample")
+        self._stage_pending(superseded, "sample")
+        self._stage_pending(other_fresh, "other")
+        self._stage_pending(stale, "other", age_seconds=host.PENDING_MAX_AGE_SECONDS + 60)
+
+        host.prune_pending_files(current_tool_id="sample", keep_token=keep)
+
+        self.assertTrue(os.path.exists(host.pending_path(keep)), "new pending must be kept")
+        self.assertFalse(os.path.exists(host.pending_path(superseded)), "superseded same-tool pending removed")
+        self.assertTrue(os.path.exists(host.pending_path(other_fresh)), "fresh other-tool pending kept")
+        self.assertFalse(os.path.exists(host.pending_path(stale)), "stale pending removed")
+
+    def test_prune_pending_files_tolerates_corrupt_file(self):
+        good = "4" * 32
+        corrupt = "5" * 32
+        self._stage_pending(good, "sample")
+        host.atomic_write(host.pending_path(corrupt), "{ not json")
+        host.prune_pending_files(current_tool_id="sample", keep_token=good)
+        self.assertTrue(os.path.exists(host.pending_path(corrupt)), "fresh but corrupt file is left intact, not crashed on")
 
     def test_remove_updates_index(self):
         (self.data_dir / "sample.js").write_text("sample", encoding="utf-8")
