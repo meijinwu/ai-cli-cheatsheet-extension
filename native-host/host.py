@@ -17,6 +17,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.parse
 import urllib.error
 import urllib.request
@@ -1539,6 +1540,39 @@ def _run_generation_prompt(prompt, use_api, prefer_web=False):
     return _call_claude_cli(prompt, prefer_web)
 
 
+HTTP_PROBE_RETRIES = 2
+HTTP_PROBE_BACKOFF_SECONDS = 0.5
+RETRYABLE_HTTP_STATUS = {429, 500, 502, 503, 504}
+
+
+def urlopen_with_retry(
+    request,
+    timeout,
+    retries=HTTP_PROBE_RETRIES,
+    backoff=HTTP_PROBE_BACKOFF_SECONDS,
+):
+    """Open an idempotent GET/HEAD probe, retrying only transient failures.
+
+    Safe to retry because these probes are side-effect-free (no model usage,
+    no writes). A 4xx HTTPError is deterministic and re-raised immediately;
+    network errors and 5xx/429 responses are retried with exponential backoff.
+    Model generation calls deliberately do NOT use this — retrying a
+    partially-completed generation could double-bill model usage.
+    """
+    attempt = 0
+    while True:
+        try:
+            return urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in RETRYABLE_HTTP_STATUS or attempt >= retries:
+                raise
+        except (urllib.error.URLError, OSError):
+            if attempt >= retries:
+                raise
+        attempt += 1
+        time.sleep(backoff * (2 ** (attempt - 1)))
+
+
 def has_definitively_missing_sources(sources):
     """Return True only for stable not-found responses, not transient network errors."""
     for source in sources:
@@ -1551,7 +1585,7 @@ def has_definitively_missing_sources(sources):
             headers={"User-Agent": "ai-cli-cheatsheet-extension"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=8):
+            with urlopen_with_retry(request, timeout=8):
                 pass
         except urllib.error.HTTPError as exc:
             if exc.code in {404, 410}:
@@ -1698,7 +1732,7 @@ def detect_official_release(dataset):
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=12) as response:
+        with urlopen_with_retry(request, timeout=12) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (OSError, urllib.error.URLError, json.JSONDecodeError):
         return None

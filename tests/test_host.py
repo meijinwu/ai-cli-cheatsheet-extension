@@ -1060,5 +1060,55 @@ class HostSourceTierGenerationTests(unittest.TestCase):
         self.assertEqual(len(set(ids)), 3, "碰撞条目应重哈希为唯一 ID")
 
 
+class HostHttpRetryTests(unittest.TestCase):
+    def setUp(self):
+        self.request = host.urllib.request.Request("https://example.com/probe")
+        self.sleep = mock.patch.object(host.time, "sleep").start()
+        self.addCleanup(mock.patch.stopall)
+
+    def test_retries_transient_network_errors_then_succeeds(self):
+        sentinel = object()
+        with mock.patch.object(
+            host.urllib.request,
+            "urlopen",
+            side_effect=[host.urllib.error.URLError("boom"), host.urllib.error.URLError("boom"), sentinel],
+        ) as opener:
+            result = host.urlopen_with_retry(self.request, timeout=8)
+        self.assertIs(result, sentinel)
+        self.assertEqual(opener.call_count, 3)
+        self.assertEqual(self.sleep.call_count, 2)
+
+    def test_gives_up_after_retry_budget(self):
+        with mock.patch.object(
+            host.urllib.request, "urlopen", side_effect=host.urllib.error.URLError("down")
+        ) as opener:
+            with self.assertRaises(host.urllib.error.URLError):
+                host.urlopen_with_retry(self.request, timeout=8, retries=2)
+        self.assertEqual(opener.call_count, 3)
+
+    def test_does_not_retry_deterministic_client_errors(self):
+        error = host.urllib.error.HTTPError(
+            "https://example.com/probe", 404, "Not Found", {}, None
+        )
+        with mock.patch.object(
+            host.urllib.request, "urlopen", side_effect=error
+        ) as opener:
+            with self.assertRaises(host.urllib.error.HTTPError):
+                host.urlopen_with_retry(self.request, timeout=8)
+        self.assertEqual(opener.call_count, 1)
+        self.sleep.assert_not_called()
+
+    def test_retries_server_errors(self):
+        error = host.urllib.error.HTTPError(
+            "https://example.com/probe", 503, "Busy", {}, None
+        )
+        with mock.patch.object(
+            host.urllib.request, "urlopen", side_effect=error
+        ) as opener:
+            with self.assertRaises(host.urllib.error.HTTPError):
+                host.urlopen_with_retry(self.request, timeout=8, retries=2)
+        self.assertEqual(opener.call_count, 3)
+
+
 if __name__ == "__main__":
     unittest.main()
