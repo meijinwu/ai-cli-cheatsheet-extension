@@ -10,4 +10,6 @@
 #   export ANTHROPIC_BASE_URL="https://api.deepseek.com/anthropic"
 #   export ANTHROPIC_AUTH_TOKEN="your-api-key-here"
 #   export AICLI_PROJECT_DIR="/path/to/ai-cli-cheatsheet-extension"
+#   export AICLI_EXTRA_PATH="/opt/homebrew/bin:$HOME/.local/bin"
+#   export PATH="$AICLI_EXTRA_PATH:/usr/bin:/bin"
 #   exec /usr/bin/python3 "$HOME/Library/Application Support/aicli-cheatsheet/host.py" "$@"

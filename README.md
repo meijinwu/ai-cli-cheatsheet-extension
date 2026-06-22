@@ -88,6 +88,10 @@ git clone https://github.com/meijinwu/ai-cli-cheatsheet-extension.git C:\workspa
 - 已运行 Native Host 安装脚本。
 - 安装后完全退出并重新打开浏览器。
 
+Native Host 使用 Python 直接读取数据，运行时不要求 Node.js。若 Claude Code、
+Codex 等目标 CLI 通过 npm 安装，它们自身仍需要 Node.js；安装脚本会在 macOS、
+Linux 和 Windows 上记录系统安装及 nvm、fnm、Volta、asdf、Scoop 等常见路径。
+
 macOS / Linux：
 
 ```bash

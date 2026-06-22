@@ -72,6 +72,7 @@ git clone https://github.com/meijinwu/ai-cli-cheatsheet-extension.git C:\workspa
 - 已经加载浏览器扩展。
 - 已取得扩展 ID：在 `chrome://extensions/` 或 `edge://extensions/` 的扩展卡片中查看。
 - 如果使用 Claude Code，终端运行 `claude --version` 应能正常返回。
+- Native Host 本身只依赖 Python 3；读取数据和生成差异不需要 Node.js。通过 npm 安装的 CLI 仍需要其 Node.js 运行时。
 
 安装 Claude Code：
 
@@ -87,7 +88,8 @@ npm install -g @anthropic-ai/claude-code
 bash native-host/install.sh
 ```
 
-安装脚本会询问调用方式和扩展 ID，并注册 Native Messaging Host。
+安装脚本会询问调用方式和扩展 ID，并注册 Native Messaging Host。它会把检测到的
+系统、npm、nvm、fnm、Volta、asdf 等可执行目录写入 Host 的进程级 PATH，不修改系统 PATH。
 
 ### Windows
 
@@ -96,6 +98,8 @@ bash native-host/install.sh
 ```powershell
 powershell -ExecutionPolicy Bypass -File native-host\install.ps1
 ```
+
+Windows 安装脚本会同时识别系统 Node、`APPDATA\npm`、nvm-windows、Volta 和 Scoop。
 
 ### 重启浏览器
 
@@ -183,7 +187,14 @@ powershell -ExecutionPolicy Bypass -File native-host\install.ps1
 
 ### 更新仓库后，Native Host 仍是旧版本
 
-安装脚本会把 `host.py` 复制到系统安装目录，浏览器调用的是该副本。执行 `git pull` 后需要重新运行安装脚本，并选择更新 Host、保留现有配置。
+重新运行对应安装脚本。选择“仅更新”时也会刷新 CLI 和 Node 的运行路径，然后必须完全退出并重启浏览器。
+安装脚本会把 `host.py` 复制到系统安装目录，浏览器调用的是该副本。
+
+### 提示目标 CLI 缺少 Node.js 运行时
+
+数据读取本身不再需要 Node。这个提示表示已找到 Claude Code、Codex 等 CLI，但该 CLI
+是通过 npm 安装的，启动时找不到 Node.js。安装 Node.js 后重新运行安装脚本以刷新路径，
+再完全退出并重启浏览器。
 
 ### 扩展 ID 变化
 

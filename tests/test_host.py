@@ -316,6 +316,49 @@ class HostFileTests(unittest.TestCase):
             host.remove_tool("sample")
         self.assertTrue(target.exists())
 
+    def test_load_existing_dataset_does_not_require_node(self):
+        dataset = valid_dataset()
+        target = self.data_dir / "sample.js"
+        target.write_text(host.render_data_file(dataset), encoding="utf-8")
+        with mock.patch.dict(os.environ, {"PATH": ""}, clear=False), mock.patch.object(
+            host.subprocess, "run", side_effect=AssertionError("Node must not run")
+        ):
+            loaded = host.load_existing_dataset("sample")
+        self.assertEqual(loaded["meta"]["id"], "sample")
+
+    def test_data_parser_rejects_executable_or_malformed_content(self):
+        valid = host.render_data_file(valid_dataset())
+        cases = {
+            "固定文件头": valid.replace(
+                "// Generated from validated structured data. Manual edits must follow data/SCHEMA.md.\n",
+                "",
+                1,
+            ),
+            "工具 ID 不匹配": valid.replace(
+                'window.CHEATSHEET_DATA["sample"]',
+                'window.CHEATSHEET_DATA["other"]',
+                1,
+            ),
+            "数据 JSON": valid.replace('"items": [', '"items": [ invalid ', 1),
+            "附加内容": valid + "globalThis.pwned = true;\n",
+        }
+        for expected, content in cases.items():
+            with self.subTest(expected=expected), self.assertRaisesRegex(
+                host.ValidationError, expected
+            ):
+                host.parse_data_file(content, "sample")
+
+    def test_parser_accepts_every_builtin_data_file_without_node(self):
+        for data_path in sorted((ROOT / "data").glob("*.js")):
+            if data_path.name == "index.js":
+                continue
+            tool_id = data_path.stem
+            with self.subTest(tool=tool_id):
+                parsed = host.parse_data_file(
+                    data_path.read_text(encoding="utf-8"), tool_id
+                )
+                self.assertEqual(parsed["meta"]["id"], tool_id)
+
     def test_manual_only_update_skips_model_without_deep_check(self):
         dataset = valid_dataset()
         target = self.data_dir / "sample.js"
@@ -677,6 +720,100 @@ class HostApiTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(host.ValidationError, "API 错误"):
                 host._call_api_direct("prompt")
+
+
+class HostExecutableDiscoveryTests(unittest.TestCase):
+    def test_macos_and_linux_search_paths_cover_common_managers(self):
+        home = "/Users/example"
+        with mock.patch.object(host.glob, "glob", side_effect=lambda pattern: {
+            f"{home}/.nvm/versions/node/*/bin": [
+                f"{home}/.nvm/versions/node/v20.1.0/bin",
+                f"{home}/.nvm/versions/node/v22.2.0/bin",
+            ],
+            f"{home}/.fnm/node-versions/*/installation/bin": [
+                f"{home}/.fnm/node-versions/v21.0.0/installation/bin"
+            ],
+        }.get(pattern, [])), mock.patch.object(host.os.path, "isdir", return_value=True):
+            paths = host.executable_search_dirs(
+                platform="darwin",
+                env={"PATH": "", "AICLI_EXTRA_PATH": "/custom/bin"},
+                home=home,
+            )
+        self.assertEqual(paths[0], "/custom/bin")
+        self.assertIn("/opt/homebrew/bin", paths)
+        self.assertIn("/usr/local/bin", paths)
+        self.assertIn(f"{home}/.volta/bin", paths)
+        self.assertIn(f"{home}/.asdf/shims", paths)
+        self.assertLess(
+            paths.index(f"{home}/.nvm/versions/node/v22.2.0/bin"),
+            paths.index(f"{home}/.nvm/versions/node/v20.1.0/bin"),
+        )
+
+    def test_windows_search_paths_cover_npm_nvm_volta_and_scoop(self):
+        env = {
+            "PATH": r"C:\Windows\System32",
+            "AICLI_EXTRA_PATH": r"D:\tools\bin",
+            "APPDATA": r"C:\Users\me\AppData\Roaming",
+            "LOCALAPPDATA": r"C:\Users\me\AppData\Local",
+            "ProgramFiles": r"C:\Program Files",
+            "NVM_HOME": r"C:\Users\me\AppData\Roaming\nvm",
+            "NVM_SYMLINK": r"C:\Program Files\nodejs",
+        }
+        with mock.patch.object(host.os.path, "isdir", return_value=True):
+            paths = host.executable_search_dirs(
+                platform="win32", env=env, home=r"C:\Users\me"
+            )
+        self.assertIn(r"C:\Users\me\AppData\Roaming/npm".replace("/", os.sep), paths)
+        self.assertIn(r"C:\Users\me\AppData\Local/Volta/bin".replace("/", os.sep), paths)
+        self.assertIn(r"C:\Users\me/scoop/shims".replace("/", os.sep), paths)
+        self.assertIn(r"C:\Program Files\nodejs", paths)
+
+    def test_subprocess_environment_adds_runtime_dirs_without_mutating_os_path(self):
+        original = os.environ.get("PATH")
+        with mock.patch.dict(
+            os.environ,
+            {"PATH": "", "AICLI_EXTRA_PATH": "/runtime/bin"},
+            clear=False,
+        ):
+            env = host.subprocess_environment(allow_web=False)
+            self.assertIn("/runtime/bin", env["PATH"].split(os.pathsep))
+            self.assertEqual(os.environ["PATH"], "")
+        self.assertEqual(os.environ.get("PATH"), original)
+
+    def test_claude_reports_missing_node_runtime_precisely(self):
+        proc = mock.MagicMock()
+        proc.communicate.return_value = ("", "/usr/bin/env: node: No such file or directory")
+        proc.returncode = 127
+        with mock.patch.object(host, "CLAUDE_BIN", "/custom/bin/claude"), mock.patch.object(
+            host.subprocess, "Popen", return_value=proc
+        ):
+            with self.assertRaisesRegex(host.ValidationError, "Node.js 运行时不可用"):
+                host._call_claude_cli("prompt", prefer_web=True)
+
+    def test_version_probe_reports_missing_node_runtime_precisely(self):
+        result = mock.MagicMock(
+            returncode=127,
+            stdout="",
+            stderr="'node' is not recognized as an internal or external command",
+        )
+        with mock.patch.object(host, "find_tool_binary", return_value=r"C:\npm\codex.cmd"), mock.patch.object(
+            host.subprocess, "run", return_value=result
+        ):
+            with self.assertRaisesRegex(host.ValidationError, "Node.js 运行时不可用"):
+                host.detect_local_version("codex")
+
+    def test_installers_persist_and_refresh_runtime_paths(self):
+        shell = (ROOT / "native-host" / "install.sh").read_text(encoding="utf-8")
+        powershell = (ROOT / "native-host" / "install.ps1").read_text(encoding="utf-8")
+        for script in (shell, powershell):
+            self.assertIn("AICLI_EXTRA_PATH", script)
+            self.assertIn("RuntimePath", script.replace("RUNTIME_PATH", "RuntimePath"))
+        self.assertIn("refresh_runtime_path", shell)
+        self.assertIn("仅更新 host.py 并刷新运行路径", powershell)
+        for marker in ("nvm", "fnm", "volta", "asdf"):
+            self.assertIn(marker, shell.lower())
+        for marker in ("nvm", "fnm", "volta", "scoop"):
+            self.assertIn(marker, powershell.lower())
 
 
 class HostDiffEnrichmentTests(unittest.TestCase):
