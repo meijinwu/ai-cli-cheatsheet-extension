@@ -916,6 +916,7 @@ function bindOnboarding() {
 }
 
 async function initialize() {
+  document.getElementById("main").innerHTML = `<div class="empty loading">正在加载速查表…</div>`;
   try {
     await loadCheatsheetData();
     buildEnrichmentIndex();
