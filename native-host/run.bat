@@ -10,4 +10,6 @@ rem
 rem   set "ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic"
 rem   set "ANTHROPIC_AUTH_TOKEN=your-api-key-here"
 rem   set "AICLI_PROJECT_DIR=C:\path\to\ai-cli-cheatsheet-extension"
+rem   set "AICLI_EXTRA_PATH=%APPDATA%\npm;C:\Program Files\nodejs"
+rem   set "PATH=%AICLI_EXTRA_PATH%;%SystemRoot%\System32;%SystemRoot%"
 rem   "C:\Python312\python.exe" "%APPDATA%\aicli-cheatsheet\host.py" %*

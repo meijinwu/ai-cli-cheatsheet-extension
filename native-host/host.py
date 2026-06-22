@@ -3,6 +3,7 @@
 
 import atexit
 import datetime
+import glob
 import hashlib
 import http.client
 import json
@@ -225,36 +226,124 @@ def evidence_status_for(refs):
     return "partial"
 
 
-def find_claude_binary():
-    """Find the Claude CLI binary on macOS, Linux, or Windows."""
-    for name in ("claude", "claude.cmd"):
-        result = shutil.which(name)
-        if result:
-            return result
+def _version_key(path):
+    version = next(
+        (
+            part for part in reversed(os.path.normpath(path).split(os.sep))
+            if re.fullmatch(r"v?\d+(?:[.-]\d+)*(?:[-.][0-9A-Za-z]+)*", part)
+        ),
+        "0",
+    )
+    return tuple(
+        (0, int(part)) if part.isdigit() else (1, part)
+        for part in re.split(r"[.-]", version.lstrip("v"))
+    )
 
-    if sys.platform == "win32":
-        appdata = os.environ.get("APPDATA", "")
-        candidates = [
-            os.path.join(appdata, "npm", "claude.cmd"),
-            os.path.join(appdata, "npm", "claude"),
-            r"C:\Program Files\nodejs\claude.cmd",
-        ]
+
+def executable_search_dirs(platform=None, env=None, home=None):
+    """Return deterministic executable directories without starting a login shell."""
+    platform = platform or sys.platform
+    env = env or os.environ
+    home = os.path.expanduser(home or "~")
+    directories = []
+
+    def add(path):
+        if not path:
+            return
+        expanded = os.path.expandvars(os.path.expanduser(path))
+        normalized = os.path.normpath(expanded)
+        if normalized not in directories:
+            directories.append(normalized)
+
+    path_separator = ";" if platform == "win32" else os.pathsep
+    for path in (env.get("PATH") or "").split(path_separator):
+        add(path)
+    for path in (env.get("AICLI_EXTRA_PATH") or "").split(path_separator):
+        add(path)
+
+    if platform == "win32":
+        appdata = env.get("APPDATA", "")
+        localappdata = env.get("LOCALAPPDATA", "")
+        program_files = env.get("ProgramFiles", r"C:\Program Files")
+        add(env.get("NVM_SYMLINK"))
+        add(env.get("NVM_HOME"))
+        add(env.get("FNM_MULTISHELL_PATH"))
+        add(env.get("PNPM_HOME"))
+        add(os.path.join(env.get("VOLTA_HOME", ""), "bin") if env.get("VOLTA_HOME") else "")
+        add(os.path.join(appdata, "npm") if appdata else "")
+        add(os.path.join(localappdata, "Programs", "nodejs") if localappdata else "")
+        add(os.path.join(localappdata, "Volta", "bin") if localappdata else "")
+        add(os.path.join(home, "scoop", "shims"))
+        add(os.path.join(program_files, "nodejs"))
     else:
-        candidates = [
-            os.path.expanduser("~/.local/bin/claude"),
-            os.path.expanduser("~/.npm-global/bin/claude"),
-            "/usr/local/bin/claude",
-            "/opt/homebrew/bin/claude",
-            "/usr/bin/claude",
-        ]
-    for path in candidates:
-        if os.path.isfile(path) and os.access(path, os.X_OK):
-            return path
+        add(env.get("NVM_BIN"))
+        add(env.get("FNM_MULTISHELL_PATH"))
+        add(env.get("PNPM_HOME"))
+        add(os.path.join(env.get("VOLTA_HOME", ""), "bin") if env.get("VOLTA_HOME") else "")
+        add(os.path.join(env.get("ASDF_DATA_DIR", ""), "shims") if env.get("ASDF_DATA_DIR") else "")
+        add(os.path.join(env.get("npm_config_prefix", ""), "bin") if env.get("npm_config_prefix") else "")
+        for path in (
+            os.path.join(home, ".local", "bin"),
+            os.path.join(home, ".npm-global", "bin"),
+            os.path.join(home, ".cargo", "bin"),
+            os.path.join(home, ".bun", "bin"),
+            os.path.join(home, ".opencode", "bin"),
+            os.path.join(home, ".local", "share", "pnpm"),
+            os.path.join(home, ".volta", "bin"),
+            os.path.join(home, ".asdf", "shims"),
+            os.path.join(home, ".local", "share", "fnm", "aliases", "default", "bin"),
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+        ):
+            add(path)
+
+        versioned_patterns = (
+            os.path.join(env.get("NVM_DIR", os.path.join(home, ".nvm")), "versions", "node", "*", "bin"),
+            os.path.join(home, ".nvm", "versions", "node", "*", "bin"),
+            os.path.join(env.get("FNM_DIR", os.path.join(home, ".fnm")), "node-versions", "*", "installation", "bin"),
+            os.path.join(home, ".fnm", "node-versions", "*", "installation", "bin"),
+            os.path.join(home, ".local", "share", "fnm", "node-versions", "*", "installation", "bin"),
+        )
+        for pattern in versioned_patterns:
+            for path in sorted(glob.glob(pattern), key=_version_key, reverse=True):
+                add(path)
+        fnm_default = os.path.join(home, ".fnm", "aliases", "default", "bin")
+        if os.path.isdir(fnm_default):
+            add(fnm_default)
+    return directories
+
+
+def find_executable(name, platform=None, env=None, home=None):
+    search_path = os.pathsep.join(executable_search_dirs(platform, env, home))
+    names = [name]
+    if (platform or sys.platform) == "win32" and not os.path.splitext(name)[1]:
+        names.extend([f"{name}.cmd", f"{name}.exe", f"{name}.bat"])
+    for candidate in names:
+        found = shutil.which(candidate, path=search_path)
+        if found:
+            return found
     return None
 
 
-CLAUDE_BIN = find_claude_binary()
-NODE_BIN = shutil.which("node")
+def subprocess_environment(*, allow_web=True):
+    env = dict(os.environ)
+    env["PATH"] = os.pathsep.join(executable_search_dirs(env=env))
+    if allow_web:
+        env.pop("CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS", None)
+    return env
+
+
+def reports_missing_node_runtime(text):
+    return bool(re.search(
+        r"(?:env: node:|['\"]?node(?:\.exe)?['\"]? (?:is not recognized|not found)|cannot find .*node)",
+        str(text or ""),
+        re.IGNORECASE,
+    ))
+
+
+CLAUDE_BIN = find_executable("claude")
 PROJECT_DIR = os.path.realpath(
     os.environ.get("AICLI_PROJECT_DIR")
     or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1397,9 +1486,9 @@ def _call_claude_cli(prompt, prefer_web=False):
             "找不到 claude 命令，请安装 Claude Code 后重新运行 native-host 安装脚本"
         )
 
-    # Allow web search so Claude can fetch official docs.
-    # CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS blocks the web_search tool when set.
-    env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS"}
+    # Native Messaging hosts inherit a minimal browser environment. Build a
+    # process-local PATH so npm-installed CLIs can still locate their Node runtime.
+    env = subprocess_environment(allow_web=True)
     global _active_proc
     try:
         _active_proc = subprocess.Popen(
@@ -1432,6 +1521,11 @@ def _call_claude_cli(prompt, prefer_web=False):
 
     if returncode != 0:
         error = stderr.strip()[:2000] or "claude 命令执行失败"
+        if reports_missing_node_runtime(error):
+            raise ValidationError(
+                "已找到 Claude Code，但它需要的 Node.js 运行时不可用。"
+                "请安装 Node.js，或重新运行 native-host 安装脚本刷新运行路径。"
+            )
         raise ValidationError(error)
 
     return extract_json_output(stdout)
@@ -1540,26 +1634,7 @@ def normalize_version_marker(value):
 
 
 def find_tool_binary(name):
-    found = shutil.which(name)
-    if found:
-        return found
-    suffixes = (".cmd", ".exe", "") if sys.platform == "win32" else ("",)
-    directories = [
-        os.path.expanduser("~/.local/bin"),
-        os.path.expanduser("~/.npm-global/bin"),
-        os.path.expanduser("~/.cargo/bin"),
-        "/usr/local/bin",
-        "/opt/homebrew/bin",
-        "/usr/bin",
-    ]
-    if sys.platform == "win32":
-        directories.insert(0, os.path.join(os.environ.get("APPDATA", ""), "npm"))
-    for directory in directories:
-        for suffix in suffixes:
-            candidate = os.path.join(directory, f"{name}{suffix}")
-            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-                return candidate
-    return None
+    return find_executable(name)
 
 
 def detect_local_version(tool_id):
@@ -1574,10 +1649,16 @@ def detect_local_version(tool_id):
                 text=True,
                 timeout=10,
                 check=False,
+                env=subprocess_environment(allow_web=False),
             )
         except (OSError, subprocess.TimeoutExpired):
             continue
         output = (result.stdout or result.stderr or "").strip()
+        if result.returncode != 0 and reports_missing_node_runtime(output):
+            raise ValidationError(
+                f"已找到 {command[0]}，但它需要的 Node.js 运行时不可用。"
+                "请安装 Node.js，或重新运行 native-host 安装脚本刷新运行路径。"
+            )
         marker = normalize_version_marker(output)
         if result.returncode == 0 and marker:
             return {
@@ -1853,28 +1934,52 @@ def load_existing_dataset(tool_id):
     data_path = tool_data_path(tool_id)
     if not os.path.exists(data_path):
         raise ValidationError(f"找不到 data/{tool_id}.js")
-    if not NODE_BIN:
-        raise ValidationError("找不到 node 命令，无法读取当前数据用于差异比较")
-    script = (
-        "global.window={};"
-        "require(process.argv[1]);"
-        "const id=process.argv[2];"
-        "process.stdout.write(JSON.stringify(global.window.CHEATSHEET_DATA[id]));"
-    )
     try:
-        result = subprocess.run(
-            [NODE_BIN, "-e", script, data_path, tool_id],
-            capture_output=True,
-            text=True,
-            timeout=15,
-            check=False,
+        with open(data_path, "r", encoding="utf-8") as handle:
+            content = handle.read()
+    except OSError as exc:
+        raise ValidationError(f"无法读取 data/{tool_id}.js：{exc}") from exc
+    return validate_dataset(
+        parse_data_file(content, tool_id),
+        tool_id,
+        require_structured_source=False,
+    )
+
+
+def parse_data_file(content, expected_tool_id):
+    """Parse the repository's JSON-in-JS wrapper without executing JavaScript."""
+    expected_tool_id = validate_tool_id(expected_tool_id)
+    header = (
+        "// Generated from validated structured data. Manual edits must follow data/SCHEMA.md.\n"
+        "window.CHEATSHEET_DATA = window.CHEATSHEET_DATA || {};\n"
+        "window.CHEATSHEET_DATA["
+    )
+    if not isinstance(content, str) or not content.startswith(header):
+        raise ValidationError("数据文件格式无效：缺少受支持的固定文件头")
+
+    cursor = len(header)
+    decoder = json.JSONDecoder()
+    try:
+        declared_tool_id, cursor = decoder.raw_decode(content, cursor)
+    except json.JSONDecodeError as exc:
+        raise ValidationError("数据文件格式无效：工具 ID 不是合法 JSON 字符串") from exc
+    if declared_tool_id != expected_tool_id:
+        raise ValidationError(
+            f"数据文件工具 ID 不匹配：应为 {expected_tool_id}，实际为 {declared_tool_id}"
         )
-        if result.returncode != 0:
-            raise ValidationError(result.stderr.strip() or f"无法解析 data/{tool_id}.js")
-        dataset = json.loads(result.stdout)
-        return validate_dataset(dataset, tool_id, require_structured_source=False)
-    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
-        raise ValidationError(f"无法解析 data/{tool_id}.js") from exc
+    assignment = "] = "
+    if content[cursor:cursor + len(assignment)] != assignment:
+        raise ValidationError("数据文件格式无效：缺少数据赋值语句")
+    cursor += len(assignment)
+    try:
+        dataset, cursor = decoder.raw_decode(content, cursor)
+    except json.JSONDecodeError as exc:
+        raise ValidationError("数据文件格式无效：数据 JSON 不完整或非法") from exc
+    if not isinstance(dataset, dict):
+        raise ValidationError("数据文件格式无效：数据必须是 JSON 对象")
+    if content[cursor:] not in {";", ";\n"}:
+        raise ValidationError("数据文件格式无效：JSON 后存在不允许的附加内容")
+    return dataset
 
 
 def add_tool(tool_id, display_name, prefer_web=False):
