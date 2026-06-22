@@ -45,5 +45,7 @@ assert(html.includes("prefers-reduced-motion"), "motion must respect the reduced
 assert(script.includes("正在加载速查表"), "data loading needs a visible loading state");
 assert(script.includes("activeFilterLabel"), "combined tool+category filters must be shown to the user");
 assert(script.includes("expandedSynonyms"), "synonym expansion must be surfaced in results");
+assert(script.includes("evidenceTooltip") && script.includes("tierTooltip"), "trust tags must carry plain-language tooltips");
+assert(script.includes("数据质量明细"), "dense per-tool statistics must collapse behind a summary");
 
 console.log("Popup UX contract tests passed.");
