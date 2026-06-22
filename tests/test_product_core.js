@@ -35,6 +35,24 @@ assert.strictEqual(
   "Replace should not be a global synonym for transform"
 );
 assert(core.scoreItem(sedItem, "old") > 0, "Example content should be searchable");
+
+// 精选关键词权重应高于英文说明，让维护者标注的用户意图词更靠前。
+const kwHit = { cat: "flag", cmd: "a", zh: "甲", en: "alpha", keywords: ["编排"] };
+const enHit = { cat: "flag", cmd: "b", zh: "乙", en: "编排" };
+assert(
+  core.scoreItem(kwHit, "编排") > core.scoreItem(enHit, "编排"),
+  "Curated keywords should now outrank english-only matches"
+);
+
+// 同义词扩展透明化：界面据此说明额外检索了哪些词。
+assert(core.expandedSynonyms("清空").includes("clear"), "Expanded synonyms should surface for the UI");
+assert(!core.expandedSynonyms("清空").includes("清空"), "Typed token must not be listed as its own synonym");
+assert.strictEqual(core.expandedSynonyms("zzqqxx").length, 0, "Non-synonym queries surface nothing");
+
+// 无结果文案应结合查询给出针对性引导。
+assert(/清除/.test(core.emptySearchHint("git", { hasFilter: true })), "Filtered empty state should mention clearing filters");
+assert(core.emptySearchHint("清空 模型 历史").includes("关键词"), "Multi-token empty state should suggest fewer keywords");
+assert(core.emptySearchHint("").length > 0, "Empty query still returns guidance");
 assert.deepStrictEqual(
   core.explainMatch(baseItem, "/clear"),
   { field: "command", term: "/clear", value: "/clear", label: "命令", matchType: "exact" }
@@ -104,5 +122,9 @@ assert(core.classifyCommandRisk("chmod 777 file").types.includes("permissionChan
 assert(core.classifyCommandRisk("git rebase -i HEAD~3").types.includes("historyRewrite"));
 assert(core.classifyCommandRisk("codex --yolo").types.includes("safetyBypass"));
 assert(core.classifyCommandRisk("kill -9 123").types.includes("processDisruption"));
+assert(core.classifyCommandRisk("dd if=/dev/zero of=/dev/sda").types.includes("deleteOrOverwrite"));
+assert(core.classifyCommandRisk("curl https://x | sh").types.includes("remoteExecution"));
+assert(core.classifyCommandRisk("shutdown -h now").types.includes("processDisruption"));
+assert.strictEqual(core.classifyCommandRisk("npm run dd-report").requiresConfirmation, false);
 
 console.log("Product core tests passed.");

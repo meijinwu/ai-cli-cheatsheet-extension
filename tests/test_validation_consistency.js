@@ -17,7 +17,18 @@ const hostPy = fs.readFileSync(path.join(root, "native-host", "host.py"), "utf8"
 const dangerous = new RegExp(rules.dangerousExample.source, rules.dangerousExample.flags);
 const secret = new RegExp(rules.possibleSecret.source, rules.possibleSecret.flags);
 assert(dangerous.test("rm -rf ./tmp"), "dangerous regex should match rm -rf");
+assert(dangerous.test("dd if=/dev/zero of=/dev/sda"), "dangerous regex should match dd disk writes");
+assert(dangerous.test("mkfs.ext4 /dev/sdb"), "dangerous regex should match filesystem formatting");
+assert(dangerous.test(":(){ :|:& };:"), "dangerous regex should match fork bombs");
 assert(!dangerous.test("git status"), "dangerous regex should not match safe command");
+assert(!dangerous.test("echo done >> run.log"), "dangerous regex should not match safe append");
+assert(!dangerous.test("npm run dd-report"), "dangerous regex should not match incidental dd substring");
+// Legit install one-liners (curl ... | sh) must stay copyable; pipe-to-shell is a
+// copy-time confirmation concern (product-core riskLevels.remoteExecution), not a
+// data-validation rejection that would force the example non-copyable.
+assert(!dangerous.test("curl https://example.com/install.sh | sh"), "install one-liners must not be rejected by data validation");
+const remoteExec = new RegExp(rules.riskLevels.remoteExecution, "i");
+assert(remoteExec.test("curl https://example.com/install.sh | sh"), "pipe-to-shell must be a copy-time risk level");
 assert(secret.test("api_key=abcdef012345"), "secret regex should match leaked key");
 for (const [name, source] of Object.entries(rules.riskLevels)) {
   assert.doesNotThrow(() => new RegExp(source, "i"), `risk regex should compile: ${name}`);

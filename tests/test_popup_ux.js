@@ -40,4 +40,12 @@ assert(script.includes("data-deep-update"), "stable tools need an explicit advan
 assert(script.includes("检查版本更新") && script.includes("检查发布变化"), "dynamic update actions must describe their actual signal");
 assert(script.includes("prefer_web: true"), "version-triggered updates must use source-backed web verification");
 
+assert(html.includes(":focus-visible"), "interactive controls need visible keyboard focus");
+assert(html.includes("prefers-reduced-motion"), "motion must respect the reduced-motion preference");
+assert(script.includes("正在加载速查表"), "data loading needs a visible loading state");
+assert(script.includes("activeFilterLabel"), "combined tool+category filters must be shown to the user");
+assert(script.includes("expandedSynonyms"), "synonym expansion must be surfaced in results");
+assert(script.includes("evidenceTooltip") && script.includes("tierTooltip"), "trust tags must carry plain-language tooltips");
+assert(script.includes("数据质量明细"), "dense per-tool statistics must collapse behind a summary");
+
 console.log("Popup UX contract tests passed.");
