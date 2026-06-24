@@ -10,6 +10,7 @@ window.CHEATSHEET_FILES = [
   "linux",
   "openclaw",
   "opencode",
+  "shell",
   "typora",
   "vs-code"
 ];
