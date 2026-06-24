@@ -3,6 +3,41 @@
 const CORE = window.CHEATSHEET_CORE;
 const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate", "lastQualityWarnings", "webVerify"];
 const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "› 命令", flag: "⚑ 参数/选项" };
+const SHELL_FILTER_LABELS = {
+  layer: {
+    syntax: "语法",
+    builtin: "内建",
+    "posix-utility": "POSIX",
+    "gnu-utility": "GNU",
+    "bsd-utility": "BSD",
+    "linux-utility": "Linux",
+    "external-tool": "外部工具",
+  },
+  portability: {
+    posix: "POSIX",
+    bash: "Bash",
+    zsh: "Zsh",
+    gnu: "GNU",
+    bsd: "BSD",
+    linux: "Linux",
+    macos: "macOS",
+    "cross-platform": "跨平台",
+  },
+  topic: {
+    navigation: "导航",
+    files: "文件",
+    text: "文本",
+    search: "查找",
+    process: "进程",
+    permissions: "权限",
+    network: "网络",
+    scripting: "脚本",
+    archive: "归档",
+    safety: "安全",
+    environment: "环境",
+    disk: "磁盘",
+  },
+};
 const GROUP_INITIAL_LIMIT = 20;
 const SEARCH_INITIAL_LIMIT = 100;
 const SEARCH_DEBOUNCE_MS = 120;
@@ -268,6 +303,23 @@ function entryKey(toolId, item) {
   return `${toolId}::${itemId(toolId, item)}`;
 }
 
+function shellLabel(kind, value) {
+  return SHELL_FILTER_LABELS[kind]?.[value] || value;
+}
+
+// Shell sub-dimensions (layer/family/portability/topic) surface as per-item row
+// tags and via search only — they are intentionally not exposed as filter chips,
+// which would flatten four overlapping axes into a cluttered, duplicate-prone row.
+function shellTags(item) {
+  if (!item.shell) return [];
+  return [
+    shellLabel("layer", item.shell.layer),
+    item.shell.family,
+    shellLabel("portability", item.shell.portability),
+    shellLabel("topic", item.shell.topic),
+  ].filter(Boolean);
+}
+
 function migrateFavourites() {
   let changed = false;
   Object.entries(getAllData()).forEach(([toolId, tool]) => {
@@ -413,6 +465,7 @@ function renderRow(entry, query, includeBadge = false) {
     : "";
   const tags = [
     note ? `<span class="trust-tag">${escapeHtml(note)}</span>` : "",
+    ...shellTags(entry.item).map((label) => `<span class="trust-tag shell-tag">${escapeHtml(label)}</span>`),
     commandRisk.requiresConfirmation ? `<span class="trust-tag risk" title="${escapeHtml(commandRisk.warning)}">高风险</span>` : "",
     tierTag,
     `<span class="trust-tag tier evidence-${escapeHtml(evidenceStatus)}" title="${escapeHtml(evidenceTooltip(evidenceStatus))}">${escapeHtml(itemEvidence(entry))}</span>`,
@@ -783,15 +836,45 @@ function renderPending() {
   document.getElementById("discardPending").addEventListener("click", () => runTask("discard_update", { token: pendingUpdate.pendingToken }));
 }
 
-function taskBaseMsg(mode) {
+function taskBaseMsg(mode, payload = {}) {
   if (mode === "preview_update") return "正在检查实际版本变化；如需生成预览会继续核对资料，关闭面板不会中断";
+  if (mode === "add_tool" && payload.tool === "shell") return "正在分批生成 Shell 聚合数据，关闭面板不会中断";
   if (mode === "add_tool") return "正在整理并生成工具数据，关闭面板不会中断";
   return "正在执行，请稍候";
 }
 
-function startTaskTimer(mode, startedAt) {
+const OVERBROAD_ADD_TOOL_NAMES = new Set([
+  "cli",
+  "command-line",
+  "commandline",
+  "shell",
+  "terminal",
+  "命令行",
+  "终端",
+]);
+const SHELL_ADD_TOOL_NAMES = new Set(["shell", "terminal", "command-line", "commandline", "命令行", "终端"]);
+
+function overbroadAddToolHint(displayName, toolId) {
+  const normalizedName = displayName.toLowerCase().replace(/[\s_]+/g, "-");
+  if (toolId === "shell" || SHELL_ADD_TOOL_NAMES.has(normalizedName)) return "";
+  if (!OVERBROAD_ADD_TOOL_NAMES.has(normalizedName) && !OVERBROAD_ADD_TOOL_NAMES.has(toolId)) {
+    return "";
+  }
+  return "这个名称范围过大，容易生成内容过长被截断。请拆分为具体工具或命令集，例如 Bash、Zsh、PowerShell、GNU Coreutils 或 findutils。";
+}
+
+function normalizeAddTool(displayName) {
+  const normalizedName = displayName.toLowerCase().replace(/[\s_]+/g, "-");
+  const tool = normalizedName.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  if (tool === "shell" || SHELL_ADD_TOOL_NAMES.has(normalizedName)) {
+    return { tool: "shell", displayName: "Shell" };
+  }
+  return { tool, displayName };
+}
+
+function startTaskTimer(mode, startedAt, payload = {}) {
   if (_taskTimer) clearInterval(_taskTimer);
-  const base = taskBaseMsg(mode);
+  const base = taskBaseMsg(mode, payload);
   _taskTimer = setInterval(() => {
     const elapsed = Math.floor((Date.now() - startedAt) / 1000);
     setStatus(`${base}… (${elapsed}s)`);
@@ -805,7 +888,7 @@ function stopTaskTimer() {
 
 function runTask(mode, payload) {
   currentTaskMode = mode;
-  startTaskTimer(mode, Date.now());
+  startTaskTimer(mode, Date.now(), payload);
   document.querySelectorAll("#manageView button:not(#closeManage)").forEach((button) => { button.disabled = true; });
   chrome.runtime.sendMessage({ action: "startTask", mode, ...payload }, (response) => {
     if (chrome.runtime.lastError || !response?.ok) {
@@ -866,10 +949,13 @@ function bindManageEvents() {
   document.getElementById("addToolBtn").addEventListener("click", () => {
     const displayName = document.getElementById("addToolName").value.trim();
     if (!displayName) return setStatus("请输入工具名称", "err");
-    const tool = displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const normalized = normalizeAddTool(displayName);
+    const { tool } = normalized;
     if (!tool) return setStatus("工具名称需要包含英文字母或数字", "err");
+    const scopeHint = overbroadAddToolHint(displayName, tool);
+    if (scopeHint) return setStatus(scopeHint, "err");
     if (getAllData()[tool]) return setStatus("该工具已收录，请使用检查更新", "err");
-    runTask("add_tool", { tool, display_name: displayName, prefer_web: webVerify });
+    runTask("add_tool", { tool, display_name: normalized.displayName, prefer_web: webVerify });
   });
 }
 

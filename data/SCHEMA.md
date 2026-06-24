@@ -35,6 +35,12 @@
   en: "英文官方说明（简短）",
   zh: "中文说明（讲清楚用途，不是字面翻译）",
   context: "编辑器 / 集成终端",            // 可选；相同 cmd 在不同场景出现时必填
+  shell: {                                  // 仅 Shell 聚合工具使用；普通工具不得填写
+    layer: "syntax",                        // syntax / builtin / posix-utility / gnu-utility / bsd-utility / linux-utility / external-tool
+    family: "bash",                         // bash / zsh / posix-sh / coreutils / findutils / grep / sed / awk / procps / network 等小写短横线 ID
+    portability: "bash",                    // posix / bash / zsh / gnu / bsd / linux / macos / cross-platform
+    topic: "scripting"                      // navigation / files / text / search / process / permissions / network / scripting / archive / safety / environment / disk
+  },
   keywords: ["替换", "批量替换"],          // 用户常用语义词，3 到 8 个（仓库提交数据必填，见“校验契约”）
   evidenceRefs: [{
     sourceId: "official-docs",
@@ -153,6 +159,7 @@ meta：
 - 新增模式：先判断是 CLI 类还是 IDE 类，按上面对应的规则处理
 - 更新模式：保留原有未变化的条目，不要整份重写丢失细节
 - 新增工具应为所有条目提供 keywords、evidenceRefs 和 examples。CLI 提供可执行命令，IDE 提供操作场景
+- Shell 聚合工具必须为所有条目提供 `shell` 结构化层次字段和 keywords；普通参数表条目可以省略 examples，但核心、高频、危险、易错或平台差异参数必须提供 examples、caveat 或 warning
 - examples 覆盖不足不会阻止写入，但会产生质量警告；结构错误仍会拒绝
 - **按信号更新**：动态 CLI 先比较本机版本，未安装时再查询已登记官方 Release；版本未变时不调用模型。普通更新复用已登记来源，只有来源明确返回 404/410 或用户主动深度核验时重新执行来源发现。
 - **两阶段生成**：新增工具和深度核验先发现、筛选并解释来源，再依据发现结果生成逐条绑定证据的内容。

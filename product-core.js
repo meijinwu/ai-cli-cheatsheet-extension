@@ -167,6 +167,12 @@
     ["en", "英文说明", (item) => item.en],
     ["keywords", "关键词", (item) => (item.keywords || []).join(" ")],
     ["context", "使用场景", (item) => item.context],
+    ["shell", "Shell 层次", (item) => item.shell ? [
+      item.shell.layer,
+      item.shell.family,
+      item.shell.portability,
+      item.shell.topic,
+    ].join(" ") : ""],
     ["toolName", "工具", (_item, options) => options.toolName],
     ["examples", "用法", (item) => (item.examples || []).flatMap((example) => [
       example.value,
@@ -246,6 +252,7 @@
       else if (matchTypeInValue(item.en, term)) score = Math.max(score, SCORE.EN);
       else if (matchTypeInValue((item.keywords || []).join(" "), term)) score = Math.max(score, SCORE.KEYWORDS);
       else if (matchTypeInValue(item.context, term)) score = Math.max(score, SCORE.CONTEXT);
+      else if (matchTypeInValue(item.shell ? Object.values(item.shell).join(" ") : "", term)) score = Math.max(score, SCORE.CONTEXT);
       else if (matchTypeInValue(options.toolName, term)) score = Math.max(score, SCORE.TOOL_NAME);
       else if (matchTypeInValue(examples, term)) score = Math.max(score, SCORE.EXAMPLES);
       else if (matchTypeInValue(options.categoryLabel, term)) score = Math.max(score, SCORE.CATEGORY);

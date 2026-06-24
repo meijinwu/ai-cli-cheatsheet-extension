@@ -39,6 +39,9 @@ assert(script.includes("updatePolicy") && script.includes("manual-only"), "tool-
 assert(script.includes("data-deep-update"), "stable tools need an explicit advanced re-verification action");
 assert(script.includes("检查版本更新") && script.includes("检查发布变化"), "dynamic update actions must describe their actual signal");
 assert(script.includes("prefer_web: true"), "version-triggered updates must use source-backed web verification");
+assert(script.includes("overbroadAddToolHint") && script.includes("GNU Coreutils"), "overbroad add-tool names need a split-scope hint");
+assert(script.includes("normalizeAddTool") && script.includes("正在分批生成 Shell 聚合数据"), "Shell add requests need aggregate pipeline UX");
+assert(script.includes("shellTags") && !script.includes("data-shell-filter"), "Shell metadata surfaces as row tags only, not as filter chips");
 
 assert(html.includes(":focus-visible"), "interactive controls need visible keyboard focus");
 assert(html.includes("prefers-reduced-motion"), "motion must respect the reduced-motion preference");

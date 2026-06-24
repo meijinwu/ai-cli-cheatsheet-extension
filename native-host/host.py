@@ -60,6 +60,47 @@ TOOL_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 VALID_CATEGORIES = {"shortcut", "slash", "flag"}
 RESERVED_TOOL_IDS = {"index"}
+OVERBROAD_ADD_TOOL_IDS = {
+    "cli",
+    "command-line",
+    "commandline",
+    "shell",
+    "terminal",
+}
+OVERBROAD_ADD_TOOL_NAMES = OVERBROAD_ADD_TOOL_IDS | {"命令行", "终端"}
+SHELL_TOOL_ALIASES = {"shell", "terminal", "command-line", "commandline", "命令行", "终端"}
+SHELL_LAYERS = {
+    "syntax", "builtin", "posix-utility", "gnu-utility", "bsd-utility",
+    "linux-utility", "external-tool",
+}
+SHELL_PORTABILITIES = {
+    "posix", "bash", "zsh", "gnu", "bsd", "linux", "macos", "cross-platform",
+}
+SHELL_TOPICS = {
+    "navigation", "files", "text", "search", "process", "permissions",
+    "network", "scripting", "archive", "safety", "environment", "disk",
+}
+SHELL_BATCH_MAX_ITEMS = 12
+# Floor for the shrink-on-truncation retry: a batch this small reliably fits
+# inside the model output cap. If even this truncates, fail with a clear error.
+SHELL_BATCH_MIN_ITEMS = 3
+SHELL_BATCHES = [
+    {"id": "syntax-quoting", "label": "语法：引用与展开", "topics": ["scripting"], "scope": "引号、转义、变量展开、命令替换、算术展开、通配符"},
+    {"id": "syntax-control", "label": "语法：控制流与退出状态", "topics": ["scripting"], "scope": "管道、列表、条件、循环、函数、退出状态、set 常用安全选项"},
+    {"id": "builtins-navigation", "label": "内建：导航与环境", "topics": ["navigation", "environment"], "scope": "cd、pwd、export、unset、alias、type、command、history 等"},
+    {"id": "builtins-io-jobs", "label": "内建：I/O 与作业控制", "topics": ["process", "scripting"], "scope": "read、printf、test、jobs、fg、bg、wait、trap、ulimit 等"},
+    {"id": "files-core", "label": "文件：核心操作", "topics": ["files"], "scope": "ls、cp、mv、rm、mkdir、rmdir、touch、ln 的高频参数"},
+    {"id": "files-inspect", "label": "文件：查看与元数据", "topics": ["files", "disk"], "scope": "cat、less、head、tail、stat、file、du、df、wc 的高频参数"},
+    {"id": "text-grep-sed", "label": "文本：grep 与 sed", "topics": ["text", "search"], "scope": "grep/egrep/fgrep、sed 的常用搜索、替换、原地编辑差异"},
+    {"id": "text-awk-cut-sort", "label": "文本：awk/cut/sort 管道", "topics": ["text"], "scope": "awk、cut、tr、sort、uniq、paste、column、xargs 文本处理常用参数"},
+    {"id": "find-basic", "label": "查找：find 基础", "topics": ["search", "files"], "scope": "find 的 name、type、size、mtime、maxdepth、mindepth、print0 等"},
+    {"id": "find-actions", "label": "查找：批处理动作", "topics": ["search", "safety"], "scope": "find -exec、-delete、xargs、并行与空字符安全用法"},
+    {"id": "permissions-users", "label": "权限与用户", "topics": ["permissions"], "scope": "chmod、chown、chgrp、umask、id、whoami、groups、sudo 常见安全用法"},
+    {"id": "process", "label": "进程与服务", "topics": ["process"], "scope": "ps、pgrep、pkill、kill、nohup、nice、renice、time、top 常见参数"},
+    {"id": "network", "label": "网络与远程", "topics": ["network"], "scope": "ssh、scp、rsync、curl、wget、nc、ss/lsof 网络排查和传输常见参数"},
+    {"id": "archive", "label": "归档压缩", "topics": ["archive", "files"], "scope": "tar、gzip、gunzip、zip、unzip、xz、zstd 常见参数"},
+    {"id": "safety", "label": "安全危险操作", "topics": ["safety"], "scope": "rm、dd、mkfs、shutdown、reboot、chmod/chown 递归、覆盖重定向等危险操作的安全替代和预览"},
+]
 MAX_MESSAGE_BYTES = 1024 * 1024
 MAX_ITEMS = 2000
 MAX_FIELD_LENGTH = 4000
@@ -72,6 +113,9 @@ DANGEROUS_EXAMPLE_RE = re.compile(
 )
 POSSIBLE_SECRET_RE = re.compile(
     r"api[_-]?key|secret|token\s*[=:]\s*[a-z0-9_-]{12,}", re.IGNORECASE
+)
+SHELL_DEFAULT_DANGER_WARNING = (
+    "这是高风险操作，执行前请确认目标、先备份或先使用预览/ dry-run 方式验证。"
 )
 # 镜像 shared/validation-rules.json，由 tests/test_validation_consistency.js 防漂移。
 SOURCE_TIERS = {"official", "quasi-official", "community"}
@@ -99,8 +143,15 @@ TOOL_VERSION_COMMANDS = {
 
 
 def load_source_registry():
+    # Resolve the same way as PROJECT_DIR (defined later): the deployed host.py
+    # lives in ~/Library/.../aicli-cheatsheet and reads its siblings (data/,
+    # shared/) from the repo via AICLI_PROJECT_DIR. Falling back to __file__
+    # would look beside the deployed copy where shared/ does not exist.
+    base_dir = os.environ.get("AICLI_PROJECT_DIR") or os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))
+    )
     registry_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        base_dir,
         "shared",
         "source-registry.json",
     )
@@ -358,6 +409,15 @@ class ValidationError(ValueError):
     """Raised when a native message or generated dataset is invalid."""
 
 
+class TruncatedGenerationError(ValidationError):
+    """Raised when the model stops at the max_tokens cap and the output is truncated.
+
+    Subclasses ValidationError so existing handlers still catch it, while the
+    aggregate pipeline can detect truncation specifically and retry the batch
+    with a smaller item budget instead of aborting the whole operation.
+    """
+
+
 def read_message():
     raw_length = sys.stdin.buffer.read(4)
     if not raw_length:
@@ -390,6 +450,23 @@ def validate_tool_id(tool_id):
     if tool_id in RESERVED_TOOL_IDS:
         raise ValidationError(f"工具 ID「{tool_id}」是保留名称")
     return tool_id
+
+
+def overbroad_add_tool_error(tool_id, display_name):
+    normalized_name = re.sub(r"[\s_]+", "-", display_name.strip().lower())
+    if tool_id == "shell" or normalized_name in SHELL_TOOL_ALIASES:
+        return None
+    if tool_id not in OVERBROAD_ADD_TOOL_IDS and normalized_name not in OVERBROAD_ADD_TOOL_NAMES:
+        return None
+    return (
+        "这个名称范围过大，容易生成内容过长被截断。请拆分为具体工具或命令集，"
+        "例如 Bash、Zsh、PowerShell、GNU Coreutils 或 findutils。"
+    )
+
+
+def is_shell_add_request(tool_id, display_name):
+    normalized_name = re.sub(r"[\s_]+", "-", display_name.strip().lower())
+    return tool_id in SHELL_TOOL_ALIASES or normalized_name in SHELL_TOOL_ALIASES
 
 
 def tool_data_path(tool_id):
@@ -427,6 +504,13 @@ def validate_request(message):
     display_name = display_name.strip()
     if len(display_name) > 100:
         raise ValidationError("工具名称最长 100 个字符")
+    if action == "add_tool":
+        if is_shell_add_request(tool_id, display_name):
+            tool_id = "shell"
+            display_name = "Shell"
+        scope_error = overbroad_add_tool_error(tool_id, display_name)
+        if scope_error:
+            raise ValidationError(scope_error)
     return {
         "action": action,
         "tool": tool_id,
@@ -489,15 +573,58 @@ def checked_text(value, field, *, required=True):
 
 
 def stable_item_id(tool_id, item):
+    shell = item.get("shell") if isinstance(item.get("shell"), dict) else {}
     seed = "\0".join(
         [
             tool_id,
             item["cat"],
             item.get("context", ""),
+            shell.get("family", ""),
+            shell.get("portability", ""),
             item["en"].casefold(),
         ]
     )
     return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
+
+
+def validate_shell_meta(item, expected_tool_id, field):
+    shell = item.get("shell")
+    if shell is None:
+        return None
+    if expected_tool_id != "shell":
+        raise ValidationError(f"{field}.shell 仅允许用于 Shell 聚合工具")
+    if not isinstance(shell, dict):
+        raise ValidationError(f"{field}.shell 必须是对象")
+    layer = checked_text(shell.get("layer"), f"{field}.shell.layer")
+    family = checked_text(shell.get("family"), f"{field}.shell.family")
+    portability = checked_text(shell.get("portability"), f"{field}.shell.portability")
+    topic = checked_text(shell.get("topic"), f"{field}.shell.topic")
+    if layer not in SHELL_LAYERS:
+        raise ValidationError(f"{field}.shell.layer 非法")
+    if portability not in SHELL_PORTABILITIES:
+        raise ValidationError(f"{field}.shell.portability 非法")
+    if topic not in SHELL_TOPICS:
+        raise ValidationError(f"{field}.shell.topic 非法")
+    if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", family):
+        raise ValidationError(f"{field}.shell.family 非法")
+    return {
+        "layer": layer,
+        "family": family,
+        "portability": portability,
+        "topic": topic,
+    }
+
+
+def apply_shell_danger_fallback(clean_example, warning):
+    if warning or not DANGEROUS_EXAMPLE_RE.search(clean_example["value"]):
+        return warning
+    clean_example["warning"] = SHELL_DEFAULT_DANGER_WARNING
+    clean_example["copyable"] = False
+    return SHELL_DEFAULT_DANGER_WARNING
+
+
+def should_regenerate_invalid_item_id(expected_tool_id):
+    return expected_tool_id == "shell"
 
 
 def validate_dataset(payload, expected_tool_id, require_structured_source=True):
@@ -752,6 +879,9 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         context = checked_text(item.get("context"), f"items[{index}].context", required=False)
         if context:
             clean_item["context"] = context
+        shell_meta = validate_shell_meta(item, expected_tool_id, f"items[{index}]")
+        if shell_meta:
+            clean_item["shell"] = shell_meta
         raw_refs = item.get("evidenceRefs")
         if raw_refs is None and not require_structured_source:
             raw_source_ids = validate_source_ids(
@@ -791,9 +921,16 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                     clean_keywords.append(keyword)
             if clean_keywords:
                 clean_item["keywords"] = clean_keywords
+        if expected_tool_id == "shell" and "keywords" not in clean_item:
+            raise ValidationError(f"items[{index}].keywords 是 Shell 聚合工具必填字段")
         examples = item.get("examples")
+        # An empty list means "no examples"; examples are optional, so normalize
+        # it to absent instead of failing. Models routinely emit [] rather than
+        # omitting the field, and one such item must not sink a whole batch.
+        if isinstance(examples, list) and not examples:
+            examples = None
         if examples is not None:
-            if not isinstance(examples, list) or not examples or len(examples) > MAX_EXAMPLES:
+            if not isinstance(examples, list) or len(examples) > MAX_EXAMPLES:
                 raise ValidationError(f"items[{index}].examples 必须包含 1 到 {MAX_EXAMPLES} 个示例")
             clean_examples = []
             for example_index, example in enumerate(examples):
@@ -947,6 +1084,8 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                 )
                 if warning:
                     clean_example["warning"] = warning
+                if expected_tool_id == "shell":
+                    warning = apply_shell_danger_fallback(clean_example, warning)
                 if DANGEROUS_EXAMPLE_RE.search(clean_example["value"]) and not warning:
                     raise ValidationError(
                         f"items[{index}].examples[{example_index}] 危险操作必须包含 warning"
@@ -988,6 +1127,8 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                     clean_example["platformValues"] = clean_values
                 clean_examples.append(clean_example)
             clean_item["examples"] = clean_examples
+        if expected_tool_id == "shell" and DANGEROUS_EXAMPLE_RE.search(clean_item["cmd"]) and not clean_item.get("examples"):
+            raise ValidationError(f"items[{index}] 高风险 Shell 条目必须提供示例和 warning")
         item_platforms = item.get("platforms")
         if item_platforms is not None:
             if (
@@ -1009,7 +1150,13 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                     command, f"items[{index}].platformCmds.{platform}"
                 )
             clean_item["platformCmds"] = clean_platform_cmds
-        duplicate_key = (category, clean_item["cmd"].casefold(), (context or "").casefold())
+        duplicate_key = (
+            category,
+            clean_item["cmd"].casefold(),
+            (context or "").casefold(),
+            (shell_meta or {}).get("family", "").casefold(),
+            (shell_meta or {}).get("portability", "").casefold(),
+        )
         if duplicate_key in duplicate_keys:
             dropped += 1
             continue
@@ -1020,7 +1167,11 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         if not generated_id:
             item_id = checked_text(item_id, f"items[{index}].id")
             if not re.fullmatch(r"[a-zA-Z0-9_-]{4,64}", item_id):
-                raise ValidationError(f"items[{index}].id 格式非法")
+                if should_regenerate_invalid_item_id(expected_tool_id):
+                    item_id = stable_item_id(expected_tool_id, clean_item)
+                    generated_id = True
+                else:
+                    raise ValidationError(f"items[{index}].id 格式非法")
         else:
             item_id = stable_item_id(expected_tool_id, clean_item)
         if item_id in item_ids:
@@ -1063,8 +1214,9 @@ def build_quality_warnings(dataset, previous_dataset=None):
     covered = sum(1 for item in items if item.get("examples"))
     keyword_covered = sum(1 for item in items if item.get("keywords"))
     expected = len(items)
+    is_shell = dataset.get("meta", {}).get("id") == "shell"
     warnings = []
-    if covered < expected:
+    if covered < expected and not is_shell:
         warnings.append(f"示例覆盖不足：当前 {covered} 条，目标 {expected} 条")
     if keyword_covered < expected:
         warnings.append(f"语义关键词覆盖不足：当前 {keyword_covered} 条，目标 {expected} 条")
@@ -1305,6 +1457,12 @@ JSON 格式：
       "en": "简短英文说明",
       "zh": "清晰中文说明",
       "context": "可选；相同 cmd 在不同场景出现时必须填写",
+      "shell": {{
+        "layer": "仅 Shell 聚合工具使用：syntax|builtin|posix-utility|gnu-utility|bsd-utility|linux-utility|external-tool",
+        "family": "仅 Shell 聚合工具使用：bash、zsh、posix-sh、coreutils、findutils、grep、sed、awk、procps、network 等小写短横线 ID",
+        "portability": "仅 Shell 聚合工具使用：posix|bash|zsh|gnu|bsd|linux|macos|cross-platform",
+        "topic": "仅 Shell 聚合工具使用：navigation|files|text|search|process|permissions|network|scripting|archive|safety|environment|disk"
+      }},
       "keywords": ["3到8个用户常用用途词"],
       "evidenceStatus": "verified|partial|unverified",
       "evidenceRefs": [{{
@@ -1345,13 +1503,14 @@ JSON 格式：
 要求：
 1. {source_policy}
 2. 按功能区覆盖核心能力，不设凑数目标。CLI 应覆盖交互命令、重要子命令及关键选项；IDE 只收录默认快捷键的实用子集，并明确平台和限制。
+2a. 若目标工具是 Shell 聚合工具，必须为每个 item 填写 shell.layer、shell.family、shell.portability、shell.topic；Shell 按手册级参数表方向覆盖主要命令族和常见参数，但不要复刻极冷门历史参数。
 3. flag 类条目的 cmd 写成「子命令 + 选项」的完整形式（例如 git commit -m、git log --oneline），并用 context 标注所属子命令。
 4. 同一 cat、cmd、context 组合不得重复。
 5. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。{upgrade_note}
 6. 所有字符串必须是有效 JSON 字符串。
 7. sources、updatePolicy、contentCheckedAt、sourceCheckedAt、coverage 必须填写；updatedAt 仅为旧数据兼容字段，新数据可省略。网页来源必须记录 resolvedUrl、pageTitle、checkedAt。每个 item 必须提供 evidenceRefs，evidenceStatus 由系统根据 claims 自动推导，不要臆测；平台快捷键应尽量使用 platformCmds 表达。
 8. verified 必须同时有 existence 与 semantics 断言且 locator 可具体定位；只有宽泛首页或只确认命令存在时只能是 partial；无证据为 unverified。
-9. 每个条目都必须提供 keywords 和 examples；每条最多 3 个示例。
+9. 每个条目都必须提供 keywords；除 Shell 聚合工具的非核心参数表条目外，每个条目都必须提供 examples；每条最多 3 个示例。Shell 的核心、高频、危险、易错或平台差异参数必须提供 examples、caveat 或 warning。
 10. updatePolicy 按实际变化方式选择：可读取本机版本的动态 CLI 用 version-driven；有明确官方 Release/Changelog 但无可靠本机版本的工具用 release-driven；稳定快捷键、键位表和基础命令参考用 manual-only。不得因为核验日期较早选择更激进的策略。
 11. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；案例应包含 scenario、goal、expected，说明何时用、结果是什么以及不要与什么混淆。
 12. 更新时保留已有 keywords 和 examples，并为所有新增条目补充关键词和示例。
@@ -1418,12 +1577,39 @@ def _demote_quasi_official(dataset):
     return dataset
 
 
-def _call_api_direct(prompt):
+# Output-token cap for direct API calls. Raised from 16384 to give a full Shell
+# batch enough headroom that truncation is rare; the shrink-on-truncation retry
+# in run_shell_aggregate_query covers the remaining cases. Stays well under the
+# 64K Sonnet limit. Override with AICLI_API_MAX_TOKENS for gateways whose model
+# caps output lower (the value is range-checked so a bad override can't 400 the
+# request); out-of-range or non-numeric overrides fall back to the default.
+API_MAX_TOKENS_DEFAULT = 32000
+API_MAX_TOKENS_MIN = 1024
+API_MAX_TOKENS_MAX = 64000
+
+
+def resolve_api_max_tokens():
+    raw = os.environ.get("AICLI_API_MAX_TOKENS")
+    if not raw:
+        return API_MAX_TOKENS_DEFAULT
+    try:
+        value = int(raw.strip())
+    except (AttributeError, ValueError):
+        return API_MAX_TOKENS_DEFAULT
+    if value < API_MAX_TOKENS_MIN or value > API_MAX_TOKENS_MAX:
+        return API_MAX_TOKENS_DEFAULT
+    return value
+
+
+def _call_api_direct(prompt, max_tokens=None):
     """直接调用 Anthropic 兼容 API（仅用标准库），绕过 claude -p 的技能/计划模式。
 
     复用环境变量：ANTHROPIC_BASE_URL、ANTHROPIC_AUTH_TOKEN/ANTHROPIC_API_KEY、ANTHROPIC_MODEL。
     没有 token 时返回 None，让调用方回退到 claude 子进程。
+    被 max_tokens 截断时抛出 TruncatedGenerationError，调用方可缩小范围后重试。
     """
+    if max_tokens is None:
+        max_tokens = resolve_api_max_tokens()
     token = os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get("ANTHROPIC_API_KEY")
     if not token:
         return None
@@ -1441,7 +1627,7 @@ def _call_api_direct(prompt):
 
     payload = json.dumps({
         "model": model,
-        "max_tokens": 16384,
+        "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }).encode("utf-8")
 
@@ -1461,8 +1647,9 @@ def _call_api_direct(prompt):
             raise ValidationError(f"API 错误 {resp.status}：{body[:500]}")
         data = json.loads(body)
         if data.get("stop_reason") == "max_tokens":
-            raise ValidationError(
-                "生成内容过长被截断（已达 max_tokens 上限），请重试或拆分该工具的命令范围"
+            raise TruncatedGenerationError(
+                "生成内容过长被截断（已达 max_tokens 上限）。请拆分该工具的命令范围后重试，"
+                "例如把 Shell/Terminal 拆成 Bash、Zsh、PowerShell、GNU Coreutils 或 findutils。"
             )
         parts = data.get("content", [])
         text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
@@ -1538,6 +1725,267 @@ def _run_generation_prompt(prompt, use_api, prefer_web=False):
         if api_text is not None:
             return extract_json_output(api_text)
     return _call_claude_cli(prompt, prefer_web)
+
+
+def build_shell_batch_prompt(discovered_sources, batch, web_enabled, max_items=SHELL_BATCH_MAX_ITEMS):
+    base = build_prompt(
+        "shell",
+        "Shell",
+        "add",
+        web_enabled,
+        discovered_sources=discovered_sources,
+    )
+    batch_list = "\n".join(
+        f"- {entry['label']}（id: {entry['id']}，topics: {', '.join(entry['topics'])}，scope: {entry['scope']}）"
+        for entry in SHELL_BATCHES
+    )
+    return f"""
+{base}
+
+Shell 聚合工具采用小批次生成。你现在只生成本批次，不要输出其他批次内容。
+本批次：{batch['label']}（id: {batch['id']}，topics: {', '.join(batch['topics'])}，scope: {batch['scope']}）
+全部批次：
+{batch_list}
+
+批次要求：
+1. meta.id 必须为 shell，meta.name 必须为 Shell，builtIn 为 false，order 为 999。
+2. items 只覆盖本批次主题；每个 item 必须填写 shell.layer、shell.family、shell.portability、shell.topic。
+3. 按手册级参数表方向覆盖本批次主要命令族和常见参数；不要包含极冷门历史兼容参数。
+4. 本批次最多输出 {max_items} 个 items。超过上限时优先保留最常查、最易错、最能代表该 scope 的条目。
+5. 所有 item 必须有 keywords 和 evidenceRefs。核心、高频、危险、易错、平台差异参数必须有 examples；普通参数表条目可以省略 examples。
+6. 每个 item 最多 1 个 example；非必要不要写 example，避免输出过长。
+7. 危险示例（删除、覆盖、权限修改、进程中断、系统重启、远程脚本执行等）必须提供 warning，必须设置 copyable=false；warning 应提醒先确认目标、备份，或优先使用预览/dry-run。
+8. 同一批次内不要重复 cat + cmd + context + shell.family + shell.portability。
+""".strip()
+
+
+def shell_registered_discovery():
+    today = datetime.date.today().isoformat()
+    sources = []
+    for entry in SOURCE_REGISTRY:
+        if "shell" not in entry.get("toolIds", []):
+            continue
+        source = {
+            "id": entry["id"],
+            "title": entry["title"],
+            "kind": entry["kind"],
+            "maintainer": entry["maintainer"],
+            "evidenceTier": entry["evidenceTier"],
+            "lastVerifiedAt": entry.get("lastVerifiedAt") or today,
+            "purposes": entry.get("purposes", []),
+        }
+        if entry["kind"] != "local-help":
+            source["url"] = entry["canonicalUrl"]
+            source["resolvedUrl"] = entry["canonicalUrl"]
+            source["pageTitle"] = entry["title"]
+            source["checkedAt"] = today
+        sources.append(source)
+    if not sources:
+        raise ValidationError("Shell 来源登记为空，无法生成聚合数据")
+    return {
+        "sources": sources,
+        "conflicts": [],
+        "notes": ["Shell 聚合使用已登记来源，跳过模型来源发现以避免输出截断。"],
+    }
+
+
+ITEM_INDEX_RE = re.compile(r"items\[(\d+)\]")
+
+
+def validate_shell_batch_tolerant(raw):
+    """Validate a shell batch, dropping individual non-conforming items.
+
+    Model output is non-deterministic, so a 12-item batch occasionally contains
+    one item with an out-of-enum field or a missing required field. Losing the
+    whole batch over a single bad item is the wrong trade-off for a best-effort
+    aggregate, so drop the offending item (identified by the items[N] index in
+    the validation error) and revalidate until the batch passes. Returns
+    (dataset, dropped_count). Re-raises any error not tied to a specific item.
+    """
+    if not isinstance(raw, dict) or not isinstance(raw.get("items"), list):
+        return validate_dataset(raw, "shell"), 0
+    items = list(raw["items"])
+    dropped = 0
+    while True:
+        candidate = dict(raw)
+        candidate["items"] = items
+        try:
+            return validate_dataset(candidate, "shell"), dropped
+        except ValidationError as exc:
+            match = ITEM_INDEX_RE.search(str(exc))
+            if match is None:
+                raise
+            index = int(match.group(1))
+            if not 0 <= index < len(items):
+                raise
+            items = items[:index] + items[index + 1:]
+            dropped += 1
+
+
+def compact_shell_batch_payload(raw, max_items=SHELL_BATCH_MAX_ITEMS):
+    if not isinstance(raw, dict):
+        return raw
+    items = raw.get("items")
+    if isinstance(items, list):
+        raw["items"] = items[:max_items]
+        for item in raw["items"]:
+            if isinstance(item, dict) and isinstance(item.get("examples"), list):
+                item["examples"] = item["examples"][:1]
+    return raw
+
+
+def evidence_strength(dataset):
+    source_score = {"first-party": 3, "authoritative-community": 2, "community": 1}
+    status_score = {"verified": 3, "partial": 2, "unverified": 1}
+    source_by_id = {source["id"]: source for source in dataset.get("meta", {}).get("sources", [])}
+    total = 0
+    for item in dataset.get("items", []):
+        total += status_score.get(item.get("evidenceStatus"), 0)
+        for ref in item.get("evidenceRefs", []) or []:
+            total += source_score.get(source_by_id.get(ref.get("sourceId"), {}).get("evidenceTier"), 0)
+        total += 1 if item.get("examples") else 0
+        total += 1 if item.get("keywords") else 0
+    return total
+
+
+def shell_duplicate_key(item):
+    shell = item.get("shell") or {}
+    return (
+        item.get("cat", ""),
+        str(item.get("cmd", "")).casefold(),
+        str(item.get("context", "")).casefold(),
+        str(shell.get("family", "")).casefold(),
+        str(shell.get("portability", "")).casefold(),
+    )
+
+
+def merge_shell_datasets(datasets):
+    if not datasets:
+        raise ValidationError("Shell 聚合没有生成任何批次")
+    today = datetime.date.today().isoformat()
+    first = datasets[0]
+    merged_meta = dict(first["meta"])
+    merged_meta.update({
+        "id": "shell",
+        "name": "Shell",
+        "source": f"Shell 聚合来源分批整理，整理于 {today}",
+        "coverage": "Shell 聚合手册级参数表：按语法、内建命令、POSIX/GNU/BSD/Linux 工具族分批覆盖主要命令和常见参数",
+        "updatePolicy": "manual-only",
+        "contentCheckedAt": today,
+        "sourceCheckedAt": today,
+        "builtIn": False,
+        "order": 999,
+        "platforms": ["mac", "linux"],
+    })
+    sources = []
+    seen_sources = set()
+    for dataset in datasets:
+        for source in dataset.get("meta", {}).get("sources", []) or []:
+            if source["id"] in seen_sources:
+                continue
+            seen_sources.add(source["id"])
+            sources.append(source)
+    if sources:
+        merged_meta["sources"] = sources
+        primary = next((source for source in sources if source.get("url")), None)
+        if primary:
+            merged_meta["sourceUrl"] = primary["url"]
+            merged_meta["sourceTier"] = "official" if primary.get("evidenceTier") == "first-party" else "community"
+
+    by_key = {}
+    by_key_score = {}
+    for dataset in datasets:
+        dataset_score = evidence_strength(dataset)
+        for item in dataset.get("items", []):
+            key = shell_duplicate_key(item)
+            item_score = dataset_score + (3 if item.get("examples") else 0) + len(item.get("evidenceRefs", []) or [])
+            if key not in by_key or item_score > by_key_score[key]:
+                by_key[key] = item
+                by_key_score[key] = item_score
+    merged = {
+        "meta": merged_meta,
+        "items": list(by_key.values()),
+        "sourceConflicts": [
+            conflict
+            for dataset in datasets
+            for conflict in (dataset.get("sourceConflicts") or [])
+        ],
+        "summary": f"Shell 聚合生成 {len(datasets)} 个批次，合并 {len(by_key)} 条",
+    }
+    return validate_dataset(merged, "shell")
+
+
+def _generate_shell_batch(discovered, batch, web_enabled, use_api, prefer_web):
+    """Generate one shell batch, shrinking the item budget on truncation.
+
+    Model output length is non-deterministic, so a batch can occasionally exceed
+    the output cap even within scope. Instead of aborting the whole aggregate,
+    retry the same batch asking for fewer items until it fits or hits the floor.
+    Returns (dataset, dropped_count) where dropped_count is the number of
+    non-conforming items skipped during validation.
+    """
+    max_items = SHELL_BATCH_MAX_ITEMS
+    while True:
+        prompt = build_shell_batch_prompt(discovered, batch, web_enabled, max_items=max_items)
+        try:
+            raw = _run_generation_prompt(prompt, use_api, prefer_web)
+        except TruncatedGenerationError:
+            if max_items <= SHELL_BATCH_MIN_ITEMS:
+                raise TruncatedGenerationError(
+                    f"Shell 聚合批次「{batch['label']}」缩减到 {max_items} 条仍超出长度上限，"
+                    "请稍后重试或改用更小的专用工具。"
+                )
+            max_items = max(SHELL_BATCH_MIN_ITEMS, max_items // 2)
+            continue
+        if use_api:
+            raw = _demote_quasi_official(raw)
+        raw = compact_shell_batch_payload(raw, max_items=max_items)
+        return validate_shell_batch_tolerant(raw)
+
+
+def run_shell_aggregate_query(prefer_web=False):
+    use_api = _has_api_token() and not prefer_web
+    web_enabled = not use_api
+    discovered = shell_registered_discovery()
+    datasets = []
+    total_dropped = 0
+    skipped_batches = []
+    for batch in SHELL_BATCHES:
+        try:
+            batch_dataset, dropped = _generate_shell_batch(
+                discovered, batch, web_enabled, use_api, prefer_web
+            )
+        except ValidationError as exc:
+            # A batch that yields no usable data (empty output, every item
+            # dropped, or still truncated at the floor) must not sink the whole
+            # aggregate. Some scopes — notably the abstract syntax batches — are
+            # a poor fit for the command-table schema; skip them and keep going,
+            # then surface the gap as a quality warning. Only fail if nothing
+            # survives at all.
+            skipped_batches.append(batch["label"])
+            continue
+        datasets.append(batch_dataset)
+        total_dropped += dropped
+    if not datasets:
+        raise ValidationError(
+            "Shell 聚合所有批次都未能生成有效数据，请稍后重试，或检查 API 配置与额度。"
+        )
+    dataset = merge_shell_datasets(datasets)
+    dataset["meta"]["verificationStatus"] = "model-knowledge" if use_api else "web-assisted"
+    warnings = list(dataset.get("qualityWarnings", []))
+    if total_dropped:
+        warnings.append(
+            f"已跳过 {total_dropped} 条模型输出不合规的条目（保留其余有效条目）。"
+        )
+    if skipped_batches:
+        warnings.append(
+            "以下批次本次未生成有效数据，已跳过："
+            + "、".join(skipped_batches)
+            + "。可稍后重试补全。"
+        )
+    if warnings:
+        dataset["qualityWarnings"] = warnings
+    return dataset
 
 
 HTTP_PROBE_RETRIES = 2
@@ -2056,9 +2504,16 @@ def parse_data_file(content, expected_tool_id):
 
 
 def add_tool(tool_id, display_name, prefer_web=False):
+    if is_shell_add_request(tool_id, display_name):
+        tool_id = "shell"
+        display_name = "Shell"
     if os.path.exists(tool_data_path(tool_id)):
         raise ValidationError(f"data/{tool_id}.js 已存在，请使用更新模式")
-    dataset = run_claude_query(tool_id, display_name, "add", prefer_web)
+    dataset = (
+        run_shell_aggregate_query(prefer_web)
+        if tool_id == "shell"
+        else run_claude_query(tool_id, display_name, "add", prefer_web)
+    )
     data_path = tool_data_path(tool_id)
     new_content = render_data_file(dataset)
     atomic_write(data_path, new_content)
