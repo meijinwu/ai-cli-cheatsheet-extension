@@ -22,9 +22,9 @@ const ADAPTATIONS = rules.adaptations;
 const EVIDENCE_STATUSES = rules.evidenceStatuses;
 const EVIDENCE_CLAIMS = rules.evidenceClaims;
 const EXAMPLE_SOURCE_TYPES = ["official", "quasi-official", "manual", "ai-derived"];
-const SHELL_LAYERS = ["syntax", "builtin", "posix-utility", "gnu-utility", "bsd-utility", "linux-utility", "external-tool"];
-const SHELL_PORTABILITIES = ["posix", "bash", "zsh", "gnu", "bsd", "linux", "macos", "cross-platform"];
-const SHELL_TOPICS = ["navigation", "files", "text", "search", "process", "permissions", "network", "scripting", "archive", "safety", "environment", "disk"];
+const SHELL_LAYERS = ["syntax", "keyword", "builtin", "option", "shortcut", "config"];
+const SHELL_PORTABILITIES = ["posix", "bash", "zsh", "cross-platform"];
+const SHELL_TOPICS = ["builtins", "syntax", "shortcuts", "config", "environment", "history", "completion", "scripting", "jobs", "troubleshooting"];
 const REGISTRY_BY_ID = new Map(sourceRegistry.entries.map((entry) => [entry.id, entry]));
 
 const context = { window: {} };

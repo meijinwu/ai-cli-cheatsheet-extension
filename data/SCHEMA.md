@@ -35,11 +35,11 @@
   en: "英文官方说明（简短）",
   zh: "中文说明（讲清楚用途，不是字面翻译）",
   context: "编辑器 / 集成终端",            // 可选；相同 cmd 在不同场景出现时必填
-  shell: {                                  // 仅 Shell 聚合工具使用；普通工具不得填写
-    layer: "syntax",                        // syntax / builtin / posix-utility / gnu-utility / bsd-utility / linux-utility / external-tool
-    family: "bash",                         // bash / zsh / posix-sh / coreutils / findutils / grep / sed / awk / procps / network 等小写短横线 ID
-    portability: "bash",                    // posix / bash / zsh / gnu / bsd / linux / macos / cross-platform
-    topic: "scripting"                      // navigation / files / text / search / process / permissions / network / scripting / archive / safety / environment / disk
+  shell: {                                  // 仅 Shell 聚合工具使用；普通工具不得填写。Shell 仅含解释器与终端环境本体，外部 CLI 工具不收录
+    layer: "syntax",                        // syntax / keyword / builtin / option / shortcut / config
+    family: "bash",                         // 只能是 posix-sh / bash / zsh（Shell 本体）；不要用 coreutils / grep / sed 等外部工具族
+    portability: "bash",                    // posix / bash / zsh / cross-platform
+    topic: "scripting"                      // builtins / syntax / shortcuts / config / environment / history / completion / scripting / jobs / troubleshooting
   },
   keywords: ["替换", "批量替换"],          // 用户常用语义词，3 到 8 个（仓库提交数据必填，见“校验契约”）
   evidenceRefs: [{

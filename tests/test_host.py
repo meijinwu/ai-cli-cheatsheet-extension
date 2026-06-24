@@ -70,16 +70,16 @@ def valid_shell_dataset():
     dataset["meta"]["coverage"] = "Shell aggregate parameter table"
     dataset["items"][0].update({
         "cat": "flag",
-        "cmd": "grep -R",
-        "en": "Search directories recursively",
-        "zh": "递归搜索目录文本",
-        "context": "文本搜索",
-        "keywords": ["递归搜索", "文本查找", "目录搜索"],
+        "cmd": "type -a",
+        "en": "List every location of a command name",
+        "zh": "列出命令名的所有来源，排查别名遮蔽",
+        "context": "命令来源排查",
+        "keywords": ["命令来源", "排错", "PATH"],
         "shell": {
-            "layer": "gnu-utility",
-            "family": "grep",
-            "portability": "gnu",
-            "topic": "text",
+            "layer": "builtin",
+            "family": "bash",
+            "portability": "bash",
+            "topic": "troubleshooting",
         },
     })
     return dataset
@@ -119,19 +119,19 @@ class HostValidationTests(unittest.TestCase):
         payload = valid_shell_dataset()
         payload["items"].append(dict(
             payload["items"][0],
-            en="BSD recursive search",
+            en="zsh command source lookup",
             shell={
-                "layer": "bsd-utility",
-                "family": "grep",
-                "portability": "bsd",
-                "topic": "text",
+                "layer": "builtin",
+                "family": "zsh",
+                "portability": "zsh",
+                "topic": "troubleshooting",
             },
         ))
         dataset = host.validate_dataset(payload, "shell")
         self.assertEqual(len(dataset["items"]), 2)
-        self.assertEqual(dataset["items"][0]["shell"]["family"], "grep")
+        self.assertEqual(dataset["items"][0]["shell"]["family"], "bash")
 
-        payload["items"][1]["shell"]["layer"] = "manual-page"
+        payload["items"][1]["shell"]["layer"] = "utility"
         with self.assertRaisesRegex(host.ValidationError, "shell.layer"):
             host.validate_dataset(payload, "shell")
 
@@ -657,6 +657,42 @@ class HostFileTests(unittest.TestCase):
         )
         self.assertIn("最多输出 4 个 items", prompt)
 
+    def test_shell_scope_is_interpreter_proper_not_external_utilities(self):
+        # Shell == sh/POSIX/bash/zsh interpreter and terminal environment.
+        # The old utility layers (gnu-utility, posix-utility, ...) must be gone.
+        for stale in ("gnu-utility", "posix-utility", "bsd-utility", "external-tool"):
+            self.assertNotIn(stale, host.SHELL_LAYERS)
+        self.assertEqual(host.SHELL_PORTABILITIES, {"posix", "bash", "zsh", "cross-platform"})
+        # Every batch topic must be a declared shell topic (kept in sync).
+        for batch in host.SHELL_BATCHES:
+            for topic in batch["topics"]:
+                self.assertIn(topic, host.SHELL_TOPICS, f"{batch['id']}:{topic}")
+
+    def test_shell_batch_prompt_excludes_external_clis(self):
+        discovered = {
+            "sources": valid_shell_dataset()["meta"]["sources"],
+            "conflicts": [],
+            "notes": [],
+        }
+        prompt = host.build_shell_batch_prompt(discovered, host.SHELL_BATCHES[0], True)
+        self.assertIn("外部 CLI 工具不属于 Shell", prompt)
+        for external in ("git", "docker", "npm", "grep", "claude"):
+            self.assertIn(external, prompt)
+        self.assertIn("posix-sh、bash、zsh", prompt)
+
+    def test_shell_aggregate_coverage_states_external_tools_excluded(self):
+        with mock.patch.object(host, "SHELL_BATCHES", [host.SHELL_BATCHES[0]]), mock.patch.object(
+            host, "_has_api_token", return_value=True
+        ), mock.patch.object(
+            host, "build_shell_batch_prompt", return_value="PROMPT"
+        ), mock.patch.object(
+            host, "_run_generation_prompt", return_value=valid_shell_dataset()
+        ), mock.patch.object(
+            host, "_demote_quasi_official", side_effect=lambda dataset: dataset
+        ):
+            dataset = host.run_shell_aggregate_query(prefer_web=False)
+        self.assertIn("不归入 Shell", dataset["meta"]["coverage"])
+
     def test_shell_aggregate_retries_truncated_batch_with_smaller_budget(self):
         captured_budgets = []
 
@@ -688,17 +724,17 @@ class HostFileTests(unittest.TestCase):
             payload["items"][0],
             en="Item with bad portability",
             shell={
-                "layer": "gnu-utility",
-                "family": "grep",
+                "layer": "builtin",
+                "family": "bash",
                 "portability": "totally-invalid",
-                "topic": "text",
+                "topic": "builtins",
             },
         )
         payload["items"].append(bad)
         dataset, dropped = host.validate_shell_batch_tolerant(payload)
         self.assertEqual(dropped, 1)
         self.assertEqual(len(dataset["items"]), 1)
-        self.assertEqual(dataset["items"][0]["en"], "Search directories recursively")
+        self.assertEqual(dataset["items"][0]["en"], "List every location of a command name")
 
     def test_validate_shell_batch_tolerant_raises_when_all_items_invalid(self):
         payload = valid_shell_dataset()
@@ -712,10 +748,10 @@ class HostFileTests(unittest.TestCase):
             batch["items"][0],
             en="Doomed item",
             shell={
-                "layer": "gnu-utility",
-                "family": "sed",
+                "layer": "builtin",
+                "family": "zsh",
                 "portability": "totally-invalid",
-                "topic": "text",
+                "topic": "builtins",
             },
         ))
         with mock.patch.object(host, "SHELL_BATCHES", [host.SHELL_BATCHES[0]]), mock.patch.object(
