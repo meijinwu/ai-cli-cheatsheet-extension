@@ -125,6 +125,10 @@ POSSIBLE_SECRET_RE = re.compile(
 SHELL_DEFAULT_DANGER_WARNING = (
     "这是高风险操作，执行前请确认目标、先备份或先使用预览/ dry-run 方式验证。"
 )
+# A risky example must carry a safer-preview/backup step in its caveat (mirrors
+# the committed-data gate in tests/test_usage_examples.js).
+SHELL_SAFE_PREVIEW_RE = re.compile(r"预览|备份|确认|检查|隔离|只读")
+SHELL_DEFAULT_DANGER_CAVEAT = "执行前先确认目标，必要时先备份或用预览/ dry-run 方式验证。"
 # 镜像 shared/validation-rules.json，由 tests/test_validation_consistency.js 防漂移。
 SOURCE_TIERS = {"official", "quasi-official", "community"}
 EXAMPLE_SOURCE_TYPES = {"official", "quasi-official", "manual", "ai-derived"}
@@ -624,11 +628,46 @@ def validate_shell_meta(item, expected_tool_id, field):
 
 
 def apply_shell_danger_fallback(clean_example, warning):
-    if warning or not DANGEROUS_EXAMPLE_RE.search(clean_example["value"]):
+    if not DANGEROUS_EXAMPLE_RE.search(clean_example["value"]):
         return warning
-    clean_example["warning"] = SHELL_DEFAULT_DANGER_WARNING
-    clean_example["copyable"] = False
-    return SHELL_DEFAULT_DANGER_WARNING
+    if not warning:
+        clean_example["warning"] = SHELL_DEFAULT_DANGER_WARNING
+        clean_example["copyable"] = False
+        warning = SHELL_DEFAULT_DANGER_WARNING
+    # A dangerous example must also spell out a safer-preview/backup step in its
+    # caveat, or the committed-data linter rejects it. Append a standard note if
+    # the model's caveat (if any) lacks one.
+    caveat = clean_example.get("caveat", "")
+    if not SHELL_SAFE_PREVIEW_RE.search(caveat):
+        clean_example["caveat"] = (
+            caveat + "；" + SHELL_DEFAULT_DANGER_CAVEAT if caveat else SHELL_DEFAULT_DANGER_CAVEAT
+        )
+    return warning
+
+
+def prune_unused_sources(dataset):
+    """Drop meta.sources not referenced by any item evidenceRef or example sourceId.
+
+    Mirrors the validate-data.js "unused evidence sources" gate so freshly
+    generated data is closer to committable. Never prunes to empty (the schema
+    requires at least one source for generated data).
+    """
+    meta = dataset.get("meta") or {}
+    sources = meta.get("sources")
+    if not isinstance(sources, list) or not sources:
+        return dataset
+    used = set()
+    for item in dataset.get("items", []):
+        for ref in item.get("evidenceRefs", []) or []:
+            if ref.get("sourceId"):
+                used.add(ref["sourceId"])
+        for example in item.get("examples", []) or []:
+            for source_id in example.get("sourceIds", []) or []:
+                used.add(source_id)
+    pruned = [source for source in sources if source.get("id") in used]
+    if pruned and len(pruned) != len(sources):
+        meta["sources"] = pruned
+    return dataset
 
 
 def should_regenerate_invalid_item_id(expected_tool_id):
@@ -1994,6 +2033,7 @@ def run_shell_aggregate_query(prefer_web=False):
             "Shell 聚合所有批次都未能生成有效数据，请稍后重试，或检查 API 配置与额度。"
         )
     dataset = merge_shell_datasets(datasets)
+    prune_unused_sources(dataset)
     dataset["meta"]["verificationStatus"] = "model-knowledge" if use_api else "web-assisted"
     warnings = list(dataset.get("qualityWarnings", []))
     if total_dropped:
@@ -2124,6 +2164,7 @@ def run_claude_query(
     elif current and current.get("meta", {}).get("verifiedVersion"):
         raw["meta"]["verifiedVersion"] = current["meta"]["verifiedVersion"]
     dataset = validate_dataset(raw, tool_id)
+    prune_unused_sources(dataset)
     dataset["meta"]["verificationStatus"] = (
         "model-knowledge" if use_api else "web-assisted"
     )

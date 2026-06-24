@@ -727,6 +727,33 @@ class HostFileTests(unittest.TestCase):
             dataset = host.run_shell_aggregate_query(prefer_web=False)
         self.assertIn("不归入 Shell", dataset["meta"]["coverage"])
 
+    def test_prune_unused_sources_drops_unreferenced_keeps_used(self):
+        dataset = host.validate_dataset(valid_shell_dataset(), "shell")
+        extra = dict(dataset["meta"]["sources"][0], id="unused-extra")
+        dataset["meta"]["sources"] = [*dataset["meta"]["sources"], extra]
+        host.prune_unused_sources(dataset)
+        ids = [source["id"] for source in dataset["meta"]["sources"]]
+        self.assertNotIn("unused-extra", ids)
+        self.assertTrue(ids)  # never pruned to empty
+
+    def test_shell_danger_fallback_adds_safe_caveat_even_with_warning(self):
+        example = {"value": 'rm -f "$TMP"', "caveat": "注意引号嵌套"}
+        host.apply_shell_danger_fallback(example, "模型给的警告")
+        self.assertRegex(example["caveat"], host.SHELL_SAFE_PREVIEW_RE)
+
+    def test_shell_danger_fallback_sets_warning_and_caveat_when_missing(self):
+        example = {"value": "dd if=/dev/zero of=/dev/disk2"}
+        warning = host.apply_shell_danger_fallback(example, "")
+        self.assertTrue(warning)
+        self.assertFalse(example["copyable"])
+        self.assertRegex(example.get("caveat", ""), host.SHELL_SAFE_PREVIEW_RE)
+
+    def test_shell_danger_fallback_ignores_safe_examples(self):
+        example = {"value": "cd /tmp", "caveat": "原样保留"}
+        host.apply_shell_danger_fallback(example, "")
+        self.assertEqual(example["caveat"], "原样保留")
+        self.assertNotIn("warning", example)
+
     def test_shell_merge_prefers_bash_manual_as_primary_source(self):
         def source(sid, url):
             return {
