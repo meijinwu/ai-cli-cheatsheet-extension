@@ -702,6 +702,17 @@ class HostFileTests(unittest.TestCase):
         self.assertIn("目标 10", prompt)
         self.assertIn("常用全集", prompt)
 
+    def test_shell_batch_prompt_requests_one_item_per_atomic_element(self):
+        # Shortcuts/operators/keywords/env-vars get consolidated otherwise, which
+        # is why those topics came out thin; require one item per listed element.
+        discovered = {
+            "sources": valid_shell_dataset()["meta"]["sources"],
+            "conflicts": [],
+            "notes": [],
+        }
+        prompt = host.build_shell_batch_prompt(discovered, host.SHELL_BATCHES[0], True)
+        self.assertIn("各生成一个独立 item", prompt)
+
     def test_shell_batch_prompt_excludes_external_clis(self):
         discovered = {
             "sources": valid_shell_dataset()["meta"]["sources"],
