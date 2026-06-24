@@ -518,6 +518,20 @@ class HostFileTests(unittest.TestCase):
         self.assertFalse(result["changed"])
         self.assertIn("稳定资料策略", result["output"])
 
+    def test_deep_check_update_of_shell_uses_aggregate_pipeline(self):
+        # A force-deep-check update of Shell must regenerate via the batch
+        # aggregate (interpreter-only scope), never the generic single-prompt
+        # path, which would clobber the curated built-in.
+        dataset = host.validate_dataset(valid_shell_dataset(), "shell")
+        (self.data_dir / "shell.js").write_text(host.render_data_file(dataset), encoding="utf-8")
+        new_dataset = host.validate_dataset(valid_shell_dataset(), "shell")
+        with mock.patch.object(
+            host, "run_shell_aggregate_query", return_value=new_dataset
+        ) as aggregate, mock.patch.object(host, "run_claude_query") as generic:
+            host.preview_update("shell", "Shell", deep_check=True)
+        aggregate.assert_called_once()
+        generic.assert_not_called()
+
     def test_matching_local_version_skips_model(self):
         dataset = valid_dataset()
         dataset["meta"].update({

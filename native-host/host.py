@@ -2570,14 +2570,21 @@ def preview_update(tool_id, display_name, prefer_web=False, deep_check=False):
                 "output": f"当前为 {signal['marker']}，与已核验版本一致，无需更新。",
                 "updateSignal": signal,
             }
-    new_dataset = run_claude_query(
-        tool_id,
-        display_name,
-        "update",
-        True if (signal or deep_check) else prefer_web,
-        update_context=signal,
-        deep_check=deep_check,
-    )
+    web_for_update = True if (signal or deep_check) else prefer_web
+    if is_shell_add_request(tool_id, display_name):
+        # Shell is a batch-aggregated tool; regenerate via the same pipeline as
+        # add_tool so a (deep-check) update keeps the interpreter-only scope and
+        # batch structure instead of the generic single-prompt path.
+        new_dataset = run_shell_aggregate_query(web_for_update)
+    else:
+        new_dataset = run_claude_query(
+            tool_id,
+            display_name,
+            "update",
+            web_for_update,
+            update_context=signal,
+            deep_check=deep_check,
+        )
     new_dataset["meta"]["builtIn"] = old_dataset["meta"].get("builtIn", False)
     if policy:
         new_dataset["meta"]["updatePolicy"] = policy
