@@ -62,6 +62,15 @@ assert.strictEqual(core.explainMatch(baseItem, "conversation").field, "en");
 assert.strictEqual(core.explainMatch(sedItem, "替换").field, "keywords");
 assert.strictEqual(core.explainMatch(baseItem, "会话").field, "context");
 assert.strictEqual(core.explainMatch(sedItem, "old").field, "examples");
+const shellItem = {
+  cmd: "grep -R",
+  zh: "递归搜索目录文本",
+  en: "Search recursively",
+  shell: { layer: "gnu-utility", family: "grep", portability: "gnu", topic: "text" },
+};
+assert(core.scoreItem(shellItem, "gnu") > 0, "Shell metadata should be searchable");
+assert.strictEqual(core.explainMatch(shellItem, "grep").field, "command");
+assert.strictEqual(core.explainMatch(shellItem, "text").field, "shell");
 assert.strictEqual(core.scoreItem({ cmd: "/permissions", zh: "权限", en: "Permissions" }, "rm"), -1);
 assert.strictEqual(core.scoreItem({ cmd: "sed", zh: "替换", en: "Transforming text" }, "rm"), -1);
 assert(core.scoreItem({ cmd: "rm -rf", zh: "删除目录", en: "Remove directory" }, "rm -rf") > 0);

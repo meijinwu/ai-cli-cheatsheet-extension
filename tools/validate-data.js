@@ -22,6 +22,9 @@ const ADAPTATIONS = rules.adaptations;
 const EVIDENCE_STATUSES = rules.evidenceStatuses;
 const EVIDENCE_CLAIMS = rules.evidenceClaims;
 const EXAMPLE_SOURCE_TYPES = ["official", "quasi-official", "manual", "ai-derived"];
+const SHELL_LAYERS = ["syntax", "builtin", "posix-utility", "gnu-utility", "bsd-utility", "linux-utility", "external-tool"];
+const SHELL_PORTABILITIES = ["posix", "bash", "zsh", "gnu", "bsd", "linux", "macos", "cross-platform"];
+const SHELL_TOPICS = ["navigation", "files", "text", "search", "process", "permissions", "network", "scripting", "archive", "safety", "environment", "disk"];
 const REGISTRY_BY_ID = new Map(sourceRegistry.entries.map((entry) => [entry.id, entry]));
 
 const context = { window: {} };
@@ -53,6 +56,7 @@ function sameSourceHost(left, right) {
 }
 
 function matchesRegisteredSource(toolId, source) {
+  if (toolId === "shell" && source.kind === "local-help") return true;
   const entry = REGISTRY_BY_ID.get(source.registryId || source.id);
   return Boolean(
     entry
@@ -254,6 +258,20 @@ for (const id of files) {
     if (item.context !== undefined && (typeof item.context !== "string" || !item.context.trim())) {
       fail(`${id}[${index}]: invalid context`);
     }
+    if (item.shell !== undefined) {
+      if (id !== "shell") fail(`${id}[${index}]: shell metadata is only allowed for shell`);
+      if (!item.shell || typeof item.shell !== "object" || Array.isArray(item.shell)) {
+        fail(`${id}[${index}]: invalid shell metadata`);
+      }
+      if (!SHELL_LAYERS.includes(item.shell.layer)) fail(`${id}[${index}]: invalid shell.layer`);
+      if (typeof item.shell.family !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(item.shell.family)) {
+        fail(`${id}[${index}]: invalid shell.family`);
+      }
+      if (!SHELL_PORTABILITIES.includes(item.shell.portability)) fail(`${id}[${index}]: invalid shell.portability`);
+      if (!SHELL_TOPICS.includes(item.shell.topic)) fail(`${id}[${index}]: invalid shell.topic`);
+    } else if (id === "shell") {
+      fail(`${id}[${index}]: shell metadata required`);
+    }
     if (typeof item.id !== "string" || !/^[a-zA-Z0-9_-]{4,64}$/.test(item.id)) {
       fail(`${id}[${index}]: stable id required`);
     }
@@ -391,7 +409,10 @@ for (const id of files) {
           fail(`${id}[${index}].examples[${exampleIndex}]: possible secret`);
         }
       });
-    } else fail(`${id}[${index}]: examples required`);
+    } else if (id !== "shell") fail(`${id}[${index}]: examples required`);
+    if (id === "shell" && DANGEROUS_EXAMPLE_RE.test(item.cmd) && !examples?.length) {
+      fail(`${id}[${index}]: dangerous shell item requires examples`);
+    }
     if (item.platformCmds !== undefined) {
       if (!item.platformCmds || typeof item.platformCmds !== "object" || Array.isArray(item.platformCmds)) {
         fail(`${id}[${index}]: invalid platformCmds`);
@@ -402,7 +423,13 @@ for (const id of files) {
         }
       }
     }
-    const key = `${item.cat}\0${item.cmd.toLowerCase()}\0${(item.context || "").toLowerCase()}`;
+    const key = [
+      item.cat,
+      item.cmd.toLowerCase(),
+      (item.context || "").toLowerCase(),
+      (item.shell?.family || "").toLowerCase(),
+      (item.shell?.portability || "").toLowerCase(),
+    ].join("\0");
     if (duplicateKeys.has(key)) fail(`${id}: duplicate ${item.cmd}; add distinct context values`);
     duplicateKeys.add(key);
     if (item.id !== undefined) {

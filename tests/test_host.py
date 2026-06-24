@@ -63,6 +63,28 @@ def valid_dataset(tool_id="sample"):
     }
 
 
+def valid_shell_dataset():
+    dataset = valid_dataset("shell")
+    dataset["meta"]["name"] = "Shell"
+    dataset["meta"]["source"] = "Shell manuals, 2026-06"
+    dataset["meta"]["coverage"] = "Shell aggregate parameter table"
+    dataset["items"][0].update({
+        "cat": "flag",
+        "cmd": "grep -R",
+        "en": "Search directories recursively",
+        "zh": "递归搜索目录文本",
+        "context": "文本搜索",
+        "keywords": ["递归搜索", "文本查找", "目录搜索"],
+        "shell": {
+            "layer": "gnu-utility",
+            "family": "grep",
+            "portability": "gnu",
+            "topic": "text",
+        },
+    })
+    return dataset
+
+
 class HostValidationTests(unittest.TestCase):
     def test_rejects_path_traversal_and_unknown_mode(self):
         with self.assertRaises(host.ValidationError):
@@ -92,6 +114,58 @@ class HostValidationTests(unittest.TestCase):
         payload["items"][1]["context"] = "terminal"
         both = host.validate_dataset(payload, "sample")
         self.assertEqual(len(both["items"]), 2)
+
+    def test_shell_metadata_is_validated_and_participates_in_deduplication(self):
+        payload = valid_shell_dataset()
+        payload["items"].append(dict(
+            payload["items"][0],
+            en="BSD recursive search",
+            shell={
+                "layer": "bsd-utility",
+                "family": "grep",
+                "portability": "bsd",
+                "topic": "text",
+            },
+        ))
+        dataset = host.validate_dataset(payload, "shell")
+        self.assertEqual(len(dataset["items"]), 2)
+        self.assertEqual(dataset["items"][0]["shell"]["family"], "grep")
+
+        payload["items"][1]["shell"]["layer"] = "manual-page"
+        with self.assertRaisesRegex(host.ValidationError, "shell.layer"):
+            host.validate_dataset(payload, "shell")
+
+    def test_empty_examples_list_is_treated_as_no_examples(self):
+        # Models often emit "examples": [] to mean "no examples" instead of
+        # omitting the optional field; that must not fail validation.
+        payload = valid_shell_dataset()
+        payload["items"][0]["examples"] = []
+        cleaned = host.validate_dataset(payload, "shell")
+        self.assertNotIn("examples", cleaned["items"][0])
+
+    def test_non_list_examples_is_still_rejected(self):
+        payload = valid_shell_dataset()
+        payload["items"][0]["examples"] = "oops"
+        with self.assertRaisesRegex(host.ValidationError, "examples 必须包含"):
+            host.validate_dataset(payload, "shell")
+
+    def test_shell_metadata_is_rejected_for_non_shell_tools(self):
+        payload = valid_dataset()
+        payload["items"][0]["shell"] = valid_shell_dataset()["items"][0]["shell"]
+        with self.assertRaisesRegex(host.ValidationError, "仅允许"):
+            host.validate_dataset(payload, "sample")
+
+    def test_shell_invalid_item_id_is_regenerated(self):
+        payload = valid_shell_dataset()
+        payload["items"][0]["id"] = "x"
+        dataset = host.validate_dataset(payload, "shell")
+        self.assertRegex(dataset["items"][0]["id"], r"^[a-f0-9]{16}$")
+
+    def test_non_shell_invalid_item_id_is_rejected(self):
+        payload = valid_dataset()
+        payload["items"][0]["id"] = "x"
+        with self.assertRaisesRegex(host.ValidationError, "id 格式非法"):
+            host.validate_dataset(payload, "sample")
 
     def test_extracts_claude_json_wrapper(self):
         wrapper = json.dumps({"result": json.dumps(valid_dataset())})
@@ -263,6 +337,21 @@ class HostValidationTests(unittest.TestCase):
         })
         with self.assertRaisesRegex(host.ValidationError, "必须包含 warning"):
             host.validate_dataset(payload, "sample")
+
+    def test_shell_dangerous_example_gets_warning_fallback(self):
+        payload = valid_shell_dataset()
+        payload["items"][0]["examples"] = [{
+            "value": "rm -rf ./example",
+            "description": "删除目录",
+            "sourceType": "ai-derived",
+            "authorship": "generated",
+            "evidenceTier": "none",
+            "adaptation": "scenario-derived",
+        }]
+        dataset = host.validate_dataset(payload, "shell")
+        example = dataset["items"][0]["examples"][0]
+        self.assertEqual(example["warning"], host.SHELL_DEFAULT_DANGER_WARNING)
+        self.assertFalse(example["copyable"])
 
     def test_rejects_newly_covered_dangerous_examples(self):
         for value in (
@@ -534,6 +623,177 @@ class HostFileTests(unittest.TestCase):
         self.assertTrue((self.data_dir / "sample.js").exists())
         self.assertTrue((self.data_dir / "index.js").exists())
 
+    def test_add_shell_uses_aggregate_pipeline(self):
+        dataset = host.validate_dataset(valid_shell_dataset(), "shell")
+        with mock.patch.object(host, "run_shell_aggregate_query", return_value=dataset) as aggregate, mock.patch.object(
+            host, "run_claude_query"
+        ) as normal:
+            result = host.add_tool("terminal", "Terminal")
+        self.assertTrue(result["changed"])
+        aggregate.assert_called_once()
+        normal.assert_not_called()
+        self.assertTrue((self.data_dir / "shell.js").exists())
+
+    def test_shell_batch_prompt_requires_warning_and_noncopyable_dangerous_examples(self):
+        prompt = host.build_shell_batch_prompt(
+            {"sources": valid_shell_dataset()["meta"]["sources"], "conflicts": [], "notes": []},
+            host.SHELL_BATCHES[-1],
+            True,
+        )
+        self.assertIn("warning", prompt)
+        self.assertIn("copyable=false", prompt)
+        self.assertIn("dry-run", prompt)
+        self.assertIn(f"最多输出 {host.SHELL_BATCH_MAX_ITEMS} 个 items", prompt)
+        self.assertIn("最多 1 个 example", prompt)
+
+    def test_shell_batch_prompt_respects_max_items_override(self):
+        discovered = {
+            "sources": valid_shell_dataset()["meta"]["sources"],
+            "conflicts": [],
+            "notes": [],
+        }
+        prompt = host.build_shell_batch_prompt(
+            discovered, host.SHELL_BATCHES[-1], True, max_items=4
+        )
+        self.assertIn("最多输出 4 个 items", prompt)
+
+    def test_shell_aggregate_retries_truncated_batch_with_smaller_budget(self):
+        captured_budgets = []
+
+        def spy_build(discovered, batch, web_enabled, max_items=host.SHELL_BATCH_MAX_ITEMS):
+            captured_budgets.append(max_items)
+            return "PROMPT"
+
+        gen = mock.Mock(
+            side_effect=[host.TruncatedGenerationError("截断"), valid_shell_dataset()]
+        )
+        with mock.patch.object(host, "SHELL_BATCHES", [host.SHELL_BATCHES[0]]), mock.patch.object(
+            host, "_has_api_token", return_value=True
+        ), mock.patch.object(
+            host, "build_shell_batch_prompt", side_effect=spy_build
+        ), mock.patch.object(
+            host, "_run_generation_prompt", gen
+        ), mock.patch.object(
+            host, "_demote_quasi_official", side_effect=lambda dataset: dataset
+        ):
+            dataset = host.run_shell_aggregate_query(prefer_web=False)
+        self.assertEqual(gen.call_count, 2)
+        self.assertEqual(captured_budgets[0], host.SHELL_BATCH_MAX_ITEMS)
+        self.assertLess(captured_budgets[1], captured_budgets[0])
+        self.assertTrue(dataset["items"])
+
+    def test_validate_shell_batch_tolerant_drops_invalid_item(self):
+        payload = valid_shell_dataset()
+        bad = dict(
+            payload["items"][0],
+            en="Item with bad portability",
+            shell={
+                "layer": "gnu-utility",
+                "family": "grep",
+                "portability": "totally-invalid",
+                "topic": "text",
+            },
+        )
+        payload["items"].append(bad)
+        dataset, dropped = host.validate_shell_batch_tolerant(payload)
+        self.assertEqual(dropped, 1)
+        self.assertEqual(len(dataset["items"]), 1)
+        self.assertEqual(dataset["items"][0]["en"], "Search directories recursively")
+
+    def test_validate_shell_batch_tolerant_raises_when_all_items_invalid(self):
+        payload = valid_shell_dataset()
+        payload["items"][0]["shell"]["portability"] = "totally-invalid"
+        with self.assertRaises(host.ValidationError):
+            host.validate_shell_batch_tolerant(payload)
+
+    def test_shell_aggregate_skips_invalid_items_and_warns(self):
+        batch = valid_shell_dataset()
+        batch["items"].append(dict(
+            batch["items"][0],
+            en="Doomed item",
+            shell={
+                "layer": "gnu-utility",
+                "family": "sed",
+                "portability": "totally-invalid",
+                "topic": "text",
+            },
+        ))
+        with mock.patch.object(host, "SHELL_BATCHES", [host.SHELL_BATCHES[0]]), mock.patch.object(
+            host, "_has_api_token", return_value=True
+        ), mock.patch.object(
+            host, "build_shell_batch_prompt", return_value="PROMPT"
+        ), mock.patch.object(
+            host, "_run_generation_prompt", return_value=batch
+        ), mock.patch.object(
+            host, "_demote_quasi_official", side_effect=lambda dataset: dataset
+        ):
+            dataset = host.run_shell_aggregate_query(prefer_web=False)
+        self.assertEqual(len(dataset["items"]), 1)
+        self.assertTrue(any("跳过" in warning for warning in dataset.get("qualityWarnings", [])))
+
+    def test_shell_aggregate_raises_only_when_all_batches_fail(self):
+        # A single batch that never yields data means the whole aggregate has no
+        # data, so it fails — but with a clear "all batches failed" message.
+        with mock.patch.object(host, "SHELL_BATCHES", [host.SHELL_BATCHES[0]]), mock.patch.object(
+            host, "_has_api_token", return_value=True
+        ), mock.patch.object(
+            host, "build_shell_batch_prompt", return_value="PROMPT"
+        ), mock.patch.object(
+            host, "_run_generation_prompt", side_effect=host.TruncatedGenerationError("截断")
+        ):
+            with self.assertRaisesRegex(host.ValidationError, "所有批次"):
+                host.run_shell_aggregate_query(prefer_web=False)
+
+    def test_shell_aggregate_skips_empty_batch_and_keeps_others(self):
+        # The syntax batches can yield zero conforming items; that batch must be
+        # skipped (with a warning) rather than sinking the whole Shell add.
+        good = valid_shell_dataset()
+        empty = {"meta": dict(good["meta"]), "items": []}
+        batches = [host.SHELL_BATCHES[0], host.SHELL_BATCHES[1]]
+        with mock.patch.object(host, "SHELL_BATCHES", batches), mock.patch.object(
+            host, "_has_api_token", return_value=True
+        ), mock.patch.object(
+            host, "build_shell_batch_prompt", return_value="PROMPT"
+        ), mock.patch.object(
+            host, "_run_generation_prompt", side_effect=[empty, valid_shell_dataset()]
+        ), mock.patch.object(
+            host, "_demote_quasi_official", side_effect=lambda dataset: dataset
+        ):
+            dataset = host.run_shell_aggregate_query(prefer_web=False)
+        self.assertEqual(len(dataset["items"]), 1)
+        self.assertTrue(any("批次" in warning for warning in dataset.get("qualityWarnings", [])))
+
+    def test_shell_registered_discovery_uses_registry_sources(self):
+        discovered = host.shell_registered_discovery()
+        self.assertTrue(discovered["sources"])
+        self.assertTrue(any(source["id"] == "gnu-bash-manual" for source in discovered["sources"]))
+        self.assertIn("跳过模型来源发现", discovered["notes"][0])
+
+    def test_compact_shell_batch_payload_limits_items_and_examples(self):
+        raw = {
+            "items": [
+                {"examples": [{"value": "one"}, {"value": "two"}]}
+                for _index in range(host.SHELL_BATCH_MAX_ITEMS + 3)
+            ]
+        }
+        compacted = host.compact_shell_batch_payload(raw)
+        self.assertEqual(len(compacted["items"]), host.SHELL_BATCH_MAX_ITEMS)
+        self.assertEqual(len(compacted["items"][0]["examples"]), 1)
+
+    def test_load_source_registry_honors_project_dir_env(self):
+        # When deployed, host.py lives outside the repo and resolves siblings
+        # (data/, shared/) via AICLI_PROJECT_DIR — the registry must do the same
+        # instead of looking next to __file__, or the host crashes on startup.
+        with tempfile.TemporaryDirectory() as tmp:
+            shared = os.path.join(tmp, "shared")
+            os.makedirs(shared)
+            registry = {"entries": [{"id": "env-scoped-source", "title": "Env Scoped"}]}
+            with open(os.path.join(shared, "source-registry.json"), "w", encoding="utf-8") as fh:
+                json.dump(registry, fh)
+            with mock.patch.dict(os.environ, {"AICLI_PROJECT_DIR": tmp}, clear=False):
+                entries = host.load_source_registry()
+        self.assertEqual(entries[0]["id"], "env-scoped-source")
+
     def test_timeout_does_not_create_files(self):
         mock_proc = mock.MagicMock()
         mock_proc.communicate.side_effect = [
@@ -771,6 +1031,87 @@ class HostApiTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(host.ValidationError, "截断"):
                 host._call_api_direct("prompt")
+
+    def test_truncation_raises_recoverable_error_subtype(self):
+        body = json.dumps(
+            {"stop_reason": "max_tokens", "content": [{"type": "text", "text": "{partial"}]}
+        )
+        conn = self._fake_conn(200, body)
+        env = {"ANTHROPIC_AUTH_TOKEN": "tok", "ANTHROPIC_BASE_URL": "https://api.anthropic.com"}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            host.http.client, "HTTPSConnection", return_value=conn
+        ):
+            with self.assertRaises(host.TruncatedGenerationError):
+                host._call_api_direct("prompt")
+
+    def _sent_payload(self, conn):
+        return json.loads(conn.request.call_args.kwargs["body"].decode("utf-8"))
+
+    def test_default_max_tokens_gives_more_headroom(self):
+        conn = self._fake_conn(
+            200, json.dumps({"stop_reason": "end_turn", "content": [{"type": "text", "text": "{}"}]})
+        )
+        env = {"ANTHROPIC_AUTH_TOKEN": "tok", "ANTHROPIC_BASE_URL": "https://api.anthropic.com"}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            host.http.client, "HTTPSConnection", return_value=conn
+        ):
+            host._call_api_direct("prompt")
+        self.assertEqual(self._sent_payload(conn)["max_tokens"], host.API_MAX_TOKENS_DEFAULT)
+        self.assertGreaterEqual(host.API_MAX_TOKENS_DEFAULT, 32000)
+
+    def test_max_tokens_honors_env_override(self):
+        conn = self._fake_conn(
+            200, json.dumps({"stop_reason": "end_turn", "content": [{"type": "text", "text": "{}"}]})
+        )
+        env = {
+            "ANTHROPIC_AUTH_TOKEN": "tok",
+            "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+            "AICLI_API_MAX_TOKENS": "8192",
+        }
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            host.http.client, "HTTPSConnection", return_value=conn
+        ):
+            host._call_api_direct("prompt")
+        self.assertEqual(self._sent_payload(conn)["max_tokens"], 8192)
+
+    def test_out_of_range_max_tokens_env_falls_back_to_default(self):
+        conn = self._fake_conn(
+            200, json.dumps({"stop_reason": "end_turn", "content": [{"type": "text", "text": "{}"}]})
+        )
+        env = {
+            "ANTHROPIC_AUTH_TOKEN": "tok",
+            "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+            "AICLI_API_MAX_TOKENS": "99999999",
+        }
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            host.http.client, "HTTPSConnection", return_value=conn
+        ):
+            host._call_api_direct("prompt")
+        self.assertEqual(self._sent_payload(conn)["max_tokens"], host.API_MAX_TOKENS_DEFAULT)
+
+    def test_non_numeric_max_tokens_env_falls_back_to_default(self):
+        conn = self._fake_conn(
+            200, json.dumps({"stop_reason": "end_turn", "content": [{"type": "text", "text": "{}"}]})
+        )
+        env = {
+            "ANTHROPIC_AUTH_TOKEN": "tok",
+            "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+            "AICLI_API_MAX_TOKENS": "not-a-number",
+        }
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            host.http.client, "HTTPSConnection", return_value=conn
+        ):
+            host._call_api_direct("prompt")
+        self.assertEqual(self._sent_payload(conn)["max_tokens"], host.API_MAX_TOKENS_DEFAULT)
+
+    def test_shell_add_tool_requests_are_canonicalized(self):
+        request = host.validate_request({
+            "action": "add_tool",
+            "tool": "terminal",
+            "display_name": "Terminal",
+        })
+        self.assertEqual(request["tool"], "shell")
+        self.assertEqual(request["display_name"], "Shell")
 
     def test_raises_on_http_error(self):
         conn = self._fake_conn(401, '{"error":"unauthorized"}')
