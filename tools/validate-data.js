@@ -442,4 +442,37 @@ for (const id of files) {
   if (unusedSources.length) fail(`${id}: unused evidence sources: ${unusedSources.join(", ")}`);
 }
 
-console.log(`Validated ${files.length} tools and ${files.reduce((n, id) => n + data[id].items.length, 0)} items.`);
+function enrichedItem(toolId, item) {
+  const enrichment = enrichmentByItem.get(item);
+  if (!enrichment) return item;
+  return {
+    ...item,
+    keywords: item.keywords || enrichment.keywords,
+    examples: item.examples || enrichment.examples,
+  };
+}
+
+function qualitySummaryRows() {
+  return files.map((id) => {
+    const items = data[id].items || [];
+    const enrichedItems = items.map((item) => enrichedItem(id, item));
+    return {
+      tool: id,
+      items: items.length,
+      examples: enrichedItems.filter((item) => item.examples?.length).length,
+      evidenceRefs: items.filter((item) => item.evidenceRefs?.length).length,
+      verified: items.filter((item) => item.evidenceStatus === "verified").length,
+      partial: items.filter((item) => item.evidenceStatus === "partial").length,
+      unverified: items.filter((item) => (item.evidenceStatus || "unverified") === "unverified").length,
+    };
+  });
+}
+
+const totalItems = files.reduce((n, id) => n + data[id].items.length, 0);
+console.log(`Validated ${files.length} tools and ${totalItems} items.`);
+console.log("Quality summary by tool:");
+qualitySummaryRows().forEach((row) => {
+  console.log(
+    `- ${row.tool}: items=${row.items}, examples=${row.examples}, evidenceRefs=${row.evidenceRefs}, verified=${row.verified}, partial=${row.partial}, unverified=${row.unverified}`
+  );
+});

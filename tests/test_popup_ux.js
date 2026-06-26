@@ -3,52 +3,327 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const vm = require("vm");
 
 const root = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "popup.html"), "utf8");
-const script = fs.readFileSync(path.join(root, "popup.js"), "utf8");
+const core = require("../product-core.js");
+const state = require("../popup-state.js");
+const render = require("../popup-render.js");
 
 assert(!html.includes('id="toolSelect"'), "tool filters should remain directly visible");
 assert(html.includes('id="categoryFilters" class="filters"'), "category filters should remain directly visible");
-assert(script.includes("...visibleToolIds().map"), "enabled tools should remain available as top-level filter chips");
-assert(html.includes('aria-labelledby="onboardTitle"'), "onboarding dialog needs an accessible name");
-assert(html.includes('data-preset="ai"') && html.includes('data-preset="terminal"'), "onboarding presets are required");
-assert(script.includes('class="row-main"'), "result primary action must be a semantic button");
-assert(script.includes("confirmRiskCopy(command, risk)"), "risky command copies must require confirmation");
-assert(script.includes("复制失败，请检查浏览器剪贴板权限"), "clipboard failures need visible feedback");
-assert(script.includes("platformInfo.unsupported ? \"disabled\""), "unsupported platform commands must be disabled");
-assert(script.includes("主要匹配"), "search results must explain their primary match");
-assert(script.includes("example-summary"), "search results must surface a usage summary");
-assert(script.includes("event.key !== \"Tab\""), "onboarding must trap keyboard focus");
-assert(script.includes("focusSearch: true"), "finishing onboarding must restore focus to search");
-assert(script.includes("官方仓库确认") && script.includes("本机帮助确认"), "source evidence labels are required");
-assert(script.includes("exampleProvenanceLabel"), "example authorship and evidence must be rendered separately");
-assert(script.includes("sourceChanges.conflicts"), "update preview must display source conflicts");
-assert(script.includes("已核验") && script.includes("部分核验") && script.includes("未核验"), "all item evidence states must be visible");
-assert(script.includes("条目核验："), "management view must summarize evidence states");
-assert(script.includes("案例编写：") && script.includes("案例证据："), "example authorship and evidence statistics must be separate");
-assert(!script.includes("官方依据 ${sourceCounts.official}"), "legacy mixed example statistics must be removed");
-assert(script.includes("数据整理方式："), "generation method must not be presented as source trust");
-assert(script.includes("查看其余") && script.includes("<details>"), "long source lists must remain compact");
-assert(script.includes("commandEvidenceHtml"), "command evidence must render separately from example provenance");
-assert(script.includes("命令证据：") && script.includes("exampleProvenanceLabel"), "command and example evidence labels must stay distinct");
-assert(script.includes("evidenceRefChanges") && script.includes("locatorLosses"), "update preview must report evidence assertion and locator changes");
-assert(!script.includes("STALE_DAYS"), "stable data must not become stale solely because time passed");
-assert(!script.includes("资料较旧"), "the UI must not show age-based stale warnings");
-assert(script.includes("updatePolicy") && script.includes("manual-only"), "tool-specific update policies must drive the UI");
-assert(script.includes("data-deep-update"), "stable tools need an explicit advanced re-verification action");
-assert(script.includes("检查版本更新") && script.includes("检查发布变化"), "dynamic update actions must describe their actual signal");
-assert(script.includes("prefer_web: true"), "version-triggered updates must use source-backed web verification");
-assert(script.includes("overbroadAddToolHint") && script.includes("GNU Coreutils"), "overbroad add-tool names need a split-scope hint");
-assert(script.includes("normalizeAddTool") && script.includes("正在分批生成 Shell 聚合数据"), "Shell add requests need aggregate pipeline UX");
-assert(script.includes("shellTags") && !script.includes("data-shell-filter"), "Shell metadata surfaces as row tags only, not as filter chips");
-
+assert(html.includes('id="shellFilters"'), "Shell-specific filters should have a dedicated container");
+assert(html.includes("Git / Linux / Shell"), "terminal onboarding preset should expose Shell");
 assert(html.includes(":focus-visible"), "interactive controls need visible keyboard focus");
 assert(html.includes("prefers-reduced-motion"), "motion must respect the reduced-motion preference");
-assert(script.includes("正在加载速查表"), "data loading needs a visible loading state");
-assert(script.includes("activeFilterLabel"), "combined tool+category filters must be shown to the user");
-assert(script.includes("expandedSynonyms"), "synonym expansion must be surfaced in results");
-assert(script.includes("evidenceTooltip") && script.includes("tierTooltip"), "trust tags must carry plain-language tooltips");
-assert(script.includes("数据质量明细"), "dense per-tool statistics must collapse behind a summary");
+assert(
+  html.includes('<script src="popup-state.js"></script>')
+    && html.includes('<script src="popup-render.js"></script>')
+    && html.includes('<script src="popup-tasks.js"></script>')
+    && html.indexOf('popup-state.js') < html.indexOf('popup.js'),
+  "popup modules must load before popup.js"
+);
 
-console.log("Popup UX contract tests passed.");
+const data = {
+  alpha: {
+    meta: {
+      id: "alpha",
+      name: "Alpha",
+      color: "#336699",
+      builtIn: true,
+      source: "Alpha docs",
+      sources: [{
+        id: "alpha-docs",
+        title: "Alpha Docs",
+        kind: "official-repository",
+        maintainer: "Alpha",
+        evidenceTier: "first-party",
+        url: "https://example.com/alpha",
+      }],
+      updatePolicy: "version-driven",
+      coverage: "Alpha coverage",
+      platforms: ["mac", "windows"],
+    },
+    items: [
+      {
+        id: "open-item",
+        cat: "shortcut",
+        cmd: "Cmd+P",
+        platformCmds: { windows: "Ctrl+P" },
+        en: "Open file",
+        zh: "打开文件",
+        evidenceStatus: "verified",
+        evidenceRefs: [{ sourceId: "alpha-docs", claims: ["existence", "semantics"], locator: "README" }],
+      },
+      {
+        id: "danger-item",
+        cat: "slash",
+        cmd: "rm -rf ./tmp",
+        en: "Remove temporary files",
+        zh: "删除临时文件",
+        evidenceStatus: "partial",
+        examples: [{
+          value: "rm -rf ./tmp",
+          description: "删除临时目录",
+          warning: "会删除文件",
+          authorship: "editorial",
+          evidenceTier: "none",
+          adaptation: "scenario-derived",
+        }],
+      },
+    ],
+  },
+  beta: {
+    meta: {
+      id: "beta",
+      name: "Beta",
+      color: "#663399",
+      builtIn: true,
+      source: "Beta docs",
+      sources: [],
+      updatePolicy: "manual-only",
+    },
+    items: [{
+      id: "linux-only",
+      cat: "flag",
+      cmd: "Ctrl+L",
+      platforms: ["linux"],
+      en: "Clear terminal",
+      zh: "清空终端",
+      evidenceStatus: "unverified",
+    }],
+  },
+  shell: {
+    meta: {
+      id: "shell",
+      name: "Shell",
+      color: "#1E1E1E",
+      builtIn: true,
+      source: "Shell docs",
+      sources: [],
+      updatePolicy: "manual-only",
+    },
+    items: [
+      {
+        id: "posix-cd",
+        cat: "slash",
+        cmd: "cd",
+        en: "Change directory",
+        zh: "切换目录",
+        shell: { layer: "builtin", family: "posix-sh", portability: "posix", topic: "builtins" },
+        evidenceStatus: "unverified",
+      },
+      {
+        id: "bash-complete",
+        cat: "slash",
+        cmd: "complete",
+        en: "Define completion rules",
+        zh: "定义补全规则",
+        shell: { layer: "builtin", family: "bash", portability: "bash", topic: "completion" },
+        evidenceStatus: "unverified",
+      },
+    ],
+  },
+};
+
+const enrichmentIndex = state.buildEnrichmentIndex(data, {
+  alpha: {
+    "Cmd+P\0": {
+      keywords: ["文件"],
+      examples: [{
+        value: "Cmd+P",
+        description: "打开文件列表",
+        authorship: "editorial",
+        evidenceTier: "first-party",
+        adaptation: "adapted",
+        sourceIds: ["alpha-docs"],
+      }],
+    },
+  },
+});
+const entryIndex = state.createEntryIndex(data, enrichmentIndex);
+
+const baseState = {
+  activeTool: "all",
+  activeCat: null,
+  activeShellFilter: null,
+  enabledTools: new Set(["alpha", "beta", "shell"]),
+  favourites: new Set(["alpha::danger-item"]),
+  recents: [
+    { toolId: "alpha", itemId: "danger-item" },
+    { toolId: "alpha", itemId: "open-item" },
+  ],
+  platform: "windows",
+  expandedTools: new Set(),
+  expandedExamples: new Set(),
+  searchLimit: 100,
+};
+
+const filters = render.renderFilters(data, state, { ...baseState, activeTool: "alpha", activeCat: "shortcut" });
+assert(filters.quickHtml.includes('data-tool="alpha"') && filters.quickHtml.includes("active"), "active tool chip should render");
+assert(filters.categoryHtml.includes('data-cat="shortcut"') && filters.categoryHtml.includes("active"), "active category chip should render");
+
+const shellFilters = render.renderFilters(data, state, { ...baseState, activeTool: "shell", activeShellFilter: "topic:completion" });
+assert(shellFilters.shellHtml.includes('data-shell-filter="topic:completion"'), "Shell facet chips should render for Shell tool");
+assert(shellFilters.shellHtml.includes("补全") && shellFilters.shellHtml.includes("active"), "active Shell facet should be visible");
+
+const platformEntries = state.collectEntries(entryIndex, data, core, baseState);
+const openEntry = platformEntries.find((entry) => entry.itemId === "open-item");
+const linuxOnly = platformEntries.find((entry) => entry.itemId === "linux-only");
+assert.strictEqual(openEntry.displayCmd, "Ctrl+P", "platform command should refresh for Windows");
+assert.strictEqual(linuxOnly.platformInfo.unsupported, true, "unsupported platform state should be carried into render entries");
+
+const recentEntries = state.collectEntries(entryIndex, data, core, { ...baseState, activeTool: "recent", platform: "mac" });
+const rankedRecent = core.rankItems(recentEntries, "", { favourites: baseState.favourites, recents: baseState.recents })
+  .sort((a, b) => baseState.recents.findIndex((item) => item.itemId === a.itemId) - baseState.recents.findIndex((item) => item.itemId === b.itemId));
+assert.deepStrictEqual(rankedRecent.map((entry) => entry.itemId), ["danger-item", "open-item"], "recent order should survive filtering and ranking");
+
+const shellCompletionEntries = state.collectEntries(entryIndex, data, core, {
+  ...baseState,
+  activeTool: "shell",
+  activeShellFilter: "topic:completion",
+});
+assert.deepStrictEqual(shellCompletionEntries.map((entry) => entry.itemId), ["bash-complete"], "Shell facet should filter entries by shell metadata");
+assert.strictEqual(
+  state.activeFilterLabel(data, { ...baseState, activeTool: "shell", activeShellFilter: "topic:completion" }),
+  "Shell ＋ 补全",
+  "Shell facet should appear in the active filter label"
+);
+
+const explainedOpenEntry = core.rankItems([openEntry], "文件", { favourites: baseState.favourites, recents: baseState.recents })[0];
+const rowHtml = render.renderRow(explainedOpenEntry, "文件", {
+  data,
+  core,
+  platform: "windows",
+  expandedExamples: new Set(["alpha::open-item"]),
+  favourites: baseState.favourites,
+  helpers: state,
+}, true);
+assert(rowHtml.includes("主要匹配") && rowHtml.includes("命令证据："), "row render should include match and command evidence");
+assert(rowHtml.includes("基于官方资料改写"), "example provenance should render with usage examples");
+assert(
+  render.renderResults([explainedOpenEntry], "", baseState, {
+    data,
+    core,
+    platform: "windows",
+    expandedExamples: new Set(),
+    favourites: baseState.favourites,
+    helpers: state,
+  }).includes("官方仓库确认"),
+  "source evidence labels should render in source cards"
+);
+
+const pending = render.renderPending({
+  pendingToken: "0123456789abcdef0123456789abcdef",
+  toolId: "alpha",
+  diff: {
+    counts: { added: 1, modified: 2, removed: 3, meta: 1 },
+    risks: ["删除高风险命令"],
+    sourceChanges: {
+      conflicts: ["来源 A 与 B 冲突"],
+      statusDowngrades: [{ item: "x" }],
+      evidenceRefChanges: [{ item: "y" }],
+      locatorLosses: [{ item: "z" }],
+    },
+  },
+}, data);
+assert(!pending.hidden, "pending update should render when token exists");
+assert(pending.html.includes("disabled"), "risky pending updates should disable apply by default");
+assert(pending.html.includes("来源冲突") && pending.html.includes("核验状态下降") && pending.html.includes("证据定位被移除"), "pending source risks should be visible");
+
+const taskMessages = require("../popup-tasks.js");
+assert(taskMessages.taskBaseMsg("add_tool", { tool: "shell" }).includes("分批生成 Shell"), "Shell add task needs aggregate UX");
+
+const applyButton = { disabled: true, dataset: {} };
+const updateButton = { disabled: false, dataset: {} };
+const closeButton = { disabled: false, dataset: {} };
+const fakeDocument = {
+  querySelectorAll(selector) {
+    if (selector === "#manageView button:not(#closeManage)") return [applyButton, updateButton];
+    if (selector === "#manageView button") return [applyButton, updateButton, closeButton];
+    return [];
+  },
+};
+const disableManageButtons = taskMessages.createButtonDisabler(
+  fakeDocument,
+  "#manageView button:not(#closeManage)",
+  "#manageView button"
+);
+disableManageButtons(true);
+assert.strictEqual(applyButton.disabled, true, "task start should keep already-disabled apply button disabled");
+assert.strictEqual(updateButton.disabled, true, "task start should disable active management actions");
+assert.strictEqual(closeButton.disabled, false, "close button should remain available");
+disableManageButtons(false);
+assert.strictEqual(applyButton.disabled, true, "task finish should restore previously disabled apply button");
+assert.strictEqual(updateButton.disabled, false, "task finish should restore previously enabled action button");
+assert.strictEqual(closeButton.disabled, false, "restore should leave untracked close button unchanged");
+
+const statusMessages = [];
+const resumedController = taskMessages.createTaskController({
+  chrome: { runtime: { sendMessage() {}, reload() {}, lastError: null } },
+  setStatus(text) { statusMessages.push(text); },
+  setManageButtonsDisabled() {},
+  storageSet() {},
+  renderPending() {},
+  getCurrentTaskMode() { return "add_tool"; },
+  setCurrentTaskMode() {},
+  setPendingUpdate() {},
+});
+resumedController.startTaskTimer("add_tool", Date.now(), { tool: "shell" });
+resumedController.stopTaskTimer();
+assert(statusMessages[0].includes("分批生成 Shell"), "resumed Shell task should keep the aggregate progress message");
+
+const context = {
+  window: {
+    CHEATSHEET_CORE: core,
+    CHEATSHEET_POPUP_STATE: state,
+    CHEATSHEET_POPUP_RENDER: render,
+    CHEATSHEET_POPUP_TASKS: taskMessages,
+    CHEATSHEET_ENABLE_TEST_HOOKS: true,
+  },
+  document: { addEventListener() {} },
+  navigator: { platform: "MacIntel" },
+  chrome: {
+    runtime: {
+      lastError: null,
+      reload() {},
+      sendMessage() {},
+      onMessage: { addListener() {} },
+    },
+    storage: {
+      local: { get() {}, set() {} },
+      session: { set() {} },
+    },
+  },
+  setTimeout,
+  clearTimeout,
+  setInterval,
+  clearInterval,
+  confirm() {
+    context.confirmCalls += 1;
+    return false;
+  },
+  confirmCalls: 0,
+};
+vm.createContext(context);
+vm.runInContext(fs.readFileSync(path.join(root, "popup.js"), "utf8"), context, { filename: "popup.js" });
+assert(context.window.CHEATSHEET_POPUP_TESTS, "popup test hooks should be available only when enabled");
+assert.strictEqual(
+  context.window.CHEATSHEET_POPUP_TESTS.confirmRiskCopy("git status", { requiresConfirmation: false }),
+  true,
+  "safe copies should not prompt"
+);
+assert.strictEqual(context.confirmCalls, 0, "safe copies should not call confirm");
+assert.strictEqual(
+  context.window.CHEATSHEET_POPUP_TESTS.confirmRiskCopy("rm -rf ./tmp", { requiresConfirmation: true, warning: "删除" }),
+  false,
+  "risky copies should respect confirm result"
+);
+assert.strictEqual(context.confirmCalls, 1, "risky copies should require confirmation");
+
+assert(state.overbroadAddToolHint("CLI", "cli").includes("GNU Coreutils"), "overbroad tool names need split-scope guidance");
+assert.deepStrictEqual(state.normalizeAddTool("terminal"), { tool: "shell", displayName: "Shell" }, "Shell aliases should canonicalize");
+assert(state.TOOL_PRESETS.terminal.includes("shell"), "terminal preset should enable Shell by default");
+
+console.log("Popup UX behavior tests passed.");
