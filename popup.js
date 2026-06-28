@@ -10,8 +10,12 @@ let activeShellFilter = null;
 let favourites = new Set();
 let recents = [];
 let enabledTools = new Set();
+let dismissedRecommendations = new Set();
 let platform = STATE.detectPlatform();
 let webVerify = false;
+let recommendationQuery = "";
+let activeRecommendationCategory = "all";
+let showDismissedRecommendations = false;
 let pendingUpdate = null;
 let currentTaskMode = null;
 let expandedTools = new Set();
@@ -366,6 +370,37 @@ function renderManage() {
     renderManage();
   }));
 
+  const recommended = document.getElementById("recommendedTools");
+  const recommendSearch = document.getElementById("recommendSearch");
+  const showDismissed = document.getElementById("showDismissedRecommendations");
+  if (recommendSearch.value !== recommendationQuery) recommendSearch.value = recommendationQuery;
+  showDismissed.checked = showDismissedRecommendations;
+  const recommendationResult = STATE.filterRecommendedTools(getAllData(), platform, {
+    query: recommendationQuery,
+    category: activeRecommendationCategory,
+    dismissedRecommendations,
+    showDismissed: showDismissedRecommendations,
+  });
+  document.getElementById("recommendCategories").innerHTML = RENDER.renderRecommendationCategories(recommendationResult);
+  document.getElementById("recommendCategories").querySelectorAll("[data-recommend-category]").forEach((button) => button.addEventListener("click", () => {
+    activeRecommendationCategory = button.dataset.recommendCategory;
+    renderManage();
+  }));
+  recommended.innerHTML = RENDER.renderRecommendedTools(recommendationResult);
+  recommended.querySelectorAll("[data-recommend-tool]").forEach((button) => button.addEventListener("click", () => {
+    startAddTool(button.dataset.recommendName, button.dataset.recommendWeb === "true");
+  }));
+  recommended.querySelectorAll("[data-recommend-dismiss]").forEach((button) => button.addEventListener("click", async () => {
+    dismissedRecommendations.add(button.dataset.recommendDismiss);
+    await storageSet({ dismissedRecommendations: [...dismissedRecommendations] });
+    renderManage();
+  }));
+  recommended.querySelectorAll("[data-recommend-restore]").forEach((button) => button.addEventListener("click", async () => {
+    dismissedRecommendations.delete(button.dataset.recommendRestore);
+    await storageSet({ dismissedRecommendations: [...dismissedRecommendations] });
+    renderManage();
+  }));
+
   const tools = document.getElementById("manageTools");
   tools.innerHTML = RENDER.renderManageTools(getAllData(), STATE.getToolIds(getAllData()), currentState(), STATE, entryIndex);
   tools.querySelectorAll("[data-enabled]").forEach((checkbox) => checkbox.addEventListener("change", async () => {
@@ -403,6 +438,34 @@ function renderManage() {
   renderPending();
 }
 
+function addToolPayload(displayName, preferWebOverride = null) {
+  if (!displayName) return { ok: false, error: "请输入工具名称" };
+  const normalized = STATE.normalizeAddTool(displayName);
+  const { tool } = normalized;
+  if (!tool) return { ok: false, error: "工具名称需要包含英文字母或数字" };
+  const scopeHint = STATE.overbroadAddToolHint(displayName, tool);
+  if (scopeHint) return { ok: false, error: scopeHint };
+  if (getAllData()[tool]) return { ok: false, error: "该工具已收录，请使用检查更新" };
+  return {
+    ok: true,
+    payload: {
+      tool,
+      display_name: normalized.displayName,
+      prefer_web: preferWebOverride === null ? webVerify : Boolean(preferWebOverride),
+    },
+  };
+}
+
+function startAddTool(displayName, preferWebOverride = null) {
+  const result = addToolPayload(String(displayName || "").trim(), preferWebOverride);
+  if (!result.ok) {
+    setStatus(result.error, "err");
+    return false;
+  }
+  taskController.runTask("add_tool", result.payload);
+  return true;
+}
+
 function renderPending() {
   const panel = document.getElementById("pendingPanel");
   const pending = RENDER.renderPending(pendingUpdate, getAllData());
@@ -425,6 +488,7 @@ function bindManageEvents() {
     platform = event.target.value;
     await storageSet({ platform });
     render();
+    renderManage();
   });
   document.getElementById("clearRecent").addEventListener("click", async () => {
     recents = [];
@@ -434,15 +498,15 @@ function bindManageEvents() {
   });
   document.getElementById("rerunOnboarding").addEventListener("click", () => showOnboarding(true));
   document.getElementById("addToolBtn").addEventListener("click", () => {
-    const displayName = document.getElementById("addToolName").value.trim();
-    if (!displayName) return setStatus("请输入工具名称", "err");
-    const normalized = STATE.normalizeAddTool(displayName);
-    const { tool } = normalized;
-    if (!tool) return setStatus("工具名称需要包含英文字母或数字", "err");
-    const scopeHint = STATE.overbroadAddToolHint(displayName, tool);
-    if (scopeHint) return setStatus(scopeHint, "err");
-    if (getAllData()[tool]) return setStatus("该工具已收录，请使用检查更新", "err");
-    taskController.runTask("add_tool", { tool, display_name: normalized.displayName, prefer_web: webVerify });
+    startAddTool(document.getElementById("addToolName").value);
+  });
+  document.getElementById("recommendSearch").addEventListener("input", (event) => {
+    recommendationQuery = event.target.value;
+    renderManage();
+  });
+  document.getElementById("showDismissedRecommendations").addEventListener("change", (event) => {
+    showDismissedRecommendations = event.target.checked;
+    renderManage();
   });
 }
 
@@ -548,6 +612,7 @@ async function initialize() {
   const stored = await storageGet(STATE.STORAGE_KEYS);
   favourites = new Set(stored.favourites || []);
   recents = stored.recentCopies || [];
+  dismissedRecommendations = new Set(Array.isArray(stored.dismissedRecommendations) ? stored.dismissedRecommendations : []);
   platform = stored.platform || platform;
   webVerify = stored.webVerify === true;
   enabledTools = new Set(Array.isArray(stored.enabledTools)
@@ -606,6 +671,7 @@ if (window.CHEATSHEET_ENABLE_TEST_HOOKS) {
     render: RENDER,
     tasks: window.CHEATSHEET_POPUP_TASKS,
     confirmRiskCopy,
+    addToolPayload,
     rankVisibleEntries,
   };
 }

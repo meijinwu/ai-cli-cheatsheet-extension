@@ -15,7 +15,11 @@ assert(!html.includes('id="toolSelect"'), "tool filters should remain directly v
 assert(html.includes('id="categoryFilters" class="filters"'), "category filters should remain directly visible");
 assert(html.includes('id="shellFilters"'), "Shell-specific filters should have a dedicated container");
 assert(html.includes("Git / Linux / Shell"), "terminal onboarding preset should expose Shell");
+assert(html.includes('id="recommendedTools"'), "management view should expose recommended tool additions");
+assert(html.includes('id="recommendSearch"'), "recommended tool additions should be searchable");
+assert(html.includes('id="showDismissedRecommendations"'), "dismissed recommendations should be restorable");
 assert(html.includes(":focus-visible"), "interactive controls need visible keyboard focus");
+assert(state.STORAGE_KEYS.includes("dismissedRecommendations"), "dismissed recommendations should be persisted");
 assert(html.includes("prefers-reduced-motion"), "motion must respect the reduced-motion preference");
 assert(
   html.includes('<script src="popup-state.js"></script>')
@@ -164,6 +168,36 @@ const filters = render.renderFilters(data, state, { ...baseState, activeTool: "a
 assert(filters.quickHtml.includes('data-tool="alpha"') && filters.quickHtml.includes("active"), "active tool chip should render");
 assert(filters.categoryHtml.includes('data-cat="shortcut"') && filters.categoryHtml.includes("active"), "active category chip should render");
 
+const macRecommendations = state.recommendedTools(data, "mac");
+assert.deepStrictEqual(macRecommendations.slice(0, 3).map((item) => item.tool), ["ghostty", "warp", "wezterm"], "macOS recommendations should sort by priority");
+assert(macRecommendations.some((item) => item.tool === "ghostty"), "macOS recommendations should include common terminals");
+assert(!macRecommendations.some((item) => item.tool === "windows-terminal"), "macOS recommendations should not include Windows-only tools");
+assert(!state.recommendedTools({ ...data, ghostty: { meta: { name: "Ghostty" }, items: [] } }, "mac")
+  .some((item) => item.tool === "ghostty"), "already collected tools should be hidden from recommendations");
+const macRecommendationResult = state.filterRecommendedTools(data, "mac");
+assert(macRecommendationResult.groups.some((group) => group.key === "terminal" && group.items[0].tool === "ghostty"), "recommendations should group by category");
+const recommendationSearchResult = state.filterRecommendedTools(data, "mac", { query: "GPU" });
+assert.deepStrictEqual(recommendationSearchResult.groups.flatMap((group) => group.items.map((item) => item.tool)), ["ghostty"], "recommendation search should match reasons");
+const recommendationTagResult = state.filterRecommendedTools(data, "mac", { query: "devops" });
+assert(recommendationTagResult.groups.flatMap((group) => group.items).every((item) => item.tags.includes("devops")), "recommendation search should match tags");
+const cloudRecommendations = state.filterRecommendedTools(data, "mac", { category: "cloud-native" });
+assert.deepStrictEqual(cloudRecommendations.groups.flatMap((group) => group.items.map((item) => item.tool)), ["docker", "kubectl"], "category filter should restrict recommendations");
+const dismissedRecommendations = new Set(["ghostty"]);
+assert(!state.filterRecommendedTools(data, "mac", { dismissedRecommendations })
+  .groups.flatMap((group) => group.items).some((item) => item.tool === "ghostty"), "dismissed recommendations should hide by default");
+const visibleDismissed = state.filterRecommendedTools(data, "mac", { dismissedRecommendations, showDismissed: true });
+assert(visibleDismissed.groups.flatMap((group) => group.items).some((item) => item.tool === "ghostty" && item.dismissed), "show dismissed should expose dismissed recommendations");
+assert(!state.filterRecommendedTools({ ...data, ghostty: { meta: { name: "Ghostty" }, items: [] } }, "mac", { dismissedRecommendations, showDismissed: true })
+  .groups.flatMap((group) => group.items).some((item) => item.tool === "ghostty"), "collected tools should stay hidden even when dismissed items are shown");
+const categoryHtml = render.renderRecommendationCategories(macRecommendationResult);
+assert(categoryHtml.includes('data-recommend-category="terminal"'), "recommended categories should render filter chips");
+const recommendationsHtml = render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty" }));
+assert(recommendationsHtml.includes('data-recommend-tool="ghostty"'), "recommended cards should expose add action data");
+assert(recommendationsHtml.includes("recommend-tags"), "recommended cards should render tags");
+assert(render.renderRecommendedTools(visibleDismissed).includes('data-recommend-restore="ghostty"'), "dismissed recommendation cards should expose restore actions");
+assert(render.renderRecommendedTools(state.filterRecommendedTools({ ...data, ghostty: { meta: { name: "Ghostty" }, items: [] }, warp: { meta: { name: "Warp" }, items: [] }, wezterm: { meta: { name: "WezTerm" }, items: [] }, alacritty: { meta: { name: "Alacritty" }, items: [] }, homebrew: { meta: { name: "Homebrew" }, items: [] }, docker: { meta: { name: "Docker" }, items: [] }, kubectl: { meta: { name: "kubectl" }, items: [] }, uv: { meta: { name: "uv" }, items: [] }, pnpm: { meta: { name: "pnpm" }, items: [] } }, "mac")).includes("手动输入工具名称"), "empty recommendations should explain manual add fallback");
+assert(render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "not-a-tool" })).includes("当前筛选没有匹配"), "filtered empty recommendations should explain the active filter");
+
 const shellFilters = render.renderFilters(data, state, { ...baseState, activeTool: "shell", activeShellFilter: "topic:completion" });
 assert(shellFilters.shellHtml.includes('data-shell-filter="topic:completion"'), "Shell facet chips should render for Shell tool");
 assert(shellFilters.shellHtml.includes("补全") && shellFilters.shellHtml.includes("active"), "active Shell facet should be visible");
@@ -294,6 +328,7 @@ const context = {
     CHEATSHEET_POPUP_RENDER: render,
     CHEATSHEET_POPUP_TASKS: taskMessages,
     CHEATSHEET_ENABLE_TEST_HOOKS: true,
+    CHEATSHEET_DATA: {},
   },
   document: { addEventListener() {} },
   navigator: { platform: "MacIntel" },
@@ -339,6 +374,18 @@ assert(context.window.CHEATSHEET_POPUP_TESTS, "popup test hooks should be availa
   assert(state.overbroadAddToolHint("CLI", "cli").includes("GNU Coreutils"), "overbroad tool names need split-scope guidance");
   assert.deepStrictEqual(state.normalizeAddTool("terminal"), { tool: "shell", displayName: "Shell" }, "Shell aliases should canonicalize");
   assert(state.TOOL_PRESETS.terminal.includes("shell"), "terminal preset should enable Shell by default");
+  assert(context.window.CHEATSHEET_POPUP_TESTS.addToolPayload("Ghostty", true).ok, "recommended tools should build add payloads");
+  const recommendedPayload = context.window.CHEATSHEET_POPUP_TESTS.addToolPayload("Ghostty", true).payload;
+  assert.strictEqual(recommendedPayload.tool, "ghostty", "recommended payload should normalize tool id");
+  assert.strictEqual(recommendedPayload.display_name, "Ghostty", "recommended payload should preserve display name");
+  assert.strictEqual(recommendedPayload.prefer_web, true, "recommended payload should prefer web when requested");
+  context.window.CHEATSHEET_DATA = { docker: { meta: { name: "Docker" }, items: [] } };
+  assert.strictEqual(
+    context.window.CHEATSHEET_POPUP_TESTS.addToolPayload("Docker", true).ok,
+    false,
+    "already collected recommendations should not start add tasks"
+  );
+  assert(context.window.CHEATSHEET_POPUP_TESTS.addToolPayload("CLI", true).error.includes("范围过大"), "broad recommendation names should stay blocked");
 
   console.log("Popup UX behavior tests passed.");
 })().catch((error) => {

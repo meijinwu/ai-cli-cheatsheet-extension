@@ -211,6 +211,37 @@
     ).join("");
   }
 
+  function renderRecommendationCategories(result) {
+    return result.categories.map((category) =>
+      `<button class="chip ${result.activeCategory === category.key ? "active" : ""}" data-recommend-category="${escapeHtml(category.key)}">${escapeHtml(category.label)} ${category.count}</button>`
+    ).join("");
+  }
+
+  function renderRecommendedTools(result) {
+    if (!result.totalAvailable) {
+      return `<div class="meta">当前平台的常用推荐都已收录。也可以在下方手动输入工具名称。</div>`;
+    }
+    if (!result.totalVisible) {
+      return `<div class="meta">${result.query || result.activeCategory !== "all" ? "当前筛选没有匹配的推荐。" : "当前平台的推荐都已忽略。"}可以调整筛选、显示已忽略项，或在下方手动输入工具名称。</div>`;
+    }
+    return result.groups.map((group) => `<section class="recommend-group">
+      <div class="recommend-group-title">${escapeHtml(group.label)} <span>${group.items.length}</span></div>
+      ${group.items.map((item) => `<div class="recommend-card ${item.dismissed ? "is-dismissed" : ""}">
+      <div class="recommend-head">
+        <div><div class="recommend-name">${escapeHtml(item.displayName)}</div><div class="recommend-cat">${escapeHtml(item.category)}</div></div>
+        <div class="recommend-actions">
+          ${item.dismissed
+            ? `<button class="text-btn" data-recommend-restore="${escapeHtml(item.tool)}">恢复</button>`
+            : `<button class="text-btn" data-recommend-dismiss="${escapeHtml(item.tool)}">忽略</button>`}
+          <button class="text-btn" data-recommend-tool="${escapeHtml(item.tool)}" data-recommend-name="${escapeHtml(item.displayName)}" data-recommend-web="${item.preferWeb ? "true" : "false"}">新增</button>
+        </div>
+      </div>
+      <div class="meta">${escapeHtml(item.reason)}</div>
+      <div class="recommend-tags">${(item.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>
+    </div>`).join("")}
+    </section>`).join("");
+  }
+
   function sourceCard(toolId, data, helpers) {
     const meta = data[toolId].meta;
     const sources = normalizedSources(meta);
@@ -372,6 +403,8 @@
     renderRow,
     renderResults,
     renderManageToolToggles,
+    renderRecommendationCategories,
+    renderRecommendedTools,
     countBarHtml,
     renderManageTools,
     renderPending,

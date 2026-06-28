@@ -1,7 +1,7 @@
 "use strict";
 
 (function initPopupState(globalScope) {
-  const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate", "lastQualityWarnings", "webVerify"];
+  const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate", "lastQualityWarnings", "webVerify", "dismissedRecommendations"];
   const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "› 命令", flag: "⚑ 参数/选项" };
   const SHELL_FILTER_LABELS = {
     layer: {
@@ -39,6 +39,148 @@
     editors: ["cursor", "vs-code", "idea", "typora"],
     terminal: ["git", "linux", "shell"],
   };
+  const RECOMMENDATION_CATEGORIES = [
+    { key: "all", label: "全部" },
+    { key: "terminal", label: "终端" },
+    { key: "package-manager", label: "包管理器" },
+    { key: "cloud-native", label: "容器/云原生" },
+    { key: "language-toolchain", label: "语言工具链" },
+    { key: "dev-env", label: "开发环境" },
+  ];
+  const TOOL_RECOMMENDATIONS = [
+    {
+      tool: "ghostty",
+      displayName: "Ghostty",
+      platforms: ["mac", "linux"],
+      category: "终端模拟器",
+      categoryKey: "terminal",
+      priority: 10,
+      reason: "现代 GPU 终端，适合常用快捷键、配置和会话操作速查。",
+      tags: ["terminal", "config", "shortcuts"],
+      preferWeb: true,
+    },
+    {
+      tool: "warp",
+      displayName: "Warp",
+      platforms: ["mac"],
+      category: "AI 终端",
+      categoryKey: "terminal",
+      priority: 20,
+      reason: "交互式终端和 AI 工作流常用，适合补充命令面板与快捷键。",
+      tags: ["terminal", "ai", "workflow"],
+      preferWeb: true,
+    },
+    {
+      tool: "wezterm",
+      displayName: "WezTerm",
+      platforms: ["mac", "linux"],
+      category: "终端模拟器",
+      categoryKey: "terminal",
+      priority: 30,
+      reason: "跨平台终端，配置、窗格、标签页和快捷键值得整理。",
+      tags: ["terminal", "cross-platform", "config"],
+      preferWeb: true,
+    },
+    {
+      tool: "alacritty",
+      displayName: "Alacritty",
+      platforms: ["mac", "linux"],
+      category: "终端模拟器",
+      categoryKey: "terminal",
+      priority: 40,
+      reason: "轻量终端，适合整理配置文件、快捷键和常用启动方式。",
+      tags: ["terminal", "config"],
+      preferWeb: true,
+    },
+    {
+      tool: "homebrew",
+      displayName: "Homebrew",
+      platforms: ["mac"],
+      category: "包管理器",
+      categoryKey: "package-manager",
+      priority: 50,
+      reason: "macOS 最常见开发工具安装入口，常用安装、搜索、更新命令集中。",
+      tags: ["package-manager", "mac"],
+      preferWeb: true,
+    },
+    {
+      tool: "docker",
+      displayName: "Docker",
+      platforms: ["mac", "windows", "linux"],
+      category: "容器工具",
+      categoryKey: "cloud-native",
+      priority: 60,
+      reason: "镜像、容器、日志、网络和 Compose 操作查询频率高。",
+      tags: ["container", "devops"],
+      preferWeb: true,
+    },
+    {
+      tool: "kubectl",
+      displayName: "kubectl",
+      platforms: ["mac", "windows", "linux"],
+      category: "Kubernetes",
+      categoryKey: "cloud-native",
+      priority: 70,
+      reason: "集群排查、资源查看和上下文切换命令复杂，适合速查。",
+      tags: ["kubernetes", "devops"],
+      preferWeb: true,
+    },
+    {
+      tool: "uv",
+      displayName: "uv",
+      platforms: ["mac", "linux"],
+      category: "Python 工具链",
+      categoryKey: "language-toolchain",
+      priority: 80,
+      reason: "Python 项目、虚拟环境和依赖管理命令更新快，适合单独收录。",
+      tags: ["python", "package-manager"],
+      preferWeb: true,
+    },
+    {
+      tool: "pnpm",
+      displayName: "pnpm",
+      platforms: ["mac", "windows", "linux"],
+      category: "Node 工具链",
+      categoryKey: "language-toolchain",
+      priority: 90,
+      reason: "包管理、workspace 和脚本命令常用，和 npm/yarn 易混淆。",
+      tags: ["node", "package-manager"],
+      preferWeb: true,
+    },
+    {
+      tool: "windows-terminal",
+      displayName: "Windows Terminal",
+      platforms: ["windows"],
+      category: "终端模拟器",
+      categoryKey: "terminal",
+      priority: 10,
+      reason: "Windows 默认现代终端，配置、窗格、标签页和命令面板常用。",
+      tags: ["terminal", "windows", "shortcuts"],
+      preferWeb: true,
+    },
+    {
+      tool: "powershell",
+      displayName: "PowerShell",
+      platforms: ["windows"],
+      category: "Shell",
+      categoryKey: "terminal",
+      priority: 20,
+      reason: "Windows 常用自动化 Shell，管道、对象和常用 cmdlet 需要速查。",
+      tags: ["shell", "windows", "scripting"],
+      preferWeb: true,
+    },
+    {
+      tool: "wsl",
+      displayName: "WSL",
+      platforms: ["windows"],
+      category: "开发环境",
+      categoryKey: "dev-env",
+      priority: 30,
+      reason: "Windows 上管理 Linux 发行版、路径和集成终端的常用入口。",
+      tags: ["windows", "linux", "dev-env"],
+      preferWeb: true,
+    },
+  ];
   const SHELL_FILTERS = [
     { key: "portability:posix", field: "portability", value: "posix", label: "POSIX" },
     { key: "portability:bash", field: "portability", value: "bash", label: "Bash" },
@@ -94,6 +236,63 @@
 
   function visibleToolIds(data, enabledTools) {
     return getToolIds(data).filter((id) => enabledTools.has(id));
+  }
+
+  function recommendationText(item) {
+    return [item.tool, item.displayName, item.category, item.reason, ...(item.tags || [])]
+      .join(" ")
+      .toLowerCase();
+  }
+
+  function sortRecommendations(items) {
+    return [...items].sort((a, b) =>
+      (a.priority ?? 999) - (b.priority ?? 999) || a.displayName.localeCompare(b.displayName)
+    );
+  }
+
+  function recommendedTools(data, currentPlatform) {
+    return sortRecommendations(TOOL_RECOMMENDATIONS.filter((item) =>
+      item.platforms.includes(currentPlatform) && !data[item.tool]
+    ));
+  }
+
+  function filterRecommendedTools(data, currentPlatform, options = {}) {
+    const dismissed = options.dismissedRecommendations || new Set();
+    const query = String(options.query || "").trim().toLowerCase();
+    const activeCategory = options.category || "all";
+    const showDismissed = options.showDismissed === true;
+    const available = recommendedTools(data, currentPlatform).map((item) => ({
+      ...item,
+      dismissed: dismissed.has(item.tool),
+    }));
+    const afterDismissed = available.filter((item) => showDismissed || !item.dismissed);
+    const afterQuery = query
+      ? afterDismissed.filter((item) => recommendationText(item).includes(query))
+      : afterDismissed;
+    const visible = afterQuery.filter((item) => activeCategory === "all" || item.categoryKey === activeCategory);
+    const groups = RECOMMENDATION_CATEGORIES
+      .filter((category) => category.key !== "all")
+      .map((category) => ({
+        key: category.key,
+        label: category.label,
+        items: sortRecommendations(visible.filter((item) => item.categoryKey === category.key)),
+      }))
+      .filter((group) => group.items.length);
+    const categories = RECOMMENDATION_CATEGORIES.map((category) => ({
+      ...category,
+      count: category.key === "all"
+        ? afterQuery.length
+        : afterQuery.filter((item) => item.categoryKey === category.key).length,
+    }));
+    return {
+      query,
+      activeCategory,
+      showDismissed,
+      totalAvailable: available.length,
+      totalVisible: visible.length,
+      categories,
+      groups,
+    };
   }
 
   function itemId(toolId, item) {
@@ -278,6 +477,8 @@
     SEARCH_INITIAL_LIMIT,
     SEARCH_DEBOUNCE_MS,
     TOOL_PRESETS,
+    RECOMMENDATION_CATEGORIES,
+    TOOL_RECOMMENDATIONS,
     SHELL_FILTERS,
     detectPlatform,
     storageGet,
@@ -285,6 +486,8 @@
     debounce,
     getToolIds,
     visibleToolIds,
+    recommendedTools,
+    filterRecommendedTools,
     itemId,
     entryKey,
     buildEnrichmentIndex,
