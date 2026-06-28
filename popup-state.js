@@ -445,14 +445,29 @@
       .map((id) => data[id]?.meta?.name || id);
   }
 
-  function recommendedTools(data, currentPlatform) {
-    return sortRecommendations(TOOL_RECOMMENDATIONS.filter((item) =>
-      item.platforms.includes(currentPlatform) && !data[item.tool]
+  // 把额外推荐（如 AI 现荐）并入静态精选池，按 tool id 去重（静态优先）。
+  function mergeRecommendationPool(extra) {
+    const pool = [...TOOL_RECOMMENDATIONS];
+    const seen = new Set(TOOL_RECOMMENDATIONS.map((item) => item.tool));
+    if (Array.isArray(extra)) {
+      for (const item of extra) {
+        if (item && typeof item.tool === "string" && !seen.has(item.tool)) {
+          seen.add(item.tool);
+          pool.push(item);
+        }
+      }
+    }
+    return pool;
+  }
+
+  function recommendedTools(data, currentPlatform, extra = []) {
+    return sortRecommendations(mergeRecommendationPool(extra).filter((item) =>
+      Array.isArray(item.platforms) && item.platforms.includes(currentPlatform) && !data[item.tool]
     ));
   }
 
-  function countRecommendations(data, currentPlatform, dismissed = new Set()) {
-    return recommendedTools(data, currentPlatform).filter((item) => !dismissed.has(item.tool)).length;
+  function countRecommendations(data, currentPlatform, dismissed = new Set(), extra = []) {
+    return recommendedTools(data, currentPlatform, extra).filter((item) => !dismissed.has(item.tool)).length;
   }
 
   // 默认浏览态（全部分类 + 无搜索 + 不看已忽略）下，从相关性排序后的完整列表里环形切出一批。
@@ -473,10 +488,11 @@
     const webVerify = options.webVerify === true;
     const batchSize = Number(options.batchSize) || 0;
     const batchOffset = Number(options.batchOffset) || 0;
+    const extraRecommendations = options.extraRecommendations || [];
     const query = String(options.query || "").trim().toLowerCase();
     const activeCategory = options.category || "all";
     const showDismissed = options.showDismissed === true;
-    const available = recommendedTools(data, currentPlatform).map((item) => ({
+    const available = recommendedTools(data, currentPlatform, extraRecommendations).map((item) => ({
       ...item,
       dismissed: dismissed.has(item.tool),
       adding: addingTool === item.tool,

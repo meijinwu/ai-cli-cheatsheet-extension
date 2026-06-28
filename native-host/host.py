@@ -55,8 +55,21 @@ HOST_ACTIONS = {
     "apply_update",
     "discard_update",
     "remove_tool",
+    "suggest_tools",
 }
 TOOL_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+# 推荐工具的分类键（与浏览器侧 popup-state.js 的 RECOMMENDATION_CATEGORIES 对齐）。
+RECOMMENDATION_CATEGORY_KEYS = {
+    "terminal",
+    "cli-utility",
+    "package-manager",
+    "language-toolchain",
+    "cloud-native",
+    "dev-env",
+}
+SUGGEST_PLATFORMS = {"mac", "windows", "linux"}
+SUGGEST_MAX_COUNT = 12
+SUGGEST_MAX_EXCLUDE = 200
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 VALID_CATEGORIES = {"shortcut", "slash", "flag"}
 RESERVED_TOOL_IDS = {"index"}
@@ -498,6 +511,24 @@ def validate_request(message):
         raise ValidationError(f"未知的 action: {action}")
     if action == "ping":
         return {"action": "ping"}
+
+    if action == "suggest_tools":
+        platform = message.get("platform", "")
+        if platform not in SUGGEST_PLATFORMS:
+            raise ValidationError("平台无效")
+        try:
+            count = int(message.get("count", 8))
+        except (TypeError, ValueError):
+            raise ValidationError("count 必须是整数")
+        count = max(1, min(SUGGEST_MAX_COUNT, count))
+        raw_exclude = message.get("exclude", [])
+        if not isinstance(raw_exclude, list):
+            raise ValidationError("exclude 必须是数组")
+        exclude = []
+        for item in raw_exclude[:SUGGEST_MAX_EXCLUDE]:
+            if isinstance(item, str) and TOOL_ID_RE.match(item):
+                exclude.append(item)
+        return {"action": "suggest_tools", "platform": platform, "count": count, "exclude": exclude}
 
     if action in {"apply_update", "discard_update"}:
         token = message.get("token", "")
@@ -1842,6 +1873,106 @@ def _run_generation_prompt(prompt, use_api, prefer_web=False):
     return _call_claude_cli(prompt, prefer_web)
 
 
+def build_suggest_prompt(platform, count, exclude):
+    platform_label = {"mac": "macOS", "windows": "Windows", "linux": "Linux"}[platform]
+    exclude_text = "、".join(exclude) if exclude else "（无）"
+    keys = "、".join(sorted(RECOMMENDATION_CATEGORY_KEYS))
+    return f"""
+为 {platform_label} 开发者推荐 {count} 个常用的命令行 / 开发工具，用于一个 CLI 速查表扩展的「推荐添加」列表。
+要求：
+- 只推荐在 {platform_label} 上实际可用、广为使用、且命令/快捷键值得做速查表的工具。
+- 必须排除以下已收录或已展示的工具 ID：{exclude_text}。
+- 不要推荐过于宽泛的条目（如 shell、terminal、命令行本身）。
+- 每个工具给出稳定的小写工具 ID（仅小写字母、数字、连字符）。
+- categoryKey 只能从这些值里选：{keys}。
+- homepage 必须是 https 官网或文档 URL。
+你不能联网，只输出你高度确信的工具。只输出 JSON 对象，不要 Markdown，格式：
+{{
+  "tools": [
+    {{
+      "tool": "ripgrep",
+      "displayName": "ripgrep",
+      "category": "命令行增强",
+      "categoryKey": "cli-utility",
+      "reason": "极快的代码搜索，正则与忽略规则常用。",
+      "tags": ["search", "cli-utility"],
+      "homepage": "https://github.com/BurntSushi/ripgrep"
+    }}
+  ]
+}}
+"""
+
+
+def _normalize_suggestion(raw, platform, seen):
+    if not isinstance(raw, dict):
+        return None
+    tool = raw.get("tool")
+    if not isinstance(tool, str):
+        return None
+    tool = tool.strip().lower()
+    if not TOOL_ID_RE.match(tool) or tool in seen or tool in OVERBROAD_ADD_TOOL_IDS:
+        return None
+    display_name = raw.get("displayName") or tool
+    if not isinstance(display_name, str) or not display_name.strip():
+        return None
+    display_name = display_name.strip()[:60]
+    category_key = raw.get("categoryKey")
+    if category_key not in RECOMMENDATION_CATEGORY_KEYS:
+        category_key = "cli-utility"
+    category = raw.get("category")
+    category = category.strip()[:30] if isinstance(category, str) and category.strip() else display_name
+    reason = raw.get("reason")
+    reason = reason.strip()[:120] if isinstance(reason, str) and reason.strip() else "AI 推荐的常用工具。"
+    tags = []
+    if isinstance(raw.get("tags"), list):
+        for tag in raw["tags"]:
+            if isinstance(tag, str) and tag.strip():
+                tags.append(tag.strip()[:24])
+            if len(tags) >= 4:
+                break
+    homepage = raw.get("homepage")
+    homepage = homepage.strip() if isinstance(homepage, str) and homepage.strip().lower().startswith("https://") else ""
+    return {
+        "tool": tool,
+        "displayName": display_name,
+        "category": category,
+        "categoryKey": category_key,
+        "reason": reason,
+        "tags": tags,
+        "homepage": homepage,
+        "platforms": [platform],
+        "preferWeb": True,
+        "source": "ai",
+    }
+
+
+def suggest_tools(platform, count, exclude):
+    prompt = build_suggest_prompt(platform, count, exclude)
+    use_api = _has_api_token()
+    result = _run_generation_prompt(prompt, use_api, prefer_web=False)
+    tools = result.get("tools") if isinstance(result, dict) else None
+    if not isinstance(tools, list):
+        raise ValidationError("AI 没有返回合法的 tools 数组")
+    seen = set(exclude)
+    suggestions = []
+    for raw in tools:
+        normalized = _normalize_suggestion(raw, platform, seen)
+        if not normalized:
+            continue
+        seen.add(normalized["tool"])
+        suggestions.append(normalized)
+        if len(suggestions) >= count:
+            break
+    if not suggestions:
+        return {"ok": False, "error": "AI 暂时没有可推荐的新工具，请稍后再试。"}
+    return {
+        "ok": True,
+        "changed": False,
+        "suggestions": suggestions,
+        "output": f"已生成 {len(suggestions)} 个 AI 推荐",
+    }
+
+
 def build_shell_batch_prompt(discovered_sources, batch, web_enabled, max_items=SHELL_BATCH_MAX_ITEMS):
     base = build_prompt(
         "shell",
@@ -2825,6 +2956,8 @@ def handle_message(message):
         return discard_update(request["token"])
     if request["action"] == "remove_tool":
         return remove_tool(request["tool"])
+    if request["action"] == "suggest_tools":
+        return suggest_tools(request["platform"], request["count"], request["exclude"])
     raise ValidationError(f"未知的 action: {request['action']}")
 
 

@@ -264,7 +264,7 @@
   function recommendCard(item, webVerify) {
     return `<div class="recommend-card ${item.dismissed ? "is-dismissed" : ""} ${item.adding ? "is-adding" : ""}">
       <div class="recommend-head">
-        <div><div class="recommend-name">${escapeHtml(item.displayName)}</div><div class="recommend-cat">${escapeHtml(item.category)}</div></div>
+        <div><div class="recommend-name">${escapeHtml(item.displayName)}${item.source === "ai" ? `<span class="recommend-ai">AI</span>` : ""}</div><div class="recommend-cat">${escapeHtml(item.category)}</div></div>
         <div class="recommend-actions">${recommendCardActions(item, webVerify)}</div>
       </div>
       ${item.relatedTo && item.relatedTo.length ? `<div class="recommend-related">因为你已添加 ${escapeHtml(item.relatedTo.join("、"))}</div>` : ""}

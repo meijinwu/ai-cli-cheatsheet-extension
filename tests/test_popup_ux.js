@@ -260,6 +260,20 @@ const dismissedBatch = state.filterRecommendedTools(data, "mac", { batchSize: 6,
 const dismissedBatchRow = render.renderRecommendationCategories(dismissedBatch);
 assert(dismissedBatchRow.includes("data-recommend-shuffle"), "batched + show dismissed should keep the shuffle action");
 assert(dismissedBatchRow.includes('data-recommend-bulk="restore"'), "batched + show dismissed should keep the bulk restore action");
+
+// AI 再荐：把额外推荐并入池
+const aiItem = { tool: "fd", displayName: "fd", category: "命令行增强", categoryKey: "cli-utility", reason: "find 替代，更快更友好。", tags: ["search"], homepage: "https://github.com/sharkdp/fd", platforms: ["mac", "linux"], preferWeb: true, source: "ai" };
+const withAi = state.filterRecommendedTools(data, "mac", { category: "cli-utility", extraRecommendations: [aiItem] });
+const cliTools = withAi.groups.flatMap((group) => group.items);
+const fdItem = cliTools.find((item) => item.tool === "fd");
+assert(fdItem && fdItem.source === "ai", "extra AI recommendations should merge into the pool");
+assert.strictEqual(state.countRecommendations(data, "mac", new Set(), [aiItem]), state.countRecommendations(data, "mac") + 1, "AI recommendations should count toward the badge");
+const dupAi = state.filterRecommendedTools(data, "mac", { extraRecommendations: [{ ...aiItem, tool: "ghostty" }] });
+assert.strictEqual(dupAi.groups.flatMap((group) => group.items).filter((item) => item.tool === "ghostty").length, 1, "extra recommendations should dedupe against static ones");
+assert(!state.recommendedTools(data, "windows", [{ ...aiItem, platforms: ["mac"] }]).some((item) => item.tool === "fd"), "extra recommendations should respect platform filtering");
+const aiHtml = render.renderRecommendedTools(withAi);
+assert(aiHtml.includes("recommend-ai") && aiHtml.includes('data-recommend-tool="fd"'), "AI recommendation cards should render an AI badge");
+assert(html.includes('id="aiSuggestBtn"'), "recommendation panel should expose an AI suggest button");
 const relatedBatch = state.filterRecommendedTools({ ...data, docker: { meta: { name: "Docker" }, items: [] } }, "mac", { batchSize: 6, collectedToolIds: new Set(["docker"]) });
 assert(relatedBatch.batch.items.some((item) => item.relatedTo && item.relatedTo.length), "related recommendations should surface in the first batch");
 const batchHtml = render.renderRecommendedTools(firstBatch);

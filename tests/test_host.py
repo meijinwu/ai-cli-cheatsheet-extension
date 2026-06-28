@@ -1690,5 +1690,71 @@ class HostHttpRetryTests(unittest.TestCase):
         self.assertEqual(opener.call_count, 3)
 
 
+class HostSuggestToolsTests(unittest.TestCase):
+    def test_validate_request_normalizes_params(self):
+        request = host.validate_request({
+            "action": "suggest_tools",
+            "platform": "mac",
+            "count": 99,
+            "exclude": ["ripgrep", "BAD ID", "fzf", 123],
+        })
+        self.assertEqual(request["platform"], "mac")
+        self.assertEqual(request["count"], host.SUGGEST_MAX_COUNT)
+        self.assertEqual(request["exclude"], ["ripgrep", "fzf"])
+
+    def test_validate_request_rejects_bad_platform(self):
+        with self.assertRaises(host.ValidationError):
+            host.validate_request({"action": "suggest_tools", "platform": "solaris", "count": 3, "exclude": []})
+
+    def test_suggest_tools_sanitizes_and_excludes(self):
+        payload = {"tools": [
+            {"tool": "lazygit", "displayName": "lazygit", "category": "Git 工具", "categoryKey": "dev-env",
+             "reason": "Git TUI", "tags": ["git", "tui", "a", "b", "c"], "homepage": "https://github.com/jesseduffield/lazygit"},
+            {"tool": "ripgrep", "displayName": "rg", "categoryKey": "cli-utility", "reason": "excluded", "homepage": "https://x.dev"},
+            {"tool": "BAD ID", "displayName": "bad", "homepage": "https://x.dev"},
+            {"tool": "evilcat", "displayName": "evil", "categoryKey": "nonsense", "reason": "bad link", "homepage": "javascript:alert(1)"},
+        ]}
+        with mock.patch.object(host, "_has_api_token", return_value=True), \
+                mock.patch.object(host, "_run_generation_prompt", return_value=payload):
+            result = host.suggest_tools("mac", 8, ["ripgrep", "fzf"])
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["changed"])
+        tools = [item["tool"] for item in result["suggestions"]]
+        self.assertIn("lazygit", tools)
+        self.assertNotIn("ripgrep", tools, "excluded ids must be dropped")
+        self.assertNotIn("BAD ID", tools, "invalid ids must be dropped")
+        lazygit = next(item for item in result["suggestions"] if item["tool"] == "lazygit")
+        self.assertEqual(lazygit["platforms"], ["mac"])
+        self.assertEqual(lazygit["source"], "ai")
+        self.assertLessEqual(len(lazygit["tags"]), 4, "tags should be capped")
+        evil = next(item for item in result["suggestions"] if item["tool"] == "evilcat")
+        self.assertEqual(evil["categoryKey"], "cli-utility", "unknown category falls back")
+        self.assertEqual(evil["homepage"], "", "non-https homepage is stripped")
+
+    def test_suggest_tools_caps_count(self):
+        payload = {"tools": [
+            {"tool": f"tool{i}", "displayName": f"Tool {i}", "categoryKey": "cli-utility",
+             "reason": "x", "homepage": "https://x.dev"}
+            for i in range(10)
+        ]}
+        with mock.patch.object(host, "_has_api_token", return_value=True), \
+                mock.patch.object(host, "_run_generation_prompt", return_value=payload):
+            result = host.suggest_tools("mac", 3, [])
+        self.assertEqual(len(result["suggestions"]), 3)
+
+    def test_suggest_tools_empty_result_is_friendly(self):
+        with mock.patch.object(host, "_has_api_token", return_value=True), \
+                mock.patch.object(host, "_run_generation_prompt", return_value={"tools": []}):
+            result = host.suggest_tools("mac", 8, [])
+        self.assertFalse(result["ok"])
+        self.assertIn("error", result)
+
+    def test_suggest_tools_rejects_non_list(self):
+        with mock.patch.object(host, "_has_api_token", return_value=True), \
+                mock.patch.object(host, "_run_generation_prompt", return_value={"nope": 1}):
+            with self.assertRaises(host.ValidationError):
+                host.suggest_tools("mac", 8, [])
+
+
 if __name__ == "__main__":
     unittest.main()

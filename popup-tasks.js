@@ -7,6 +7,7 @@
     if (mode === "preview_update") return "正在检查实际版本变化；如需生成预览会继续核对资料，关闭面板不会中断";
     if (mode === "add_tool" && payload.tool === "shell") return "正在分批生成 Shell 聚合数据，关闭面板不会中断";
     if (mode === "add_tool") return "正在整理并生成工具数据，关闭面板不会中断";
+    if (mode === "suggest_tools") return "正在让 AI 推荐一批工具，关闭面板不会中断";
     return "正在执行，请稍候";
   }
 

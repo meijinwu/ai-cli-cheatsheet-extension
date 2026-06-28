@@ -18,7 +18,9 @@ let activeRecommendationCategory = "all";
 let showDismissedRecommendations = false;
 let addingRecommendation = null;
 let recommendationBatchOffset = 0;
+let aiRecommendations = [];
 const RECOMMENDATION_BATCH_SIZE = 6;
+const AI_SUGGEST_COUNT = 8;
 let pendingUpdate = null;
 let currentTaskMode = null;
 let expandedTools = new Set();
@@ -41,6 +43,24 @@ function storageGet(keys) {
 
 function storageSet(values) {
   return STATE.storageSet(chrome, values);
+}
+
+function storageSessionGet(keys) {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.session.get(keys, (result) => resolve(result || {}));
+    } catch (_error) {
+      resolve({});
+    }
+  });
+}
+
+function storageSessionSet(values) {
+  try {
+    return chrome.storage.session.set(values);
+  } catch (_error) {
+    return Promise.resolve();
+  }
 }
 
 function currentState() {
@@ -88,12 +108,43 @@ const taskController = window.CHEATSHEET_POPUP_TASKS.createTaskController({
   getCurrentTaskMode: () => currentTaskMode,
   setCurrentTaskMode: (mode) => { currentTaskMode = mode; },
   setPendingUpdate: (value) => { pendingUpdate = value; },
-  afterFinish: () => {
-    if (!addingRecommendation) return;
-    addingRecommendation = null;
-    if (document.getElementById("manageView").classList.contains("active")) renderManage();
+  afterFinish: (mode, response) => {
+    if (mode === "suggest_tools" && response?.ok && Array.isArray(response.suggestions)) {
+      mergeAiSuggestions(response.suggestions);
+    }
+    if (addingRecommendation) {
+      addingRecommendation = null;
+      if (document.getElementById("manageView").classList.contains("active")) renderManage();
+    }
   },
 });
+
+function manageIsActive() {
+  return document.getElementById("manageView").classList.contains("active");
+}
+
+async function mergeAiSuggestions(suggestions) {
+  const seen = new Set(aiRecommendations.map((item) => item.tool));
+  const installed = getAllData();
+  const additions = suggestions.filter((item) =>
+    item && typeof item.tool === "string" && !seen.has(item.tool) && !installed[item.tool]
+  );
+  if (additions.length) {
+    aiRecommendations = [...aiRecommendations, ...additions];
+    await storageSessionSet({ aiRecommendations });
+  }
+  if (manageIsActive()) renderManage();
+}
+
+function requestAiSuggestions() {
+  const exclude = [...new Set([
+    ...STATE.getToolIds(getAllData()),
+    ...STATE.TOOL_RECOMMENDATIONS.map((item) => item.tool),
+    ...dismissedRecommendations,
+    ...aiRecommendations.map((item) => item.tool),
+  ])];
+  taskController.runTask("suggest_tools", { platform, count: AI_SUGGEST_COUNT, exclude });
+}
 
 function hideToast() {
   const toast = document.getElementById("toast");
@@ -420,6 +471,7 @@ function renderManage() {
     webVerify,
     batchSize: RECOMMENDATION_BATCH_SIZE,
     batchOffset: recommendationBatchOffset,
+    extraRecommendations: aiRecommendations,
   });
   const categoriesEl = document.getElementById("recommendCategories");
   categoriesEl.innerHTML = RENDER.renderRecommendationCategories(recommendationResult);
@@ -523,7 +575,7 @@ async function bulkRecommendation(action, result) {
 function updateManageBadge() {
   const button = document.getElementById("openManage");
   if (!button) return;
-  const count = STATE.countRecommendations(getAllData(), platform, dismissedRecommendations);
+  const count = STATE.countRecommendations(getAllData(), platform, dismissedRecommendations, aiRecommendations);
   button.textContent = count ? `⚙ 管理 · ${count}` : "⚙ 管理";
   button.title = count ? `管理工具和数据（${count} 个推荐可添加）` : "管理工具和数据";
 }
@@ -601,6 +653,7 @@ function bindManageEvents() {
     recommendationBatchOffset = 0;
     renderManage();
   });
+  document.getElementById("aiSuggestBtn").addEventListener("click", requestAiSuggestions);
 }
 
 function renderOnboardChoices() {
@@ -706,6 +759,8 @@ async function initialize() {
   favourites = new Set(stored.favourites || []);
   recents = stored.recentCopies || [];
   dismissedRecommendations = new Set(Array.isArray(stored.dismissedRecommendations) ? stored.dismissedRecommendations : []);
+  const sessionState = await storageSessionGet(["aiRecommendations"]);
+  aiRecommendations = Array.isArray(sessionState.aiRecommendations) ? sessionState.aiRecommendations : [];
   platform = stored.platform || platform;
   webVerify = stored.webVerify === true;
   enabledTools = new Set(Array.isArray(stored.enabledTools)

@@ -52,8 +52,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return false;
     }
 
-    const { tool, display_name, mode, token, confirm_risk, prefer_web, deep_check } = msg;
+    const { tool, display_name, mode, token, confirm_risk, prefer_web, deep_check, platform, count, exclude } = msg;
     const tokenMode = ['apply_update', 'discard_update'].includes(mode);
+    const suggestMode = mode === 'suggest_tools';
     const validToken = typeof token === 'string' && /^[a-f0-9]{32}$/.test(token);
     const validTool = typeof tool === 'string'
       && tool.length <= 64
@@ -61,9 +62,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     const validName = typeof display_name === 'string'
       && display_name.trim().length > 0
       && display_name.trim().length <= 100;
-    const validMode = ['add_tool', 'preview_update', 'apply_update', 'discard_update', 'remove_tool']
+    const validPlatform = ['mac', 'windows', 'linux'].includes(platform);
+    const validCount = Number.isInteger(count) && count >= 1 && count <= 12;
+    const validMode = ['add_tool', 'preview_update', 'apply_update', 'discard_update', 'remove_tool', 'suggest_tools']
       .includes(mode);
-    if (!validMode || (tokenMode ? !validToken : (!validTool || !validName))) {
+    const TOOL_ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    const safeExclude = Array.isArray(exclude)
+      ? exclude.filter((id) => typeof id === 'string' && TOOL_ID_RE.test(id)).slice(0, 200)
+      : [];
+    let paramsValid;
+    if (suggestMode) paramsValid = validPlatform && validCount;
+    else if (tokenMode) paramsValid = validToken;
+    else paramsValid = validTool && validName;
+    if (!validMode || !paramsValid) {
       sendResponse({ ok: false, error: '任务参数无效。' });
       return false;
     }
@@ -105,6 +116,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       confirm_risk: confirm_risk === true,
       prefer_web: prefer_web === true,
       deep_check: deep_check === true,
+      platform,
+      count,
+      exclude: safeExclude,
     });
     return false;
   }
