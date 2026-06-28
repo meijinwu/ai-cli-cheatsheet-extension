@@ -51,15 +51,15 @@
   evidenceStatus: "verified",               // 由 evidenceRefs 自动推导
   examples: [                              // 可选；最多 3 个
     {
-      scenario: "需要批量替换配置文件中的旧域名",
-      goal: "先预览替换结果，再决定是否原地修改",
+      scenario: "需要批量替换配置文件中的旧域名", // 面向 UI 展示，必须包含中文
+      goal: "先预览替换结果，再决定是否原地修改", // 面向 UI 展示，必须包含中文
       value: "sed 's/旧文本/新文本/g' file.txt",
-      description: "不加 -i 时只输出结果，适合先确认匹配范围",
-      expected: "终端显示替换后的文本，原文件保持不变",
-      prerequisites: "确认文件编码和匹配文本",
-      caveat: "macOS 与 GNU sed 的 -i 参数不同",
+      description: "不加 -i 时只输出结果，适合先确认匹配范围", // 面向 UI 展示，必须包含中文
+      expected: "终端显示替换后的文本，原文件保持不变", // 面向 UI 展示，必须包含中文
+      prerequisites: "确认文件编码和匹配文本", // 可选；面向 UI 展示，必须包含中文
+      caveat: "macOS 与 GNU sed 的 -i 参数不同", // 可选；面向 UI 展示，必须包含中文
       copyable: true,                       // 可选，默认 true
-      warning: "先去掉 -i 预览结果",        // 可选
+      warning: "先去掉 -i 预览结果",        // 可选；面向 UI 展示，必须包含中文
       riskLevels: ["deleteOrOverwrite"],     // 可选；高风险示例由构建器自动补充并强制不可复制
       sourceType: "ai-derived",             // 旧版兼容：official / quasi-official / manual / ai-derived
       sourceUrl: "https://example.com/docs", // 可选；能定位具体官方页面时填写（quasi-official 必填且须为白名单域名）
@@ -149,6 +149,7 @@ meta：
 
 - **生成端（`native-host/host.py`，宽松）**：`keywords`/`examples` 缺失不报错，仅由 `build_quality_warnings` 产生质量警告。目的是不因模型偶发漏填而中断整次生成；用户可在预览里看到覆盖告警。
 - **仓库端（`tools/validate-data.js`，严格）**：提交进仓库的数据，每条目都**必须**带合法的 `keywords`（3..8）与 `examples`（1..3）。CI 会对全量数据执行，缺失即失败。
+- **示例 UI 文案语言**：`description`、`scenario`、`goal`、`expected`、`prerequisites`、`caveat`、`warning` 必须包含中文；`value`、`cmd`、`en`、URL、产品名和命令参数可以保留英文。
 
 两侧的数量上下限与危险/密钥正则保持一致，统一声明在 `shared/validation-rules.json`，并由 `tests/test_validation_consistency.js` 防止漂移。改任一侧规则前先更新该 JSON。
 
@@ -159,6 +160,7 @@ meta：
 - 新增模式：先判断是 CLI 类还是 IDE 类，按上面对应的规则处理
 - 更新模式：保留原有未变化的条目，不要整份重写丢失细节
 - 新增工具应为所有条目提供 keywords、evidenceRefs 和 examples。CLI 提供可执行命令，IDE 提供操作场景
+- examples 中面向用户展示的说明字段必须写中文；不要把官方英文说明原样放入 description、scenario、goal、expected、prerequisites、caveat 或 warning
 - Shell 聚合工具必须为所有条目提供 `shell` 结构化层次字段和 keywords；普通参数表条目可以省略 examples，但核心、高频、危险、易错或平台差异参数必须提供 examples、caveat 或 warning
 - examples 覆盖不足不会阻止写入，但会产生质量警告；结构错误仍会拒绝
 - **按信号更新**：动态 CLI 先比较本机版本，未安装时再查询已登记官方 Release；版本未变时不调用模型。普通更新复用已登记来源，只有来源明确返回 404/410 或用户主动深度核验时重新执行来源发现。

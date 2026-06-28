@@ -55,7 +55,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+T",
-          "description": "Creates a new tab with the default profile; the new tab shares the same window and becomes active.",
+          "description": "使用默认配置新建一个标签页；新标签页位于同一窗口中，并会立即成为当前活动标签。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -64,9 +64,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You need a fresh shell session in the same window.",
-          "goal": "Open a new tab without creating a new window.",
-          "expected": "A new empty tab appears to the right of existing tabs and receives focus.",
+          "scenario": "需要在同一个窗口中开启一个新的 Shell 会话。",
+          "goal": "不新建窗口，直接打开一个新标签页。",
+          "expected": "新的空白标签页出现在现有标签页右侧，并获得焦点。",
           "platforms": [
             "mac"
           ]
@@ -96,7 +96,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+W",
-          "description": "Closes the active tab. If the window only has one tab, the window closes. When a split pane is focused and the pane is not the only one, it closes that pane instead of the entire tab.",
+          "description": "关闭当前标签页；如果窗口只有一个标签页则关闭窗口。若焦点在分屏窗格且还有其他窗格，则只关闭当前窗格。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -105,9 +105,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You have finished working in a tab or split pane and want to clean up.",
-          "goal": "Close the currently focused tab or pane.",
-          "expected": "The active tab (or split pane) disappears; focus moves to the next remaining tab/pane.",
+          "scenario": "完成当前标签页或分屏窗格中的工作，需要清理界面。",
+          "goal": "关闭当前获得焦点的标签页或窗格。",
+          "expected": "当前标签页或窗格消失，焦点移动到剩余的标签页或窗格。",
           "platforms": [
             "mac"
           ]
@@ -136,7 +136,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+Shift+[",
-          "description": "Cycles focus to the previous tab. Tabs are ordered left-to-right; the shortcut wraps around to the last tab when the first tab is active.",
+          "description": "切换到上一个标签页。标签页按从左到右排序；当前在第一个标签页时会循环到最后一个。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -145,9 +145,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You have multiple tabs open and need to move one tab to the left in order.",
-          "goal": "Activate the tab immediately to the left of the current tab.",
-          "expected": "The tab to the left becomes active; the title bar highlights the newly selected tab.",
+          "scenario": "已经打开多个标签页，需要按顺序切换到左侧标签页。",
+          "goal": "激活当前标签页左侧的相邻标签页。",
+          "expected": "左侧标签页变为活动状态，标题栏高亮显示新选中的标签页。",
           "platforms": [
             "mac"
           ]
@@ -176,7 +176,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+Shift+]",
-          "description": "Cycles focus to the next tab. Tabs are ordered left-to-right; the shortcut wraps around to the first tab when the last tab is active.",
+          "description": "切换到下一个标签页。标签页按从左到右排序；当前在最后一个标签页时会循环到第一个。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -185,9 +185,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You have multiple tabs open and need to move one tab to the right.",
-          "goal": "Activate the tab immediately to the right of the current tab.",
-          "expected": "The tab to the right becomes active.",
+          "scenario": "已经打开多个标签页，需要切换到右侧标签页。",
+          "goal": "激活当前标签页右侧的相邻标签页。",
+          "expected": "右侧标签页变为活动状态。",
           "platforms": [
             "mac"
           ]
@@ -217,7 +217,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+D",
-          "description": "Splits the active session into two vertical panes (left and right), each running an independent shell. The new pane is to the right and uses the same profile.",
+          "description": "将当前会话垂直分成左右两个窗格，每个窗格运行独立的 Shell；新窗格位于右侧并使用相同配置。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -226,9 +226,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You need to monitor a log file while editing a configuration file in the same tab.",
-          "goal": "Create a new pane to the right of the current session.",
-          "expected": "The current session resizes to the left half, and a new shell session appears in the right half.",
+          "scenario": "需要在同一标签页中一边监控日志，一边编辑配置文件。",
+          "goal": "在当前会话右侧创建一个新窗格。",
+          "expected": "当前会话缩到左半边，右半边出现新的 Shell 会话。",
           "platforms": [
             "mac"
           ]
@@ -258,7 +258,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+Shift+D",
-          "description": "Splits the active session into two horizontal panes (top and bottom), each running an independent shell. The new pane is below the current one.",
+          "description": "将当前会话水平分成上下两个窗格，每个窗格运行独立的 Shell；新窗格位于当前窗格下方。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -267,9 +267,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You want to run a server in the upper pane and use the lower pane for ad-hoc commands.",
-          "goal": "Create a new pane below the current session.",
-          "expected": "The session splits into top and bottom panes; a new shell opens in the bottom half.",
+          "scenario": "想在上方窗格运行服务，在下方窗格执行临时命令。",
+          "goal": "在当前会话下方创建一个新窗格。",
+          "expected": "会话分成上下两个窗格，下半部分打开新的 Shell。",
           "platforms": [
             "mac"
           ]
@@ -299,7 +299,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+]",
-          "description": "Cycles focus to the next pane in a left-to-right, top-to-bottom order. Keeps the same tab active; the previously focused pane becomes inactive.",
+          "description": "按从左到右、从上到下的顺序切换到下一个窗格，同时保持当前标签页不变。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -308,9 +308,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You have several split panes open and need to move keyboard focus to the next pane in order.",
-          "goal": "Switch input focus to the next adjacent pane.",
-          "expected": "The cursor moves to the next pane; the title bar updates to reflect the newly active session.",
+          "scenario": "打开了多个分屏窗格，需要按顺序移动键盘焦点。",
+          "goal": "将输入焦点切换到下一个相邻窗格。",
+          "expected": "光标移动到下一个窗格，标题栏更新为当前活动会话。",
           "platforms": [
             "mac"
           ]
@@ -340,7 +340,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+[",
-          "description": "Cycles focus to the immediately previous pane, useful when you alternate between two panes.",
+          "description": "切换到上一个窗格，适合在两个窗格之间来回切换。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -349,9 +349,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You are editing files in multiple panes and need to jump back to the previous pane.",
-          "goal": "Switch focus to the pane that preceded the current pane.",
-          "expected": "The pane that had focus before the current pane becomes active.",
+          "scenario": "正在多个窗格中编辑文件，需要回到前一个窗格。",
+          "goal": "把焦点切回当前窗格之前的那个窗格。",
+          "expected": "之前获得焦点的窗格重新变为活动状态。",
           "platforms": [
             "mac"
           ]
@@ -380,7 +380,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+Enter",
-          "description": "Toggles between windowed and full-screen mode. In full-screen mode iTerm2 occupies a dedicated Space and hides the menu bar (can be shown by moving the pointer to the top).",
+          "description": "在窗口模式和全屏模式之间切换。全屏时 iTerm2 会占用独立 Space，并隐藏菜单栏。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -389,9 +389,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You need a distraction-free terminal workspace that occupies the entire display.",
-          "goal": "Enter or exit macOS native full-screen mode.",
-          "expected": "The window expands to fill the whole screen; the menu bar hides. Pressing the shortcut again returns to the previous window size.",
+          "scenario": "需要一个占满屏幕、减少干扰的终端工作区。",
+          "goal": "进入或退出 macOS 原生全屏模式。",
+          "expected": "窗口扩展到整个屏幕并隐藏菜单栏；再次按快捷键会恢复到原来的窗口大小。",
           "platforms": [
             "mac"
           ]
@@ -421,7 +421,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+F",
-          "description": "Opens the iTerm2 find bar at the bottom of the window. Type a search string and use Return or Cmd+G / Cmd+Shift+G to navigate matches. The search is limited to the visible scrollback buffer by default.",
+          "description": "在窗口底部打开 iTerm2 查找栏；输入搜索词后可用 Return、Cmd+G 或 Cmd+Shift+G 跳转匹配项。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -430,9 +430,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You have a long output in the terminal and need to locate a specific error string.",
-          "goal": "Open the find bar and search the scrollback buffer.",
-          "expected": "A find bar appears; matched text is highlighted in the terminal as you type.",
+          "scenario": "终端输出很长，需要定位某个错误字符串。",
+          "goal": "打开查找栏并搜索回滚缓冲区中的文本。",
+          "expected": "查找栏出现，输入时匹配文本会在终端中高亮。",
           "platforms": [
             "mac"
           ]
@@ -462,7 +462,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+K",
-          "description": "Clears the entire scrollback buffer and visible screen for the active pane. Unlike the `clear` shell command, this removes history that can be scrolled back to.",
+          "description": "清空当前窗格的可见内容和完整回滚缓冲区；不同于 `clear`，它也会移除可向上滚动查看的历史输出。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -471,9 +471,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "Your terminal is cluttered with previous command output and you want a clean view.",
-          "goal": "Erase all visible text and scrollback for the active session.",
-          "expected": "The pane becomes blank, with the prompt appearing at the top. Scrolling up shows nothing.",
+          "scenario": "终端里堆积了大量历史输出，需要恢复干净视图。",
+          "goal": "清除当前会话的可见文本和回滚历史。",
+          "expected": "窗格变为空白，提示符出现在顶部；向上滚动也看不到旧输出。",
           "platforms": [
             "mac"
           ]
@@ -502,7 +502,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "Cmd+,",
-          "description": "Opens the Preferences window where you can modify Profiles, Keys, Appearance, and other configurations. The window can remain open while you test changes in a terminal session.",
+          "description": "打开 Preferences 窗口，可修改 Profiles、Keys、Appearance 等配置，并可在终端会话中边测试边调整。",
           "copyable": false,
           "authorship": "editorial",
           "evidenceTier": "first-party",
@@ -511,9 +511,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You need to adjust iTerm2 appearance, key bindings, or profile settings.",
-          "goal": "Open the Preferences window.",
-          "expected": "The Preferences window appears, allowing navigation through the settings tabs.",
+          "scenario": "需要调整 iTerm2 外观、按键绑定或配置文件设置。",
+          "goal": "打开 Preferences 窗口。",
+          "expected": "Preferences 窗口出现，可以在各设置标签页之间切换。",
           "platforms": [
             "mac"
           ]
@@ -543,7 +543,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "imgcat photo.png",
-          "description": "Renders the specified image file directly in the terminal. Supports PNG, JPEG, GIF, and other formats. Requires iTerm2 Shell Integration to be installed.",
+          "description": "直接在终端中渲染指定图片文件，支持 PNG、JPEG、GIF 等格式；需要安装 iTerm2 Shell Integration。",
           "copyable": true,
           "sourceUrl": "https://iterm2.com/documentation-shell-integration.html",
           "authorship": "official",
@@ -553,10 +553,10 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You have an image file and want to quickly preview it without leaving the terminal.",
-          "goal": "Show an image inline in the iTerm2 session.",
-          "expected": "The image appears inline in the terminal output.",
-          "prerequisites": "iTerm2 Shell Integration must be installed and sourced in the shell.",
+          "scenario": "有一个图片文件，想不离开终端就快速预览。",
+          "goal": "在 iTerm2 会话中以内联方式显示图片。",
+          "expected": "图片以内联形式出现在终端输出中。",
+          "prerequisites": "需要安装 iTerm2 Shell Integration，并在当前 Shell 中加载。",
           "platforms": [
             "mac"
           ]
@@ -583,7 +583,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "imgls",
-          "description": "Shows a list of image files along with small inline thumbnails. Works like `ls` for images, but with visual previews. Requires Shell Integration.",
+          "description": "列出图片文件并显示小型内联缩略图，类似面向图片的 `ls`，但会带可视预览；需要 Shell Integration。",
           "copyable": true,
           "sourceUrl": "https://iterm2.com/documentation-shell-integration.html",
           "authorship": "official",
@@ -593,10 +593,10 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You need to see which images are in a folder at a glance.",
-          "goal": "Display a visual listing of image files in a directory.",
-          "expected": "Thumbnails of images are rendered inline next to their filenames.",
-          "prerequisites": "iTerm2 Shell Integration must be installed.",
+          "scenario": "需要快速查看目录里有哪些图片。",
+          "goal": "以可视化列表展示目录中的图片文件。",
+          "expected": "图片缩略图以内联方式显示在文件名旁边。",
+          "prerequisites": "需要安装 iTerm2 Shell Integration。",
           "platforms": [
             "mac"
           ]
@@ -622,7 +622,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "cat /etc/hosts | it2copy",
-          "description": "Takes data from standard input and puts it onto the macOS pasteboard. Any trailing newline is stripped. Shell Integration required.",
+          "description": "从标准输入读取数据并复制到 macOS 剪贴板，同时会去掉末尾换行；需要 Shell Integration。",
           "copyable": true,
           "sourceUrl": "https://iterm2.com/documentation-shell-integration.html",
           "authorship": "official",
@@ -632,11 +632,11 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You want to copy the output of a command to the clipboard without selecting with the mouse.",
-          "goal": "Pipe command output to the system clipboard.",
-          "expected": "The content is silently copied to the clipboard; no terminal output appears.",
-          "prerequisites": "iTerm2 Shell Integration must be installed.",
-          "caveat": "Use `command | it2copy` to avoid large binary output.",
+          "scenario": "想把命令输出复制到剪贴板，而不想用鼠标手动选择文本。",
+          "goal": "通过管道把命令输出写入系统剪贴板。",
+          "expected": "内容被静默复制到剪贴板，终端不会额外输出文本。",
+          "prerequisites": "需要安装 iTerm2 Shell Integration。",
+          "caveat": "建议使用 `command | it2copy` 处理文本输出，避免把大量二进制内容写入剪贴板。",
           "platforms": [
             "mac"
           ]
@@ -662,7 +662,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "it2profile \"Dark Background\"",
-          "description": "Changes the current session's profile to the one with the given name. The profile must exist in iTerm2 Preferences > Profiles. Shell Integration required.",
+          "description": "将当前会话切换到指定名称的配置文件；该配置文件必须已存在于 iTerm2 Preferences > Profiles 中，并需要 Shell Integration。",
           "copyable": true,
           "sourceUrl": "https://iterm2.com/documentation-shell-integration.html",
           "authorship": "official",
@@ -672,10 +672,10 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You want to change the current terminal's appearance to a pre-defined profile for a specific task.",
-          "goal": "Switch the active session to a named profile.",
-          "expected": "The terminal's colors, font, and other settings update instantly to match the profile.",
-          "prerequisites": "iTerm2 Shell Integration and at least one named profile.",
+          "scenario": "想为特定任务把当前终端外观切换到预先定义的配置文件。",
+          "goal": "把活动会话切换到指定名称的配置文件。",
+          "expected": "终端的颜色、字体和其他设置立即更新为该配置文件的样式。",
+          "prerequisites": "需要 iTerm2 Shell Integration，并至少已有一个命名配置文件。",
           "platforms": [
             "mac"
           ]
@@ -701,7 +701,7 @@ window.CHEATSHEET_DATA["iterm2"] = {
       "examples": [
         {
           "value": "it2check",
-          "description": "Outputs a diagnostic message indicating whether Shell Integration is properly installed and functioning in the current session. Returns exit code 0 on success.",
+          "description": "输出诊断信息，说明当前会话中的 Shell Integration 是否已正确安装并正常工作；成功时返回退出码 0。",
           "copyable": true,
           "sourceUrl": "https://iterm2.com/documentation-shell-integration.html",
           "authorship": "editorial",
@@ -711,9 +711,9 @@ window.CHEATSHEET_DATA["iterm2"] = {
           "sourceIds": [
             "iterm2-docs"
           ],
-          "scenario": "You suspect that iTerm2 Shell Integration is not loaded correctly.",
-          "goal": "Verify that the current shell session has the integration active.",
-          "expected": "Prints something like 'Shell integration is working.' or an error message.",
+          "scenario": "怀疑当前会话没有正确加载 iTerm2 Shell Integration。",
+          "goal": "验证当前 Shell 会话中的集成功能是否处于可用状态。",
+          "expected": "输出类似 'Shell integration is working.' 的提示，或显示相应错误信息。",
           "platforms": [
             "mac"
           ]

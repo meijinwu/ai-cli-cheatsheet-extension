@@ -390,7 +390,7 @@ window.CHEATSHEET_DATA["antigravity-cli"] = {
       "cat": "flag",
       "cmd": "安装命令（macOS/Linux）",
       "en": "curl install script",
-      "zh": "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+      "zh": "通过 curl 拉取安装脚本并在 macOS 或 Linux 上安装 Antigravity CLI",
       "id": "3459535a8fe20604",
       "evidenceStatus": "unverified"
     },
@@ -398,7 +398,7 @@ window.CHEATSHEET_DATA["antigravity-cli"] = {
       "cat": "flag",
       "cmd": "安装命令（Windows PowerShell）",
       "en": "irm install script",
-      "zh": "irm https://antigravity.google/cli/install.ps1 | iex",
+      "zh": "通过 PowerShell 拉取安装脚本并在 Windows 上安装 Antigravity CLI",
       "id": "101f6e4e0132508a",
       "evidenceStatus": "unverified"
     }

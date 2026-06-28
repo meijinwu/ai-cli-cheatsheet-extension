@@ -1648,15 +1648,15 @@ JSON 格式：
       }}],
       "examples": [
         {{
-          "scenario": "用户在什么情况下需要它",
-          "goal": "要解决的具体问题",
+          "scenario": "中文；用户在什么情况下需要它",
+          "goal": "中文；要解决的具体问题",
           "value": "具体命令、Markdown输入或操作步骤",
-          "description": "自然说明为什么这样用，避免重复命令释义",
-          "expected": "执行后应看到什么",
-          "prerequisites": "可选；执行前提",
-          "caveat": "可选；版本、平台或易混淆点",
+          "description": "中文；自然说明为什么这样用，避免重复命令释义",
+          "expected": "中文；执行后应看到什么",
+          "prerequisites": "可选，中文；执行前提",
+          "caveat": "可选，中文；版本、平台或易混淆点",
           "copyable": true,
-          "warning": "可选；危险操作或注意事项",
+          "warning": "可选，中文；危险操作或注意事项",
           "sourceType": "可选旧字段；official|quasi-official|manual|ai-derived",
           "sourceUrl": "可选；具体示例来源的HTTPS地址",
           "sourceIds": ["支持这个案例的来源ID"],
@@ -1686,6 +1686,7 @@ JSON 格式：
 7. sources、updatePolicy、contentCheckedAt、sourceCheckedAt、coverage 必须填写；updatedAt 仅为旧数据兼容字段，新数据可省略。网页来源必须记录 resolvedUrl、pageTitle、checkedAt。每个 item 必须提供 evidenceRefs，evidenceStatus 由系统根据 claims 自动推导，不要臆测；平台快捷键应尽量使用 platformCmds 表达。
 8. verified 必须同时有 existence 与 semantics 断言且 locator 可具体定位；只有宽泛首页或只确认命令存在时只能是 partial；无证据为 unverified。
 9. 每个条目都必须提供 keywords；除 Shell 聚合工具的非核心参数表条目外，每个条目都必须提供 examples；每条最多 3 个示例。Shell 的核心、高频、危险、易错或平台差异参数必须提供 examples、caveat 或 warning。
+9a. examples 中面向 UI 展示的说明字段必须使用中文：description、scenario、goal、expected、prerequisites、caveat、warning。命令值 value、cmd、官方英文 en、URL、产品名和命令参数可保留英文。
 10. updatePolicy 按实际变化方式选择：可读取本机版本的动态 CLI 用 version-driven；有明确官方 Release/Changelog 但无可靠本机版本的工具用 release-driven；稳定快捷键、键位表和基础命令参考用 manual-only。不得因为核验日期较早选择更激进的策略。
 11. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；案例应包含 scenario、goal、expected，说明何时用、结果是什么以及不要与什么混淆。
 12. 更新时保留已有 keywords 和 examples，并为所有新增条目补充关键词和示例。

@@ -26,12 +26,17 @@ const SHELL_LAYERS = ["syntax", "keyword", "builtin", "option", "shortcut", "con
 const SHELL_PORTABILITIES = ["posix", "bash", "zsh", "cross-platform"];
 const SHELL_TOPICS = ["builtins", "syntax", "shortcuts", "config", "environment", "history", "completion", "scripting", "jobs", "troubleshooting"];
 const REGISTRY_BY_ID = new Map(sourceRegistry.entries.map((entry) => [entry.id, entry]));
+const EXAMPLE_UI_TEXT_FIELDS = ["description", "scenario", "goal", "expected", "prerequisites", "caveat", "warning"];
 
 const context = { window: {} };
 vm.createContext(context);
 
 function fail(message) {
   throw new Error(message);
+}
+
+function containsCjk(value) {
+  return /[\u3400-\u9fff]/.test(String(value || ""));
 }
 
 // 类官方来源（tier / sourceType = quasi-official）的 sourceUrl 主机名必须命中白名单，
@@ -375,6 +380,11 @@ for (const id of files) {
         }
         if (example.warning !== undefined && (typeof example.warning !== "string" || !example.warning.trim())) {
           fail(`${id}[${index}].examples[${exampleIndex}]: invalid warning`);
+        }
+        for (const field of EXAMPLE_UI_TEXT_FIELDS) {
+          if (example[field] !== undefined && !containsCjk(example[field])) {
+            fail(`${id}[${index}].examples[${exampleIndex}].${field}: example UI text must include Chinese`);
+          }
         }
         if (example.riskLevels !== undefined && (
           !Array.isArray(example.riskLevels)

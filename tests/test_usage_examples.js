@@ -32,6 +32,11 @@ const evidenceCounts = {
 };
 const reviewedByTool = {};
 const evidenceByTool = {};
+const EXAMPLE_UI_TEXT_FIELDS = ["description", "scenario", "goal", "expected", "prerequisites", "caveat", "warning"];
+
+function containsCjk(value) {
+  return /[\u3400-\u9fff]/.test(String(value || ""));
+}
 
 for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
   for (const item of tool.items) {
@@ -60,6 +65,14 @@ for (const [toolId, tool] of Object.entries(window.CHEATSHEET_DATA)) {
         !/^(示例用途|操作场景)：/.test(example.description),
         `${toolId} ${item.cmd}: description must not use stiff label prefix`
       );
+      for (const field of EXAMPLE_UI_TEXT_FIELDS) {
+        if (example[field] !== undefined) {
+          assert(
+            containsCjk(example[field]),
+            `${toolId} ${item.cmd}: ${field} must be Chinese UI text`
+          );
+        }
+      }
       // 防回归：派生 value 不得把占位符类型名当成真实参数泄漏（如 /effort 级别）。
       // 仅查裸 token（去掉引号串与括号补注），句子型操作描述里粘连的 CJK 不算泄漏。
       if (example.generated === true) {

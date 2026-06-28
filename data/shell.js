@@ -159,7 +159,7 @@ window.CHEATSHEET_DATA["shell"] = {
           ],
           "scenario": "脚本或交互中需要确认当前路径",
           "goal": "输出当前工作目录的完整路径",
-          "expected": "/home/user/projects",
+          "expected": "输出当前路径，例如 /home/user/projects",
           "platforms": [
             "mac",
             "linux",
@@ -209,7 +209,7 @@ window.CHEATSHEET_DATA["shell"] = {
           ],
           "scenario": "需要在终端显示信息或调试变量",
           "goal": "输出字符串 Hello, World",
-          "expected": "Hello, World",
+          "expected": "输出 Hello, World 并换行",
           "platforms": [
             "mac",
             "linux",
@@ -258,7 +258,7 @@ window.CHEATSHEET_DATA["shell"] = {
           ],
           "scenario": "需要精确控制输出格式，如对齐或填充",
           "goal": "格式化输出姓名和年龄",
-          "expected": "Name: Alice      Age: 07",
+          "expected": "输出格式化后的文本：Name: Alice      Age: 07",
           "platforms": [
             "mac",
             "linux",
@@ -308,7 +308,7 @@ window.CHEATSHEET_DATA["shell"] = {
           ],
           "scenario": "脚本需要用户交互输入",
           "goal": "读取用户输入的名字并存入变量 name",
-          "expected": "Enter your name: Alice\nHello, Alice",
+          "expected": "先显示提示 Enter your name:，输入 Alice 后输出 Hello, Alice",
           "platforms": [
             "mac",
             "linux",
@@ -358,7 +358,7 @@ window.CHEATSHEET_DATA["shell"] = {
           ],
           "scenario": "检查文件是否存在且为普通文件",
           "goal": "若 /etc/passwd 存在则输出信息",
-          "expected": "passwd exists",
+          "expected": "若文件存在则输出 passwd exists",
           "platforms": [
             "mac",
             "linux",
@@ -408,7 +408,7 @@ window.CHEATSHEET_DATA["shell"] = {
           ],
           "scenario": "if 语句中需要更具可读性的条件判断",
           "goal": "检查目录 /tmp 是否存在",
-          "expected": "/tmp is a directory",
+          "expected": "若 /tmp 是目录则输出 /tmp is a directory",
           "platforms": [
             "mac",
             "linux",
@@ -2824,7 +2824,7 @@ window.CHEATSHEET_DATA["shell"] = {
           ],
           "scenario": "测试补全单词列表，查看以 'a' 开头的匹配项",
           "goal": "确认 compgen 返回正确的补全候选",
-          "expected": "apple",
+          "expected": "输出匹配前缀的候选 apple",
           "platforms": [
             "linux",
             "mac",
