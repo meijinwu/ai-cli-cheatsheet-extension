@@ -455,11 +455,24 @@
     return recommendedTools(data, currentPlatform).filter((item) => !dismissed.has(item.tool)).length;
   }
 
+  // 默认浏览态（全部分类 + 无搜索 + 不看已忽略）下，从相关性排序后的完整列表里环形切出一批。
+  function sliceRecommendationBatch(items, batchSize, batchOffset) {
+    const total = items.length;
+    if (!total) return { items: [], total: 0, offset: 0, canShuffle: false };
+    const size = Math.min(batchSize, total);
+    const start = (((batchOffset % total) + total) % total);
+    const batch = [];
+    for (let i = 0; i < size; i++) batch.push(items[(start + i) % total]);
+    return { items: batch, total, offset: start, canShuffle: total > batchSize };
+  }
+
   function filterRecommendedTools(data, currentPlatform, options = {}) {
     const dismissed = options.dismissedRecommendations || new Set();
     const collectedToolIds = options.collectedToolIds || new Set();
     const addingTool = options.addingTool || null;
     const webVerify = options.webVerify === true;
+    const batchSize = Number(options.batchSize) || 0;
+    const batchOffset = Number(options.batchOffset) || 0;
     const query = String(options.query || "").trim().toLowerCase();
     const activeCategory = options.category || "all";
     const showDismissed = options.showDismissed === true;
@@ -488,12 +501,18 @@
         ? afterQuery.length
         : afterQuery.filter((item) => item.categoryKey === category.key).length,
     }));
+    const batched = batchSize > 0 && activeCategory === "all" && !query && !showDismissed;
+    const batch = batched
+      ? sliceRecommendationBatch(sortRecommendationsByRelevance(visible), batchSize, batchOffset)
+      : null;
     return {
       query,
       activeCategory,
       showDismissed,
       webVerify,
       addingTool,
+      batched,
+      batch,
       totalAvailable: available.length,
       totalVisible: visible.length,
       categories,

@@ -17,6 +17,8 @@ let recommendationQuery = "";
 let activeRecommendationCategory = "all";
 let showDismissedRecommendations = false;
 let addingRecommendation = null;
+let recommendationBatchOffset = 0;
+const RECOMMENDATION_BATCH_SIZE = 6;
 let pendingUpdate = null;
 let currentTaskMode = null;
 let expandedTools = new Set();
@@ -416,15 +418,23 @@ function renderManage() {
     collectedToolIds: new Set(STATE.getToolIds(getAllData())),
     addingTool: addingRecommendation,
     webVerify,
+    batchSize: RECOMMENDATION_BATCH_SIZE,
+    batchOffset: recommendationBatchOffset,
   });
   const categoriesEl = document.getElementById("recommendCategories");
   categoriesEl.innerHTML = RENDER.renderRecommendationCategories(recommendationResult);
   categoriesEl.querySelectorAll("[data-recommend-category]").forEach((button) => button.addEventListener("click", () => {
     activeRecommendationCategory = button.dataset.recommendCategory;
+    recommendationBatchOffset = 0;
     renderManage();
   }));
   const bulkButton = categoriesEl.querySelector("[data-recommend-bulk]");
   if (bulkButton) bulkButton.addEventListener("click", () => bulkRecommendation(bulkButton.dataset.recommendBulk, recommendationResult));
+  const shuffleButton = categoriesEl.querySelector("[data-recommend-shuffle]");
+  if (shuffleButton) shuffleButton.addEventListener("click", () => {
+    recommendationBatchOffset += RECOMMENDATION_BATCH_SIZE;
+    renderManage();
+  });
   recommended.innerHTML = RENDER.renderRecommendedTools(recommendationResult);
   recommended.querySelectorAll("[data-recommend-tool]").forEach((button) => button.addEventListener("click", () => {
     addingRecommendation = button.dataset.recommendTool;
@@ -566,6 +576,7 @@ function renderPending() {
 function bindManageEvents() {
   document.getElementById("platformSelect").addEventListener("change", async (event) => {
     platform = event.target.value;
+    recommendationBatchOffset = 0;
     await storageSet({ platform });
     render();
     renderManage();
@@ -582,10 +593,12 @@ function bindManageEvents() {
   });
   document.getElementById("recommendSearch").addEventListener("input", (event) => {
     recommendationQuery = event.target.value;
+    recommendationBatchOffset = 0;
     renderManage();
   });
   document.getElementById("showDismissedRecommendations").addEventListener("change", (event) => {
     showDismissedRecommendations = event.target.checked;
+    recommendationBatchOffset = 0;
     renderManage();
   });
 }
