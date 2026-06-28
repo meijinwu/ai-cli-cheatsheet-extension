@@ -221,6 +221,13 @@
     const chips = result.categories.map((category) =>
       `<button class="chip ${result.activeCategory === category.key ? "active" : ""}" data-recommend-category="${escapeHtml(category.key)}">${escapeHtml(category.label)} ${category.count}</button>`
     ).join("");
+    // 分批浏览态显示「换一批」；聚焦态（搜索/分类/看已忽略）显示「全部忽略/恢复」，两者互斥。
+    if (result.batched) {
+      const action = result.batch && result.batch.canShuffle
+        ? `<button class="chip filter-clear" data-recommend-shuffle>换一批 ↻</button>`
+        : "";
+      return chips + action;
+    }
     const visible = result.groups.flatMap((group) => group.items);
     let bulk = "";
     if (result.showDismissed) {
@@ -248,6 +255,18 @@
     return `${learn}${toggle}${add}`;
   }
 
+  function recommendCard(item, webVerify) {
+    return `<div class="recommend-card ${item.dismissed ? "is-dismissed" : ""} ${item.adding ? "is-adding" : ""}">
+      <div class="recommend-head">
+        <div><div class="recommend-name">${escapeHtml(item.displayName)}</div><div class="recommend-cat">${escapeHtml(item.category)}</div></div>
+        <div class="recommend-actions">${recommendCardActions(item, webVerify)}</div>
+      </div>
+      ${item.relatedTo && item.relatedTo.length ? `<div class="recommend-related">因为你已添加 ${escapeHtml(item.relatedTo.join("、"))}</div>` : ""}
+      <div class="meta">${escapeHtml(item.reason)}</div>
+      <div class="recommend-tags">${(item.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}${item.preferWeb && !webVerify ? `<span class="recommend-web-hint">建议联网</span>` : ""}</div>
+    </div>`;
+  }
+
   function renderRecommendedTools(result) {
     if (!result.totalAvailable) {
       return `<div class="meta">当前平台的常用推荐都已收录。也可以在下方手动输入工具名称。</div>`;
@@ -256,17 +275,12 @@
       return `<div class="meta">${result.query || result.activeCategory !== "all" ? "当前筛选没有匹配的推荐。" : "当前平台的推荐都已忽略。"}可以调整筛选、显示已忽略项，或在下方手动输入工具名称。</div>`;
     }
     const webVerify = result.webVerify === true;
+    if (result.batched && result.batch) {
+      return result.batch.items.map((item) => recommendCard(item, webVerify)).join("");
+    }
     return result.groups.map((group) => `<section class="recommend-group">
       <div class="recommend-group-title">${escapeHtml(group.label)} <span>${group.items.length}</span></div>
-      ${group.items.map((item) => `<div class="recommend-card ${item.dismissed ? "is-dismissed" : ""} ${item.adding ? "is-adding" : ""}">
-      <div class="recommend-head">
-        <div><div class="recommend-name">${escapeHtml(item.displayName)}</div><div class="recommend-cat">${escapeHtml(item.category)}</div></div>
-        <div class="recommend-actions">${recommendCardActions(item, webVerify)}</div>
-      </div>
-      ${item.relatedTo && item.relatedTo.length ? `<div class="recommend-related">因为你已添加 ${escapeHtml(item.relatedTo.join("、"))}</div>` : ""}
-      <div class="meta">${escapeHtml(item.reason)}</div>
-      <div class="recommend-tags">${(item.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}${item.preferWeb && !webVerify ? `<span class="recommend-web-hint">建议联网</span>` : ""}</div>
-    </div>`).join("")}
+      ${group.items.map((item) => recommendCard(item, webVerify)).join("")}
     </section>`).join("");
   }
 

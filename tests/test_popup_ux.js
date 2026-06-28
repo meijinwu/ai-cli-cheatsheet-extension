@@ -235,6 +235,35 @@ assert(render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", {
 assert(render.renderRecommendationCategories(state.filterRecommendedTools(data, "mac")).includes('data-recommend-bulk="dismiss"'), "categories should expose a bulk dismiss action");
 assert(render.renderRecommendationCategories(visibleDismissed).includes('data-recommend-bulk="restore"'), "showing dismissed should expose a bulk restore action");
 
+// 换一批：默认浏览态分批轮换
+const firstBatch = state.filterRecommendedTools(data, "mac", { batchSize: 6 });
+assert(firstBatch.batched && firstBatch.batch, "default browse should batch recommendations");
+assert.strictEqual(firstBatch.batch.items.length, 6, "a batch should expose batchSize items");
+assert.strictEqual(firstBatch.batch.total, macRecommendations.length, "batch total should reflect the full pool");
+assert(firstBatch.batch.canShuffle, "a pool larger than the batch should allow shuffling");
+const secondBatch = state.filterRecommendedTools(data, "mac", { batchSize: 6, batchOffset: 6 });
+assert.notDeepStrictEqual(
+  secondBatch.batch.items.map((item) => item.tool),
+  firstBatch.batch.items.map((item) => item.tool),
+  "shuffling should advance to a different batch"
+);
+const wrappedBatch = state.filterRecommendedTools(data, "mac", { batchSize: 6, batchOffset: macRecommendations.length });
+assert.deepStrictEqual(
+  wrappedBatch.batch.items.map((item) => item.tool),
+  firstBatch.batch.items.map((item) => item.tool),
+  "an offset of one full rotation should wrap to the first batch"
+);
+assert(!state.filterRecommendedTools(data, "mac", { batchSize: 6, query: "Ghostty" }).batched, "search should disable batching");
+assert(!state.filterRecommendedTools(data, "mac", { batchSize: 6, category: "cloud-native" }).batched, "a specific category should disable batching");
+assert(!state.filterRecommendedTools(data, "mac", { batchSize: 6, showDismissed: true }).batched, "showing dismissed should disable batching");
+const relatedBatch = state.filterRecommendedTools({ ...data, docker: { meta: { name: "Docker" }, items: [] } }, "mac", { batchSize: 6, collectedToolIds: new Set(["docker"]) });
+assert(relatedBatch.batch.items.some((item) => item.relatedTo && item.relatedTo.length), "related recommendations should surface in the first batch");
+const batchHtml = render.renderRecommendedTools(firstBatch);
+assert(!batchHtml.includes("recommend-group"), "batched recommendations should render flat without group headers");
+assert((batchHtml.match(/data-recommend-tool=/g) || []).length === 6, "batched view should render the batch cards");
+assert(render.renderRecommendationCategories(firstBatch).includes("data-recommend-shuffle"), "batched categories should expose a shuffle action");
+assert(!render.renderRecommendationCategories(firstBatch).includes("data-recommend-bulk"), "batched view should not expose bulk dismiss");
+
 const shellFilters = render.renderFilters(data, state, { ...baseState, activeTool: "shell", activeShellFilter: "topic:completion" });
 assert(shellFilters.shellHtml.includes('data-shell-filter="topic:completion"'), "Shell facet chips should render for Shell tool");
 assert(shellFilters.shellHtml.includes("补全") && shellFilters.shellHtml.includes("active"), "active Shell facet should be visible");
