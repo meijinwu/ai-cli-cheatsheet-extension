@@ -181,7 +181,7 @@ assert.deepStrictEqual(recommendationSearchResult.groups.flatMap((group) => grou
 const recommendationTagResult = state.filterRecommendedTools(data, "mac", { query: "devops" });
 assert(recommendationTagResult.groups.flatMap((group) => group.items).every((item) => item.tags.includes("devops")), "recommendation search should match tags");
 const cloudRecommendations = state.filterRecommendedTools(data, "mac", { category: "cloud-native" });
-assert.deepStrictEqual(cloudRecommendations.groups.flatMap((group) => group.items.map((item) => item.tool)), ["docker", "kubectl"], "category filter should restrict recommendations");
+assert.deepStrictEqual(cloudRecommendations.groups.flatMap((group) => group.items.map((item) => item.tool)), ["docker", "kubectl", "helm"], "category filter should restrict recommendations");
 const dismissedRecommendations = new Set(["ghostty"]);
 assert(!state.filterRecommendedTools(data, "mac", { dismissedRecommendations })
   .groups.flatMap((group) => group.items).some((item) => item.tool === "ghostty"), "dismissed recommendations should hide by default");
@@ -195,8 +195,45 @@ const recommendationsHtml = render.renderRecommendedTools(state.filterRecommende
 assert(recommendationsHtml.includes('data-recommend-tool="ghostty"'), "recommended cards should expose add action data");
 assert(recommendationsHtml.includes("recommend-tags"), "recommended cards should render tags");
 assert(render.renderRecommendedTools(visibleDismissed).includes('data-recommend-restore="ghostty"'), "dismissed recommendation cards should expose restore actions");
-assert(render.renderRecommendedTools(state.filterRecommendedTools({ ...data, ghostty: { meta: { name: "Ghostty" }, items: [] }, warp: { meta: { name: "Warp" }, items: [] }, wezterm: { meta: { name: "WezTerm" }, items: [] }, alacritty: { meta: { name: "Alacritty" }, items: [] }, homebrew: { meta: { name: "Homebrew" }, items: [] }, docker: { meta: { name: "Docker" }, items: [] }, kubectl: { meta: { name: "kubectl" }, items: [] }, uv: { meta: { name: "uv" }, items: [] }, pnpm: { meta: { name: "pnpm" }, items: [] } }, "mac")).includes("手动输入工具名称"), "empty recommendations should explain manual add fallback");
+const allMacCollected = { ...data };
+state.recommendedTools(data, "mac").forEach((item) => { allMacCollected[item.tool] = { meta: { name: item.displayName }, items: [] }; });
+assert(render.renderRecommendedTools(state.filterRecommendedTools(allMacCollected, "mac")).includes("手动输入工具名称"), "empty recommendations should explain manual add fallback");
 assert(render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "not-a-tool" })).includes("当前筛选没有匹配"), "filtered empty recommendations should explain the active filter");
+
+// C: 扩充列表与新分类
+assert(state.RECOMMENDATION_CATEGORIES.some((category) => category.key === "cli-utility"), "cli-utility category should exist");
+assert(macRecommendations.some((item) => item.tool === "ripgrep" && item.categoryKey === "cli-utility"), "ripgrep should be recommended under cli-utility");
+assert(state.recommendedTools(data, "windows").some((item) => item.tool === "ripgrep"), "cross-platform utilities should reach Windows");
+assert(!state.recommendedTools(data, "windows").some((item) => item.tool === "bat"), "mac/linux-only utilities should not reach Windows");
+
+// A: 推荐计数（用于管理入口徽标）
+assert.strictEqual(state.countRecommendations(data, "mac"), macRecommendations.length, "countRecommendations should match available recommendations");
+assert.strictEqual(state.countRecommendations(data, "mac", new Set(["ghostty"])), macRecommendations.length - 1, "countRecommendations should exclude dismissed tools");
+
+// D: 关联/个性化推荐
+const shellCollected = { ...data, shell: { meta: { name: "Shell" }, items: [] } };
+const personalized = state.filterRecommendedTools(shellCollected, "mac", { category: "cli-utility", collectedToolIds: new Set(Object.keys(shellCollected)) });
+const cliItems = personalized.groups.flatMap((group) => group.items);
+assert.strictEqual(cliItems[0].tool, "fzf", "related recommendations should sort ahead of higher-priority unrelated ones");
+assert(cliItems.find((item) => item.tool === "fzf").relatedTo.includes("Shell"), "related recommendation should name the collected tool");
+assert(render.renderRecommendedTools(personalized).includes("因为你已添加"), "related recommendation cards should explain the reason");
+
+// F: 了解链接与协议安全
+const ghosttyHtml = render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty" }));
+assert(ghosttyHtml.includes('href="https://ghostty.org"') && ghosttyHtml.includes('rel="noopener noreferrer"'), "recommendation cards should link to a homepage");
+assert.strictEqual(render.safeHttpsUrl("javascript:alert(1)"), "", "non-https urls should be rejected");
+assert.strictEqual(render.safeHttpsUrl("https://example.com"), "https://example.com", "https urls should pass through");
+
+// B: 新增中状态
+assert(render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty", addingTool: "ghostty" })).includes("添加中…"), "adding recommendation should render a busy state");
+
+// G: 联网核对标记
+assert(render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty", webVerify: true })).includes("新增 · 联网"), "web verify should be reflected on the add button");
+assert(render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty" })).includes("建议联网"), "web-preferred tools should hint when global verify is off");
+
+// H: 批量忽略/恢复入口
+assert(render.renderRecommendationCategories(state.filterRecommendedTools(data, "mac")).includes('data-recommend-bulk="dismiss"'), "categories should expose a bulk dismiss action");
+assert(render.renderRecommendationCategories(visibleDismissed).includes('data-recommend-bulk="restore"'), "showing dismissed should expose a bulk restore action");
 
 const shellFilters = render.renderFilters(data, state, { ...baseState, activeTool: "shell", activeShellFilter: "topic:completion" });
 assert(shellFilters.shellHtml.includes('data-shell-filter="topic:completion"'), "Shell facet chips should render for Shell tool");

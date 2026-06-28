@@ -211,10 +211,41 @@
     ).join("");
   }
 
+  // 仅接受 https 链接，避免 javascript: 等协议注入。
+  function safeHttpsUrl(value) {
+    const url = String(value || "").trim();
+    return /^https:\/\//i.test(url) ? url : "";
+  }
+
   function renderRecommendationCategories(result) {
-    return result.categories.map((category) =>
+    const chips = result.categories.map((category) =>
       `<button class="chip ${result.activeCategory === category.key ? "active" : ""}" data-recommend-category="${escapeHtml(category.key)}">${escapeHtml(category.label)} ${category.count}</button>`
     ).join("");
+    const visible = result.groups.flatMap((group) => group.items);
+    let bulk = "";
+    if (result.showDismissed) {
+      const restorable = visible.filter((item) => item.dismissed).length;
+      if (restorable) bulk = `<button class="chip filter-clear" data-recommend-bulk="restore">全部恢复 ${restorable}</button>`;
+    } else if (visible.length) {
+      bulk = `<button class="chip filter-clear" data-recommend-bulk="dismiss">全部忽略 ${visible.length}</button>`;
+    }
+    return chips + bulk;
+  }
+
+  function recommendCardActions(item, webVerify) {
+    if (item.adding) {
+      return `<button class="text-btn" disabled>添加中…</button>`;
+    }
+    const homepage = safeHttpsUrl(item.homepage);
+    const learn = homepage
+      ? `<a class="text-btn" href="${escapeHtml(homepage)}" target="_blank" rel="noopener noreferrer">了解</a>`
+      : "";
+    const toggle = item.dismissed
+      ? `<button class="text-btn" data-recommend-restore="${escapeHtml(item.tool)}" data-recommend-label="${escapeHtml(item.displayName)}">恢复</button>`
+      : `<button class="text-btn" data-recommend-dismiss="${escapeHtml(item.tool)}" data-recommend-label="${escapeHtml(item.displayName)}">忽略</button>`;
+    const addLabel = webVerify ? "新增 · 联网" : "新增";
+    const add = `<button class="text-btn" data-recommend-tool="${escapeHtml(item.tool)}" data-recommend-name="${escapeHtml(item.displayName)}">${addLabel}</button>`;
+    return `${learn}${toggle}${add}`;
   }
 
   function renderRecommendedTools(result) {
@@ -224,20 +255,17 @@
     if (!result.totalVisible) {
       return `<div class="meta">${result.query || result.activeCategory !== "all" ? "当前筛选没有匹配的推荐。" : "当前平台的推荐都已忽略。"}可以调整筛选、显示已忽略项，或在下方手动输入工具名称。</div>`;
     }
+    const webVerify = result.webVerify === true;
     return result.groups.map((group) => `<section class="recommend-group">
       <div class="recommend-group-title">${escapeHtml(group.label)} <span>${group.items.length}</span></div>
-      ${group.items.map((item) => `<div class="recommend-card ${item.dismissed ? "is-dismissed" : ""}">
+      ${group.items.map((item) => `<div class="recommend-card ${item.dismissed ? "is-dismissed" : ""} ${item.adding ? "is-adding" : ""}">
       <div class="recommend-head">
         <div><div class="recommend-name">${escapeHtml(item.displayName)}</div><div class="recommend-cat">${escapeHtml(item.category)}</div></div>
-        <div class="recommend-actions">
-          ${item.dismissed
-            ? `<button class="text-btn" data-recommend-restore="${escapeHtml(item.tool)}">恢复</button>`
-            : `<button class="text-btn" data-recommend-dismiss="${escapeHtml(item.tool)}">忽略</button>`}
-          <button class="text-btn" data-recommend-tool="${escapeHtml(item.tool)}" data-recommend-name="${escapeHtml(item.displayName)}" data-recommend-web="${item.preferWeb ? "true" : "false"}">新增</button>
-        </div>
+        <div class="recommend-actions">${recommendCardActions(item, webVerify)}</div>
       </div>
+      ${item.relatedTo && item.relatedTo.length ? `<div class="recommend-related">因为你已添加 ${escapeHtml(item.relatedTo.join("、"))}</div>` : ""}
       <div class="meta">${escapeHtml(item.reason)}</div>
-      <div class="recommend-tags">${(item.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>
+      <div class="recommend-tags">${(item.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}${item.preferWeb && !webVerify ? `<span class="recommend-web-hint">建议联网</span>` : ""}</div>
     </div>`).join("")}
     </section>`).join("");
   }
@@ -403,6 +431,7 @@
     renderRow,
     renderResults,
     renderManageToolToggles,
+    safeHttpsUrl,
     renderRecommendationCategories,
     renderRecommendedTools,
     countBarHtml,

@@ -42,9 +42,10 @@
   const RECOMMENDATION_CATEGORIES = [
     { key: "all", label: "全部" },
     { key: "terminal", label: "终端" },
+    { key: "cli-utility", label: "命令行增强" },
     { key: "package-manager", label: "包管理器" },
-    { key: "cloud-native", label: "容器/云原生" },
     { key: "language-toolchain", label: "语言工具链" },
+    { key: "cloud-native", label: "容器/云原生" },
     { key: "dev-env", label: "开发环境" },
   ];
   const TOOL_RECOMMENDATIONS = [
@@ -57,6 +58,7 @@
       priority: 10,
       reason: "现代 GPU 终端，适合常用快捷键、配置和会话操作速查。",
       tags: ["terminal", "config", "shortcuts"],
+      homepage: "https://ghostty.org",
       preferWeb: true,
     },
     {
@@ -68,6 +70,7 @@
       priority: 20,
       reason: "交互式终端和 AI 工作流常用，适合补充命令面板与快捷键。",
       tags: ["terminal", "ai", "workflow"],
+      homepage: "https://www.warp.dev",
       preferWeb: true,
     },
     {
@@ -79,6 +82,7 @@
       priority: 30,
       reason: "跨平台终端，配置、窗格、标签页和快捷键值得整理。",
       tags: ["terminal", "cross-platform", "config"],
+      homepage: "https://wezterm.org",
       preferWeb: true,
     },
     {
@@ -90,6 +94,72 @@
       priority: 40,
       reason: "轻量终端，适合整理配置文件、快捷键和常用启动方式。",
       tags: ["terminal", "config"],
+      homepage: "https://alacritty.org",
+      preferWeb: true,
+    },
+    {
+      tool: "ripgrep",
+      displayName: "ripgrep",
+      platforms: ["mac", "windows", "linux"],
+      category: "命令行增强",
+      categoryKey: "cli-utility",
+      priority: 100,
+      reason: "极快的代码搜索（rg），正则、过滤和忽略规则常用，替代 grep。",
+      tags: ["search", "grep", "cli-utility"],
+      homepage: "https://github.com/BurntSushi/ripgrep",
+      related: ["linux"],
+      preferWeb: true,
+    },
+    {
+      tool: "fzf",
+      displayName: "fzf",
+      platforms: ["mac", "windows", "linux"],
+      category: "命令行增强",
+      categoryKey: "cli-utility",
+      priority: 110,
+      reason: "模糊查找器，命令历史、文件和管道筛选的常用快捷集成。",
+      tags: ["fuzzy", "search", "cli-utility"],
+      homepage: "https://github.com/junegunn/fzf",
+      related: ["shell"],
+      preferWeb: true,
+    },
+    {
+      tool: "bat",
+      displayName: "bat",
+      platforms: ["mac", "linux"],
+      category: "命令行增强",
+      categoryKey: "cli-utility",
+      priority: 120,
+      reason: "带语法高亮和分页的 cat 替代，参数、主题和分页常用。",
+      tags: ["cat", "syntax", "cli-utility"],
+      homepage: "https://github.com/sharkdp/bat",
+      related: ["linux"],
+      preferWeb: true,
+    },
+    {
+      tool: "eza",
+      displayName: "eza",
+      platforms: ["mac", "linux"],
+      category: "命令行增强",
+      categoryKey: "cli-utility",
+      priority: 130,
+      reason: "现代 ls 替代（原 exa），图标、树形和 Git 状态参数常用。",
+      tags: ["ls", "cli-utility"],
+      homepage: "https://github.com/eza-community/eza",
+      related: ["linux"],
+      preferWeb: true,
+    },
+    {
+      tool: "zoxide",
+      displayName: "zoxide",
+      platforms: ["mac", "windows", "linux"],
+      category: "命令行增强",
+      categoryKey: "cli-utility",
+      priority: 140,
+      reason: "智能目录跳转（z），频率排序和 shell 集成命令值得速查。",
+      tags: ["navigation", "shell", "cli-utility"],
+      homepage: "https://github.com/ajeetdsouza/zoxide",
+      related: ["shell"],
       preferWeb: true,
     },
     {
@@ -101,28 +171,7 @@
       priority: 50,
       reason: "macOS 最常见开发工具安装入口，常用安装、搜索、更新命令集中。",
       tags: ["package-manager", "mac"],
-      preferWeb: true,
-    },
-    {
-      tool: "docker",
-      displayName: "Docker",
-      platforms: ["mac", "windows", "linux"],
-      category: "容器工具",
-      categoryKey: "cloud-native",
-      priority: 60,
-      reason: "镜像、容器、日志、网络和 Compose 操作查询频率高。",
-      tags: ["container", "devops"],
-      preferWeb: true,
-    },
-    {
-      tool: "kubectl",
-      displayName: "kubectl",
-      platforms: ["mac", "windows", "linux"],
-      category: "Kubernetes",
-      categoryKey: "cloud-native",
-      priority: 70,
-      reason: "集群排查、资源查看和上下文切换命令复杂，适合速查。",
-      tags: ["kubernetes", "devops"],
+      homepage: "https://brew.sh",
       preferWeb: true,
     },
     {
@@ -134,6 +183,7 @@
       priority: 80,
       reason: "Python 项目、虚拟环境和依赖管理命令更新快，适合单独收录。",
       tags: ["python", "package-manager"],
+      homepage: "https://docs.astral.sh/uv/",
       preferWeb: true,
     },
     {
@@ -145,6 +195,132 @@
       priority: 90,
       reason: "包管理、workspace 和脚本命令常用，和 npm/yarn 易混淆。",
       tags: ["node", "package-manager"],
+      homepage: "https://pnpm.io",
+      preferWeb: true,
+    },
+    {
+      tool: "bun",
+      displayName: "Bun",
+      platforms: ["mac", "linux"],
+      category: "JavaScript 运行时",
+      categoryKey: "language-toolchain",
+      priority: 92,
+      reason: "一体化 JS 运行时与包管理，run/install/test 命令值得速查。",
+      tags: ["javascript", "runtime", "package-manager"],
+      homepage: "https://bun.sh",
+      preferWeb: true,
+    },
+    {
+      tool: "deno",
+      displayName: "Deno",
+      platforms: ["mac", "windows", "linux"],
+      category: "JavaScript 运行时",
+      categoryKey: "language-toolchain",
+      priority: 94,
+      reason: "安全的 TS/JS 运行时，权限标志、任务和兼容选项适合速查。",
+      tags: ["typescript", "javascript", "runtime"],
+      homepage: "https://deno.com",
+      preferWeb: true,
+    },
+    {
+      tool: "mise",
+      displayName: "mise",
+      platforms: ["mac", "linux"],
+      category: "运行时版本管理",
+      categoryKey: "language-toolchain",
+      priority: 96,
+      reason: "多语言运行时与环境管理（原 rtx），install/use/env 命令常用。",
+      tags: ["version-manager", "dev-env"],
+      homepage: "https://mise.jdx.dev",
+      preferWeb: true,
+    },
+    {
+      tool: "docker",
+      displayName: "Docker",
+      platforms: ["mac", "windows", "linux"],
+      category: "容器工具",
+      categoryKey: "cloud-native",
+      priority: 60,
+      reason: "镜像、容器、日志、网络和 Compose 操作查询频率高。",
+      tags: ["container", "devops"],
+      homepage: "https://docs.docker.com",
+      preferWeb: true,
+    },
+    {
+      tool: "kubectl",
+      displayName: "kubectl",
+      platforms: ["mac", "windows", "linux"],
+      category: "Kubernetes",
+      categoryKey: "cloud-native",
+      priority: 70,
+      reason: "集群排查、资源查看和上下文切换命令复杂，适合速查。",
+      tags: ["kubernetes", "devops"],
+      homepage: "https://kubernetes.io/docs/reference/kubectl/",
+      related: ["docker"],
+      preferWeb: true,
+    },
+    {
+      tool: "helm",
+      displayName: "Helm",
+      platforms: ["mac", "windows", "linux"],
+      category: "Kubernetes",
+      categoryKey: "cloud-native",
+      priority: 75,
+      reason: "Kubernetes 包管理，Chart、release 和 values 操作适合速查。",
+      tags: ["kubernetes", "devops", "package-manager"],
+      homepage: "https://helm.sh",
+      related: ["kubectl", "docker"],
+      preferWeb: true,
+    },
+    {
+      tool: "tmux",
+      displayName: "tmux",
+      platforms: ["mac", "linux"],
+      category: "终端复用",
+      categoryKey: "dev-env",
+      priority: 150,
+      reason: "终端复用器，会话、窗口、窗格和前缀键操作复杂，适合速查。",
+      tags: ["multiplexer", "session", "dev-env"],
+      homepage: "https://github.com/tmux/tmux",
+      related: ["shell"],
+      preferWeb: true,
+    },
+    {
+      tool: "starship",
+      displayName: "Starship",
+      platforms: ["mac", "windows", "linux"],
+      category: "Shell 提示符",
+      categoryKey: "dev-env",
+      priority: 160,
+      reason: "跨 shell 提示符，模块、配置和图标设置值得整理。",
+      tags: ["prompt", "shell", "config"],
+      homepage: "https://starship.rs",
+      related: ["shell"],
+      preferWeb: true,
+    },
+    {
+      tool: "lazygit",
+      displayName: "lazygit",
+      platforms: ["mac", "windows", "linux"],
+      category: "Git 工具",
+      categoryKey: "dev-env",
+      priority: 170,
+      reason: "Git 终端 UI，分支、暂存、变基和快捷键操作适合速查。",
+      tags: ["git", "tui", "dev-env"],
+      homepage: "https://github.com/jesseduffield/lazygit",
+      related: ["git"],
+      preferWeb: true,
+    },
+    {
+      tool: "neovim",
+      displayName: "Neovim",
+      platforms: ["mac", "windows", "linux"],
+      category: "编辑器",
+      categoryKey: "dev-env",
+      priority: 180,
+      reason: "可扩展的 Vim 衍生编辑器，模式、快捷键和 Lua 配置值得整理。",
+      tags: ["editor", "vim", "dev-env"],
+      homepage: "https://neovim.io",
       preferWeb: true,
     },
     {
@@ -156,6 +332,7 @@
       priority: 10,
       reason: "Windows 默认现代终端，配置、窗格、标签页和命令面板常用。",
       tags: ["terminal", "windows", "shortcuts"],
+      homepage: "https://learn.microsoft.com/windows/terminal/",
       preferWeb: true,
     },
     {
@@ -167,6 +344,7 @@
       priority: 20,
       reason: "Windows 常用自动化 Shell，管道、对象和常用 cmdlet 需要速查。",
       tags: ["shell", "windows", "scripting"],
+      homepage: "https://learn.microsoft.com/powershell/",
       preferWeb: true,
     },
     {
@@ -178,6 +356,7 @@
       priority: 30,
       reason: "Windows 上管理 Linux 发行版、路径和集成终端的常用入口。",
       tags: ["windows", "linux", "dev-env"],
+      homepage: "https://learn.microsoft.com/windows/wsl/",
       preferWeb: true,
     },
   ];
@@ -250,20 +429,45 @@
     );
   }
 
+  // 相关推荐（用户已收录关联工具）优先，其余按 priority 排序。
+  function sortRecommendationsByRelevance(items) {
+    return [...items].sort((a, b) =>
+      ((b.relatedTo?.length ? 1 : 0) - (a.relatedTo?.length ? 1 : 0))
+      || (a.priority ?? 999) - (b.priority ?? 999)
+      || a.displayName.localeCompare(b.displayName)
+    );
+  }
+
+  function recommendationRelatedNames(item, data, collectedToolIds) {
+    if (!Array.isArray(item.related) || !collectedToolIds || !collectedToolIds.size) return [];
+    return item.related
+      .filter((id) => collectedToolIds.has(id))
+      .map((id) => data[id]?.meta?.name || id);
+  }
+
   function recommendedTools(data, currentPlatform) {
     return sortRecommendations(TOOL_RECOMMENDATIONS.filter((item) =>
       item.platforms.includes(currentPlatform) && !data[item.tool]
     ));
   }
 
+  function countRecommendations(data, currentPlatform, dismissed = new Set()) {
+    return recommendedTools(data, currentPlatform).filter((item) => !dismissed.has(item.tool)).length;
+  }
+
   function filterRecommendedTools(data, currentPlatform, options = {}) {
     const dismissed = options.dismissedRecommendations || new Set();
+    const collectedToolIds = options.collectedToolIds || new Set();
+    const addingTool = options.addingTool || null;
+    const webVerify = options.webVerify === true;
     const query = String(options.query || "").trim().toLowerCase();
     const activeCategory = options.category || "all";
     const showDismissed = options.showDismissed === true;
     const available = recommendedTools(data, currentPlatform).map((item) => ({
       ...item,
       dismissed: dismissed.has(item.tool),
+      adding: addingTool === item.tool,
+      relatedTo: recommendationRelatedNames(item, data, collectedToolIds),
     }));
     const afterDismissed = available.filter((item) => showDismissed || !item.dismissed);
     const afterQuery = query
@@ -275,7 +479,7 @@
       .map((category) => ({
         key: category.key,
         label: category.label,
-        items: sortRecommendations(visible.filter((item) => item.categoryKey === category.key)),
+        items: sortRecommendationsByRelevance(visible.filter((item) => item.categoryKey === category.key)),
       }))
       .filter((group) => group.items.length);
     const categories = RECOMMENDATION_CATEGORIES.map((category) => ({
@@ -288,6 +492,8 @@
       query,
       activeCategory,
       showDismissed,
+      webVerify,
+      addingTool,
       totalAvailable: available.length,
       totalVisible: visible.length,
       categories,
@@ -487,6 +693,7 @@
     getToolIds,
     visibleToolIds,
     recommendedTools,
+    countRecommendations,
     filterRecommendedTools,
     itemId,
     entryKey,

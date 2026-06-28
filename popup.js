@@ -16,6 +16,7 @@ let webVerify = false;
 let recommendationQuery = "";
 let activeRecommendationCategory = "all";
 let showDismissedRecommendations = false;
+let addingRecommendation = null;
 let pendingUpdate = null;
 let currentTaskMode = null;
 let expandedTools = new Set();
@@ -85,7 +86,18 @@ const taskController = window.CHEATSHEET_POPUP_TASKS.createTaskController({
   getCurrentTaskMode: () => currentTaskMode,
   setCurrentTaskMode: (mode) => { currentTaskMode = mode; },
   setPendingUpdate: (value) => { pendingUpdate = value; },
+  afterFinish: () => {
+    if (!addingRecommendation) return;
+    addingRecommendation = null;
+    if (document.getElementById("manageView").classList.contains("active")) renderManage();
+  },
 });
+
+function hideToast() {
+  const toast = document.getElementById("toast");
+  toast.classList.remove("show");
+  if (toastTimer) clearTimeout(toastTimer);
+}
 
 function showToast(text) {
   const toast = document.getElementById("toast");
@@ -93,6 +105,25 @@ function showToast(text) {
   toast.classList.add("show");
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+}
+
+function showUndoToast(text, onUndo) {
+  const toast = document.getElementById("toast");
+  toast.textContent = "";
+  const label = document.createElement("span");
+  label.textContent = text;
+  const undo = document.createElement("button");
+  undo.type = "button";
+  undo.className = "toast-undo";
+  undo.textContent = "撤销";
+  undo.addEventListener("click", () => {
+    hideToast();
+    onUndo();
+  });
+  toast.append(label, undo);
+  toast.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 4000);
 }
 
 async function copyText(value, successMessage) {
@@ -239,6 +270,7 @@ function render() {
     favourites,
     helpers: STATE,
   });
+  updateManageBadge();
 }
 
 function bindHomeEvents() {
@@ -358,6 +390,7 @@ function renderManage() {
   webToggle.onchange = () => {
     webVerify = webToggle.checked;
     storageSet({ webVerify });
+    renderManage();
   };
   const toggles = document.getElementById("manageToolToggles");
   toggles.innerHTML = RENDER.renderManageToolToggles(getAllData(), STATE.getToolIds(getAllData()), currentState());
@@ -380,21 +413,29 @@ function renderManage() {
     category: activeRecommendationCategory,
     dismissedRecommendations,
     showDismissed: showDismissedRecommendations,
+    collectedToolIds: new Set(STATE.getToolIds(getAllData())),
+    addingTool: addingRecommendation,
+    webVerify,
   });
-  document.getElementById("recommendCategories").innerHTML = RENDER.renderRecommendationCategories(recommendationResult);
-  document.getElementById("recommendCategories").querySelectorAll("[data-recommend-category]").forEach((button) => button.addEventListener("click", () => {
+  const categoriesEl = document.getElementById("recommendCategories");
+  categoriesEl.innerHTML = RENDER.renderRecommendationCategories(recommendationResult);
+  categoriesEl.querySelectorAll("[data-recommend-category]").forEach((button) => button.addEventListener("click", () => {
     activeRecommendationCategory = button.dataset.recommendCategory;
     renderManage();
   }));
+  const bulkButton = categoriesEl.querySelector("[data-recommend-bulk]");
+  if (bulkButton) bulkButton.addEventListener("click", () => bulkRecommendation(bulkButton.dataset.recommendBulk, recommendationResult));
   recommended.innerHTML = RENDER.renderRecommendedTools(recommendationResult);
   recommended.querySelectorAll("[data-recommend-tool]").forEach((button) => button.addEventListener("click", () => {
-    startAddTool(button.dataset.recommendName, button.dataset.recommendWeb === "true");
-  }));
-  recommended.querySelectorAll("[data-recommend-dismiss]").forEach((button) => button.addEventListener("click", async () => {
-    dismissedRecommendations.add(button.dataset.recommendDismiss);
-    await storageSet({ dismissedRecommendations: [...dismissedRecommendations] });
+    addingRecommendation = button.dataset.recommendTool;
     renderManage();
+    if (!startAddTool(button.dataset.recommendName, webVerify)) {
+      addingRecommendation = null;
+      renderManage();
+    }
   }));
+  recommended.querySelectorAll("[data-recommend-dismiss]").forEach((button) => button.addEventListener("click", () =>
+    dismissRecommendation(button.dataset.recommendDismiss, button.dataset.recommendLabel)));
   recommended.querySelectorAll("[data-recommend-restore]").forEach((button) => button.addEventListener("click", async () => {
     dismissedRecommendations.delete(button.dataset.recommendRestore);
     await storageSet({ dismissedRecommendations: [...dismissedRecommendations] });
@@ -436,6 +477,45 @@ function renderManage() {
     }
   }));
   renderPending();
+  updateManageBadge();
+}
+
+async function dismissRecommendation(tool, label) {
+  if (!tool) return;
+  dismissedRecommendations.add(tool);
+  await storageSet({ dismissedRecommendations: [...dismissedRecommendations] });
+  renderManage();
+  showUndoToast(`已忽略 ${label || tool}`, async () => {
+    dismissedRecommendations.delete(tool);
+    await storageSet({ dismissedRecommendations: [...dismissedRecommendations] });
+    renderManage();
+  });
+}
+
+async function bulkRecommendation(action, result) {
+  const restore = action === "restore";
+  const tools = result.groups
+    .flatMap((group) => group.items)
+    .filter((item) => (restore ? item.dismissed : !item.dismissed))
+    .map((item) => item.tool);
+  if (!tools.length) return;
+  tools.forEach((tool) => restore ? dismissedRecommendations.delete(tool) : dismissedRecommendations.add(tool));
+  await storageSet({ dismissedRecommendations: [...dismissedRecommendations] });
+  renderManage();
+  if (restore) return;
+  showUndoToast(`已忽略 ${tools.length} 个推荐`, async () => {
+    tools.forEach((tool) => dismissedRecommendations.delete(tool));
+    await storageSet({ dismissedRecommendations: [...dismissedRecommendations] });
+    renderManage();
+  });
+}
+
+function updateManageBadge() {
+  const button = document.getElementById("openManage");
+  if (!button) return;
+  const count = STATE.countRecommendations(getAllData(), platform, dismissedRecommendations);
+  button.textContent = count ? `⚙ 管理 · ${count}` : "⚙ 管理";
+  button.title = count ? `管理工具和数据（${count} 个推荐可添加）` : "管理工具和数据";
 }
 
 function addToolPayload(displayName, preferWebOverride = null) {

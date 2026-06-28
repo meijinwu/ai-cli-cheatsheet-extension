@@ -61,39 +61,43 @@
     }
 
     async function finishTask(response, mode = deps.getCurrentTaskMode()) {
-      stopTaskTimer();
-      deps.setManageButtonsDisabled(false);
-      if (!response?.ok) {
-        deps.setStatus(`❌ ${response?.error || "未知错误"}`, "err");
-        return;
+      try {
+        stopTaskTimer();
+        deps.setManageButtonsDisabled(false);
+        if (!response?.ok) {
+          deps.setStatus(`❌ ${response?.error || "未知错误"}`, "err");
+          return;
+        }
+        if (mode === "preview_update" && response.pendingToken) {
+          deps.setPendingUpdate(response);
+          await deps.storageSet({ pendingUpdate: response });
+          deps.setStatus(`${response.output || "发现可用更新"}${response.qualityWarnings?.length ? `\n⚠ ${response.qualityWarnings.join("\n⚠ ")}` : ""}`, "ok");
+          deps.renderPending();
+          return;
+        }
+        if (mode === "discard_update") {
+          deps.setPendingUpdate(null);
+          await deps.storageSet({ pendingUpdate: null });
+          deps.setStatus("已放弃本次更新");
+          deps.renderPending();
+          return;
+        }
+        if (mode === "apply_update") {
+          deps.setPendingUpdate(null);
+          await deps.storageSet({ pendingUpdate: null });
+        }
+        if (response.changed) {
+          await deps.storageSet({
+            lastQualityWarnings: response.qualityWarnings?.length
+              ? { messages: response.qualityWarnings, createdAt: Date.now() }
+              : null,
+          });
+        }
+        deps.setStatus(`✅ ${response.output || "完成"}${response.qualityWarnings?.length ? `\n⚠ ${response.qualityWarnings.join("\n⚠ ")}` : ""}${response.changed ? "\n正在重新加载扩展…" : ""}`, "ok");
+        if (response.changed) setTimeout(() => deps.chrome.runtime.reload(), 900);
+      } finally {
+        if (deps.afterFinish) deps.afterFinish(mode, response);
       }
-      if (mode === "preview_update" && response.pendingToken) {
-        deps.setPendingUpdate(response);
-        await deps.storageSet({ pendingUpdate: response });
-        deps.setStatus(`${response.output || "发现可用更新"}${response.qualityWarnings?.length ? `\n⚠ ${response.qualityWarnings.join("\n⚠ ")}` : ""}`, "ok");
-        deps.renderPending();
-        return;
-      }
-      if (mode === "discard_update") {
-        deps.setPendingUpdate(null);
-        await deps.storageSet({ pendingUpdate: null });
-        deps.setStatus("已放弃本次更新");
-        deps.renderPending();
-        return;
-      }
-      if (mode === "apply_update") {
-        deps.setPendingUpdate(null);
-        await deps.storageSet({ pendingUpdate: null });
-      }
-      if (response.changed) {
-        await deps.storageSet({
-          lastQualityWarnings: response.qualityWarnings?.length
-            ? { messages: response.qualityWarnings, createdAt: Date.now() }
-            : null,
-        });
-      }
-      deps.setStatus(`✅ ${response.output || "完成"}${response.qualityWarnings?.length ? `\n⚠ ${response.qualityWarnings.join("\n⚠ ")}` : ""}${response.changed ? "\n正在重新加载扩展…" : ""}`, "ok");
-      if (response.changed) setTimeout(() => deps.chrome.runtime.reload(), 900);
     }
 
     return { startTaskTimer, stopTaskTimer, runTask, finishTask };
