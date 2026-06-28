@@ -7,6 +7,7 @@ window.CHEATSHEET_FILES = [
   "gemini-cli",
   "git",
   "idea",
+  "iterm2",
   "linux",
   "openclaw",
   "opencode",

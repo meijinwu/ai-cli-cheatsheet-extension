@@ -787,6 +787,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         raw_sources = []
     clean_sources = []
     source_ids = set()
+    unregistered_official_repositories = 0
     for source_index, source in enumerate(raw_sources):
         if not isinstance(source, dict):
             raise ValidationError(f"meta.sources[{source_index}] 必须是对象")
@@ -809,12 +810,15 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         url = checked_text(source.get("url"), f"{field}.url", required=kind != "local-help")
         if url and not re.fullmatch(r"https://[^\s]+", url):
             raise ValidationError(f"{field}.url 必须是 HTTPS URL")
-        if kind in {"official-repository", "authoritative-reference"} and not matching_registry_entry(
-            expected_tool_id, registry_id, kind, url
-        ):
+        registry_match = matching_registry_entry(expected_tool_id, registry_id, kind, url)
+        if kind == "authoritative-reference" and not registry_match:
             raise ValidationError(f"{field} 不匹配来源登记中的工具、类型或 URL 范围")
+        if kind == "official-repository" and not registry_match:
+            if registry_id in SOURCE_REGISTRY_BY_ID:
+                raise ValidationError(f"{field} 不匹配来源登记中的工具、类型或 URL 范围")
+            unregistered_official_repositories += 1
         if kind in {"local-help", "official-doc", "release-notes"} and registry_id in SOURCE_REGISTRY_BY_ID:
-            if not matching_registry_entry(expected_tool_id, registry_id, kind, url):
+            if not registry_match:
                 raise ValidationError(f"{field} 不匹配来源登记中的工具、类型或 URL 范围")
         if kind in {"local-help", "official-doc", "official-repository", "release-notes"}:
             if evidence_tier != "first-party":
@@ -866,7 +870,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
             if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", checked_at):
                 raise ValidationError(f"{field}.checkedAt 必须是 YYYY-MM-DD")
             clean_source["checkedAt"] = checked_at
-        if registry_id != source_id:
+        if registry_id != source_id and registry_id in SOURCE_REGISTRY_BY_ID:
             clean_source["registryId"] = registry_id
         if url:
             clean_source["url"] = url
@@ -911,6 +915,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
     duplicate_keys = set()
     item_ids = set()
     dropped = 0
+    downgraded_example_evidence = 0
     for index, item in enumerate(items):
         if not isinstance(item, dict):
             raise ValidationError(f"items[{index}] 必须是对象")
@@ -1055,49 +1060,104 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                     raise ValidationError(f"items[{index}].examples[{example_index}].evidenceTier 非法")
                 if adaptation not in ADAPTATIONS:
                     raise ValidationError(f"items[{index}].examples[{example_index}].adaptation 非法")
-                clean_example.update({
-                    "authorship": authorship,
-                    "evidenceTier": evidence_tier,
-                    "adaptation": adaptation,
-                    # sourceType 仅为旧版读取兼容，不再作为作者或证据的事实来源。
-                    "sourceType": legacy_source_type or (
-                        "official" if evidence_tier == "first-party" else
-                        "quasi-official" if evidence_tier == "authoritative-community" else
-                        "ai-derived" if authorship == "generated" else "manual"
-                    ),
-                })
-                example_source_ids = validate_source_ids(
-                    example.get("sourceIds"),
-                    f"items[{index}].examples[{example_index}].sourceIds",
-                    source_ids,
-                )
-                if example_source_ids:
-                    clean_example["sourceIds"] = example_source_ids
+                source_ids_were_invalid = False
+                try:
+                    example_source_ids = validate_source_ids(
+                        example.get("sourceIds"),
+                        f"items[{index}].examples[{example_index}].sourceIds",
+                        source_ids,
+                    )
+                except ValidationError:
+                    if expected_tool_id == "shell":
+                        raise
+                    example_source_ids = []
+                    source_ids_were_invalid = True
+                    evidence_tier = "none"
+
+                downgraded_this_example = False
                 if evidence_tier in {"first-party", "authoritative-community", "community"}:
                     if not example_source_ids:
-                        raise ValidationError(
-                            f"items[{index}].examples[{example_index}] 声明 {evidence_tier} "
-                            "证据时必须提供 sourceIds"
-                        )
+                        if expected_tool_id == "shell":
+                            raise ValidationError(
+                                f"items[{index}].examples[{example_index}] 声明 {evidence_tier} "
+                                "证据时必须提供 sourceIds"
+                            )
+                        downgraded_this_example = True
                     referenced_tiers = {
                         source_by_id[source_id].get("evidenceTier")
                         for source_id in example_source_ids
                     }
-                    if evidence_tier not in referenced_tiers:
-                        raise ValidationError(
-                            f"items[{index}].examples[{example_index}] 的 evidenceTier "
-                            "与 sourceIds 引用来源不一致"
-                        )
+                    if example_source_ids and evidence_tier not in referenced_tiers:
+                        if expected_tool_id == "shell":
+                            raise ValidationError(
+                                f"items[{index}].examples[{example_index}] 的 evidenceTier "
+                                "与 sourceIds 引用来源不一致"
+                            )
+                        downgraded_this_example = True
                 if authorship == "official" and (
                     adaptation != "verbatim"
                     or evidence_tier != "first-party"
                     or not example_source_ids
                     or not example_source_url
                 ):
-                    raise ValidationError(
-                        f"items[{index}].examples[{example_index}] 官方原例必须是 verbatim，"
-                        "并提供第一方 sourceIds 和具体 sourceUrl"
+                    if expected_tool_id == "shell":
+                        raise ValidationError(
+                            f"items[{index}].examples[{example_index}] 官方原例必须是 verbatim，"
+                            "并提供第一方 sourceIds 和具体 sourceUrl"
+                        )
+                    downgraded_this_example = True
+                source_url_matches_referenced_source = False
+                if example_source_url and example_source_ids:
+                    referenced_for_url = [
+                        source_by_id[source_id] for source_id in example_source_ids
+                        if source_id in source_by_id
+                    ]
+                    source_url_matches_referenced_source = any(
+                        source.get("kind") == "local-help"
+                        or url_matches_prefixes(
+                            example_source_url,
+                            [
+                                value for value in (
+                                    source.get("url"),
+                                    source.get("resolvedUrl"),
+                                ) if value
+                            ],
+                        )
+                        for source in referenced_for_url
                     )
+                if downgraded_this_example:
+                    if not source_ids_were_invalid:
+                        downgraded_example_evidence += 1
+                    evidence_tier = "none"
+                if source_ids_were_invalid:
+                    downgraded_example_evidence += 1
+                    evidence_tier = "none"
+                if downgraded_this_example or source_ids_were_invalid:
+                    if authorship == "official":
+                        authorship = "editorial"
+                    if adaptation == "verbatim":
+                        adaptation = (
+                            "scenario-derived" if authorship == "generated" else "adapted"
+                        )
+                    example_source_ids = []
+                    if not source_url_matches_referenced_source:
+                        clean_example.pop("sourceUrl", None)
+                final_source_type = legacy_source_type or (
+                    "official" if evidence_tier == "first-party" else
+                    "quasi-official" if evidence_tier == "authoritative-community" else
+                    "ai-derived" if authorship == "generated" else "manual"
+                )
+                if evidence_tier == "none" and final_source_type in {"official", "quasi-official"}:
+                    final_source_type = "ai-derived" if authorship == "generated" else "manual"
+                clean_example.update({
+                    "authorship": authorship,
+                    "evidenceTier": evidence_tier,
+                    "adaptation": adaptation,
+                    # sourceType 仅为旧版读取兼容，不再作为作者或证据的事实来源。
+                    "sourceType": final_source_type,
+                })
+                if example_source_ids:
+                    clean_example["sourceIds"] = example_source_ids
                 if clean_example["sourceType"] == "official" and example_source_url:
                     referenced = [
                         source_by_id[source_id] for source_id in example_source_ids
@@ -1253,6 +1313,14 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
             conflict.strip() for conflict in source_conflicts
         ))
     dataset["qualityWarnings"] = build_quality_warnings(dataset)
+    if unregistered_official_repositories:
+        dataset["qualityWarnings"].append(
+            f"包含 {unregistered_official_repositories} 个未登记官方仓库来源，请人工确认后可加入 source-registry。"
+        )
+    if downgraded_example_evidence:
+        dataset["qualityWarnings"].append(
+            f"已降级 {downgraded_example_evidence} 个缺少有效 sourceIds 的示例证据，请人工核对来源后补齐。"
+        )
     return dataset
 
 
@@ -1383,9 +1451,9 @@ def build_source_discovery_prompt(tool_id, display_name, mode, web_enabled):
 }}
 
 来源优先级：当前版本本机 --help 或 /help；官方文档；官方仓库与 Release/Changelog；
-已登记权威第三方；普通社区仅可作为线索。
+已登记权威第三方；普通社区仅可作为线索。未登记官方仓库必须是工具维护方的一手仓库，不要给它编造 registryId。
 tldr 只适合实用案例，不能单独证明新参数存在。托管平台不能整体授信。
-GitHub 仅认可已登记的厂商仓库。精确登记范围如下：
+GitHub 等官方仓库优先使用已登记的厂商仓库；新增工具若发现未登记但确认为第一方的官方仓库，可作为 official-repository 输出且不要填写 registryId。权威第三方 authoritative-reference 仍必须命中登记范围。精确登记范围如下：
 {json.dumps(registry, ensure_ascii=False)}
 不得编造 URL。找不到可靠来源时返回较少来源，并在 notes 说明。
 """.strip()
@@ -1561,10 +1629,10 @@ JSON 格式：
 10. updatePolicy 按实际变化方式选择：可读取本机版本的动态 CLI 用 version-driven；有明确官方 Release/Changelog 但无可靠本机版本的工具用 release-driven；稳定快捷键、键位表和基础命令参考用 manual-only。不得因为核验日期较早选择更激进的策略。
 11. CLI 示例必须是完整可执行命令；IDE/快捷键示例写具体操作场景并设 copyable=false；案例应包含 scenario、goal、expected，说明何时用、结果是什么以及不要与什么混淆。
 12. 更新时保留已有 keywords 和 examples，并为所有新增条目补充关键词和示例。
-13. 官方明确示例标记 official；人工整理标记 manual；根据命令语义推导的标记 ai-derived；可信第三方补充按上面第 1 条的来源优先级处理。
+13. 只有官方文档逐字给出的示例才能标记 authorship=official、adaptation=verbatim、sourceType=official；你根据官方行为整理的使用场景必须标记 authorship=editorial、adaptation=adapted、sourceType=manual。
 13. {tier_rule}
 14. authorship 表示谁写的案例，evidenceTier 表示证据强度，adaptation 表示是否改写，三者不得混为一个 sourceType。新数据必须显式填写这三个字段；sourceType 仅用于旧版兼容。
-15. first-party、authoritative-community、community 案例证据必须提供 sourceIds，且等级与所引用来源一致。official 作者只允许 verbatim 官方原例，并提供第一方 sourceIds 和具体 sourceUrl。
+15. first-party、authoritative-community、community 案例证据必须提供 sourceIds，且等级与所引用来源一致；如果无法绑定 meta.sources 中的有效 sourceIds，必须填 evidenceTier=none 且不要提供 sourceUrl。official 作者只允许 verbatim 官方原例，并提供第一方 sourceIds 和具体 sourceUrl。
 15. 高风险命令必须提供 warning，并在 description 或 caveat 中给出预览、备份或更安全替代方案。
 
 来源发现结果：

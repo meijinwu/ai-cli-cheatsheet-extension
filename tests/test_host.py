@@ -208,14 +208,49 @@ class HostValidationTests(unittest.TestCase):
             "evidenceTier": "first-party",
             "adaptation": "adapted",
         }]
-        with self.assertRaisesRegex(host.ValidationError, "必须提供 sourceIds"):
-            host.validate_dataset(payload, "sample")
+        dataset = host.validate_dataset(payload, "sample")
+        example = dataset["items"][0]["examples"][0]
+        self.assertEqual(example["evidenceTier"], "none")
+        self.assertEqual(example["sourceType"], "manual")
+        self.assertNotIn("sourceIds", example)
+        self.assertTrue(any("已降级 1 个缺少有效 sourceIds" in warning for warning in dataset["qualityWarnings"]))
 
         payload["items"][0]["examples"][0]["sourceIds"] = ["official-docs"]
         dataset = host.validate_dataset(payload, "sample")
         self.assertEqual(
             dataset["items"][0]["examples"][0]["sourceIds"], ["official-docs"]
         )
+
+    def test_mismatched_example_source_ids_are_downgraded(self):
+        payload = valid_dataset()
+        payload["meta"]["sources"].append({
+            "id": "community-note",
+            "title": "Community note",
+            "url": "https://example.org/note",
+            "kind": "community",
+            "maintainer": "Community",
+            "evidenceTier": "community",
+            "lastVerifiedAt": "2026-06-20",
+            "resolvedUrl": "https://example.org/note",
+            "pageTitle": "Community note",
+            "checkedAt": "2026-06-20",
+            "purposes": ["examples"],
+        })
+        payload["items"][0]["examples"] = [{
+            "value": "Ctrl+K",
+            "description": "打开命令面板",
+            "sourceIds": ["community-note"],
+            "authorship": "editorial",
+            "evidenceTier": "first-party",
+            "adaptation": "adapted",
+            "sourceUrl": "https://example.org/note#ctrl-k",
+        }]
+        dataset = host.validate_dataset(payload, "sample")
+        example = dataset["items"][0]["examples"][0]
+        self.assertEqual(example["evidenceTier"], "none")
+        self.assertNotIn("sourceIds", example)
+        self.assertEqual(example["sourceUrl"], "https://example.org/note#ctrl-k")
+        self.assertTrue(any("已降级 1 个缺少有效 sourceIds" in warning for warning in dataset["qualityWarnings"]))
 
     def test_official_example_requires_verbatim_precise_source(self):
         payload = valid_dataset()
@@ -228,10 +263,16 @@ class HostValidationTests(unittest.TestCase):
             "evidenceTier": "first-party",
             "adaptation": "adapted",
         }]
-        with self.assertRaisesRegex(host.ValidationError, "官方原例必须"):
-            host.validate_dataset(payload, "sample")
+        dataset = host.validate_dataset(payload, "sample")
+        example = dataset["items"][0]["examples"][0]
+        self.assertEqual(example["authorship"], "editorial")
+        self.assertEqual(example["adaptation"], "adapted")
+        self.assertEqual(example["evidenceTier"], "none")
+        self.assertEqual(example["sourceType"], "manual")
 
         payload["items"][0]["examples"][0].update({
+            "authorship": "official",
+            "evidenceTier": "first-party",
             "adaptation": "verbatim",
             "sourceUrl": "https://example.com/docs#ctrl-k",
         })
@@ -239,6 +280,18 @@ class HostValidationTests(unittest.TestCase):
         self.assertEqual(
             dataset["items"][0]["examples"][0]["authorship"], "official"
         )
+
+    def test_shell_example_evidence_remains_strict(self):
+        payload = valid_shell_dataset()
+        payload["items"][0]["examples"] = [{
+            "value": "type -a claude",
+            "description": "列出 claude 命令来源",
+            "authorship": "editorial",
+            "evidenceTier": "first-party",
+            "adaptation": "adapted",
+        }]
+        with self.assertRaisesRegex(host.ValidationError, "必须提供 sourceIds"):
+            host.validate_dataset(payload, "shell")
 
     def test_rejects_invalid_example_structure(self):
         payload = valid_dataset()
@@ -312,6 +365,29 @@ class HostValidationTests(unittest.TestCase):
         })
         dataset = host.validate_dataset(payload, "codex")
         self.assertEqual(dataset["meta"]["sources"][0]["kind"], "official-repository")
+
+    def test_accepts_unregistered_official_repository_with_warning(self):
+        payload = valid_dataset("iterm2")
+        payload["meta"]["sources"][0].update({
+            "id": "iterm2-repo",
+            "registryId": "made-up-iterm2-repo",
+            "title": "iTerm2 repository",
+            "url": "https://github.com/gnachman/iTerm2",
+            "kind": "official-repository",
+            "maintainer": "iTerm2",
+            "resolvedUrl": "https://github.com/gnachman/iTerm2",
+            "pageTitle": "GitHub - gnachman/iTerm2",
+            "checkedAt": "2026-06-28",
+        })
+        payload["items"][0]["evidenceRefs"][0].update({
+            "sourceId": "iterm2-repo",
+            "locator": "https://github.com/gnachman/iTerm2",
+        })
+        dataset = host.validate_dataset(payload, "iterm2")
+        source = dataset["meta"]["sources"][0]
+        self.assertEqual(source["kind"], "official-repository")
+        self.assertNotIn("registryId", source)
+        self.assertTrue(any("未登记官方仓库来源" in warning for warning in dataset["qualityWarnings"]))
 
     def test_warns_when_example_coverage_is_low(self):
         payload = valid_dataset()
@@ -1463,6 +1539,7 @@ class HostSourceTierGenerationTests(unittest.TestCase):
         for domain in host.QUASI_OFFICIAL_DOMAINS:
             self.assertIn(domain, prompt)
         self.assertIn("每个 item 必须提供 evidenceRefs", prompt)
+        self.assertIn("如果无法绑定 meta.sources 中的有效 sourceIds，必须填 evidenceTier=none", prompt)
         self.assertNotIn("目标 50 条以上", prompt)
 
     def test_source_discovery_prompt_precedes_content_generation(self):
@@ -1472,6 +1549,7 @@ class HostSourceTierGenerationTests(unittest.TestCase):
         self.assertIn("来源发现", prompt)
         self.assertIn("official-repository", prompt)
         self.assertIn("tldr 只适合实用案例", prompt)
+        self.assertIn("未登记但确认为第一方的官方仓库", prompt)
         self.assertIn("https://github.com/openai/codex", prompt)
 
     def test_prompt_offline_forbids_quasi_official(self):
