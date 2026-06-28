@@ -94,6 +94,16 @@
     return "未核验";
   }
 
+  function placeholderHtml(html) {
+    return html.replace(/(&lt;[^<]{1,48}?&gt;|\$\{?[A-Z_][A-Z0-9_]{1,}\}?|\b[A-Z_][A-Z0-9_]{2,}\b)/g, (match) =>
+      `<span class="placeholder">${match}</span>`
+    );
+  }
+
+  function commandExampleHtml(core, value, query) {
+    return placeholderHtml(highlightHtml(core, value, query));
+  }
+
   function commandEvidenceHtml(item, sources) {
     const refs = item.evidenceRefs || [];
     if (!refs.length) return `<div class="command-evidence">命令证据：未提供可复核定位</div>`;
@@ -147,7 +157,7 @@
     const commandRisk = core.classifyCommandRisk(entry.displayCmd, examples);
     const note = entry.platformInfo.unsupported ? "当前平台不可用" : entry.platformInfo.usedFallback ? "通用写法" : "";
     const matchReason = query.trim() && entry.matchReason
-      ? `<span class="match-reason">主要匹配${escapeHtml(entry.matchReason.label)}：${highlightHtml(core, entry.matchReason.term, query)}</span>`
+      ? `<span class="match-reason">${entry.matchReason.field === "examples" ? "匹配用法" : `主要匹配${escapeHtml(entry.matchReason.label)}`}：${highlightHtml(core, entry.matchReason.term, query)}</span>`
       : "";
     const summaryExample = examples[0];
     const summary = query.trim() && !examplesOpen && summaryExample
@@ -162,12 +172,13 @@
       ...helpers.shellTags(entry.item).map((label) => `<span class="trust-tag shell-tag">${escapeHtml(label)}</span>`),
       commandRisk.requiresConfirmation ? `<span class="trust-tag risk" title="${escapeHtml(commandRisk.warning)}">高风险</span>` : "",
       tierTag,
-      `<span class="trust-tag tier evidence-${escapeHtml(evidenceStatus)}" title="${escapeHtml(evidenceTooltip(evidenceStatus))}">${escapeHtml(itemEvidence(entry))}</span>`,
+      examplesOpen ? `<span class="trust-tag tier evidence-${escapeHtml(evidenceStatus)}" title="${escapeHtml(evidenceTooltip(evidenceStatus))}">${escapeHtml(itemEvidence(entry))}</span>` : "",
     ].join("");
     const examplesId = `examples-${entry.toolId}-${entry.itemId}`;
-    const examplesHtml = examplesOpen ? `<div class="examples">${commandEvidenceHtml(entry.item, sources)}${examples.map((example) => `
+    const examplesHtml = examplesOpen ? `<div class="examples">${entry.item.en ? `<div class="en">${highlightHtml(core, entry.item.en, query)}</div>` : ""}${examples.map((example, exampleIndex) => `
     <div class="example">
-      <div class="example-value">${highlightHtml(core, example.platformInfo.value, query)}</div>
+      ${exampleIndex === 0 ? `<span class="example-badge">推荐用法</span>` : ""}
+      <div class="example-value">${commandExampleHtml(core, example.platformInfo.value, query)}</div>
       <div class="example-desc">${highlightHtml(core, example.description, query)}</div>
       ${example.scenario ? `<div class="example-context">场景：${escapeHtml(example.scenario)}</div>` : ""}
       ${example.goal ? `<div class="example-context">目标：${escapeHtml(example.goal)}</div>` : ""}
@@ -177,7 +188,7 @@
       <div class="example-source" title="${escapeHtml(exampleProvenanceTooltip(example))}">${escapeHtml(exampleProvenanceLabel(example))}${exampleEvidenceUrl(example, sources) ? ` · <a class="example-doc" href="${escapeHtml(exampleEvidenceUrl(example, sources))}" target="_blank" rel="noopener noreferrer">证据</a>` : ""}</div>
       ${example.warning ? `<div class="example-warning">⚠ ${escapeHtml(example.warning)}</div>` : ""}
       ${example.copyable !== false ? `<button class="act example-copy" data-example="${example.index}" title="复制此用法" aria-label="复制此用法">复制</button>` : ""}
-    </div>`).join("")}</div>` : "";
+    </div>`).join("")}${commandEvidenceHtml(entry.item, sources)}</div>` : "";
     return `<article class="entry-wrap" data-tool="${entry.toolId}" data-item="${entry.itemId}">
     <div class="row"><button class="row-main" data-copy-command ${entry.platformInfo.unsupported ? "disabled" : ""} aria-label="${entry.platformInfo.unsupported ? "当前平台不可用" : `复制命令 ${escapeHtml(entry.displayCmd)}`}">
     <span class="cmd"><span class="dot" style="background:${escapeHtml(tool.meta.color)}"></span>${highlightHtml(core, entry.displayCmd, query)}
@@ -185,13 +196,19 @@
       ${entry.item.context ? `<span class="context">${escapeHtml(entry.item.context)}</span>` : ""}
       ${tags}
     </span>
-    <span class="zh">${highlightHtml(core, entry.item.zh, query)}</span><span class="en">${highlightHtml(core, entry.item.en, query)}</span>
+    <span class="zh">${highlightHtml(core, entry.item.zh, query)}</span>
     ${matchReason}${summary}</button>
-    <div class="row-actions"><button class="act fav-btn ${favourites.has(key) ? "fav-active" : ""}" title="${favourites.has(key) ? "取消收藏" : "收藏"}" aria-label="${favourites.has(key) ? "取消收藏" : "收藏"}">${favourites.has(key) ? "♥" : "♡"}</button></div>
+    <div class="row-actions"><button class="act copy-btn" data-copy-command ${entry.platformInfo.unsupported ? "disabled" : ""} title="${entry.platformInfo.unsupported ? "当前平台不可用" : "复制命令"}" aria-label="${entry.platformInfo.unsupported ? "当前平台不可用" : "复制命令"}">复制</button><button class="act fav-btn ${favourites.has(key) ? "fav-active" : ""}" title="${favourites.has(key) ? "取消收藏" : "收藏"}" aria-label="${favourites.has(key) ? "取消收藏" : "收藏"}">${favourites.has(key) ? "♥" : "♡"}</button></div>
     </div>
     ${examples.length ? `<button class="usage-toggle" aria-expanded="${examplesOpen}" aria-controls="${examplesId}" data-usage>${examplesOpen ? "收起用法" : `查看用法 ${examples.length}`}</button>` : ""}
     ${examplesOpen ? `<div id="${examplesId}">${examplesHtml}</div>` : ""}
   </article>`;
+  }
+
+  function renderManageToolToggles(data, toolIds, state) {
+    return toolIds.map((toolId) =>
+      `<label class="tool-choice"><input type="checkbox" data-enabled="${toolId}" ${state.enabledTools.has(toolId) ? "checked" : ""}> ${escapeHtml(data[toolId].meta.name)}</label>`
+    ).join("");
   }
 
   function sourceCard(toolId, data, helpers) {
@@ -350,9 +367,11 @@
     evidenceLabel,
     exampleProvenanceLabel,
     commandEvidenceHtml,
+    commandExampleHtml,
     renderFilters,
     renderRow,
     renderResults,
+    renderManageToolToggles,
     countBarHtml,
     renderManageTools,
     renderPending,

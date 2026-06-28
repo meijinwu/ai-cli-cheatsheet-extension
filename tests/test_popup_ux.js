@@ -202,6 +202,19 @@ const rowHtml = render.renderRow(explainedOpenEntry, "文件", {
 }, true);
 assert(rowHtml.includes("主要匹配") && rowHtml.includes("命令证据："), "row render should include match and command evidence");
 assert(rowHtml.includes("基于官方资料改写"), "example provenance should render with usage examples");
+assert(rowHtml.includes("推荐用法"), "expanded examples should identify the primary recommended usage");
+assert(rowHtml.includes("copy-btn"), "rows should expose an explicit copy action");
+const collapsedRowHtml = render.renderRow(explainedOpenEntry, "文件", {
+  data,
+  core,
+  platform: "windows",
+  expandedExamples: new Set(),
+  favourites: baseState.favourites,
+  helpers: state,
+}, true);
+assert(!collapsedRowHtml.includes("命令证据："), "collapsed rows should not expose detailed evidence text");
+assert(!collapsedRowHtml.includes("Open file"), "collapsed rows should keep English detail out of the primary scan path");
+assert(render.commandExampleHtml(core, "git checkout <branch>", "").includes("placeholder"), "usage examples should mark replaceable placeholders");
 assert(
   render.renderResults([explainedOpenEntry], "", baseState, {
     data,
@@ -309,21 +322,26 @@ const context = {
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(root, "popup.js"), "utf8"), context, { filename: "popup.js" });
 assert(context.window.CHEATSHEET_POPUP_TESTS, "popup test hooks should be available only when enabled");
-assert.strictEqual(
-  context.window.CHEATSHEET_POPUP_TESTS.confirmRiskCopy("git status", { requiresConfirmation: false }),
-  true,
-  "safe copies should not prompt"
-);
-assert.strictEqual(context.confirmCalls, 0, "safe copies should not call confirm");
-assert.strictEqual(
-  context.window.CHEATSHEET_POPUP_TESTS.confirmRiskCopy("rm -rf ./tmp", { requiresConfirmation: true, warning: "删除" }),
-  false,
-  "risky copies should respect confirm result"
-);
-assert.strictEqual(context.confirmCalls, 1, "risky copies should require confirmation");
+(async () => {
+  assert.strictEqual(
+    await context.window.CHEATSHEET_POPUP_TESTS.confirmRiskCopy("git status", { requiresConfirmation: false }),
+    true,
+    "safe copies should not prompt"
+  );
+  assert.strictEqual(context.confirmCalls, 0, "safe copies should not call confirm");
+  assert.strictEqual(
+    await context.window.CHEATSHEET_POPUP_TESTS.confirmRiskCopy("rm -rf ./tmp", { requiresConfirmation: true, warning: "删除" }),
+    false,
+    "risky copies should respect confirm result when DOM dialog is unavailable"
+  );
+  assert.strictEqual(context.confirmCalls, 1, "risky fallback copies should require confirmation");
 
-assert(state.overbroadAddToolHint("CLI", "cli").includes("GNU Coreutils"), "overbroad tool names need split-scope guidance");
-assert.deepStrictEqual(state.normalizeAddTool("terminal"), { tool: "shell", displayName: "Shell" }, "Shell aliases should canonicalize");
-assert(state.TOOL_PRESETS.terminal.includes("shell"), "terminal preset should enable Shell by default");
+  assert(state.overbroadAddToolHint("CLI", "cli").includes("GNU Coreutils"), "overbroad tool names need split-scope guidance");
+  assert.deepStrictEqual(state.normalizeAddTool("terminal"), { tool: "shell", displayName: "Shell" }, "Shell aliases should canonicalize");
+  assert(state.TOOL_PRESETS.terminal.includes("shell"), "terminal preset should enable Shell by default");
 
-console.log("Popup UX behavior tests passed.");
+  console.log("Popup UX behavior tests passed.");
+})().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

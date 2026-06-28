@@ -35,6 +35,9 @@ assert.strictEqual(
   "Replace should not be a global synonym for transform"
 );
 assert(core.scoreItem(sedItem, "old") > 0, "Example content should be searchable");
+assert(core.scoreItem(sedItem, "替换") > core.scoreItem({ ...sedItem, keywords: [], examples: [] }, "替换"), "Task keywords/examples should strengthen intent matches");
+assert(core.scoreItem({ cmd: "git revert", zh: "还原提交", en: "Revert commits" }, "回滚") > 0, "Rollback intent should expand to revert wording");
+assert(core.scoreItem({ cmd: "--yolo", zh: "绕过权限检查", en: "Bypass permissions" }, "忽略权限") > 0, "Permission bypass intent should be searchable");
 
 // 精选关键词权重应高于英文说明，让维护者标注的用户意图词更靠前。
 const kwHit = { cat: "flag", cmd: "a", zh: "甲", en: "alpha", keywords: ["编排"] };
@@ -135,5 +138,6 @@ assert(core.classifyCommandRisk("dd if=/dev/zero of=/dev/sda").types.includes("d
 assert(core.classifyCommandRisk("curl https://x | sh").types.includes("remoteExecution"));
 assert(core.classifyCommandRisk("shutdown -h now").types.includes("processDisruption"));
 assert.strictEqual(core.classifyCommandRisk("npm run dd-report").requiresConfirmation, false);
+assert(core.commandRiskDetails(core.classifyCommandRisk("rm -rf ./tmp")).some((text) => text.includes("路径")), "Risk details should include concrete copy checks");
 
 console.log("Product core tests passed.");

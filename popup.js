@@ -22,6 +22,7 @@ let searchLimit = STATE.SEARCH_INITIAL_LIMIT;
 let lastAutoExpandedQuery = "";
 let onboardingReturnFocus = null;
 let toastTimer = null;
+let pendingRiskResolve = null;
 
 function getAllData() {
   return window.CHEATSHEET_DATA || {};
@@ -101,9 +102,30 @@ async function copyText(value, successMessage) {
   }
 }
 
+function closeRiskDialog(confirmed) {
+  const dialog = typeof document.getElementById === "function" ? document.getElementById("riskDialog") : null;
+  if (dialog) dialog.classList.remove("show");
+  if (pendingRiskResolve) pendingRiskResolve(Boolean(confirmed));
+  pendingRiskResolve = null;
+}
+
 function confirmRiskCopy(value, risk) {
-  if (!risk.requiresConfirmation) return true;
-  return confirm(`这是高风险命令：${risk.warning}\n\n${value}\n\n确定要复制吗？`);
+  if (!risk.requiresConfirmation) return Promise.resolve(true);
+  const dialog = typeof document.getElementById === "function" ? document.getElementById("riskDialog") : null;
+  if (!dialog) {
+    return Promise.resolve(confirm(`这是高风险命令：${risk.warning}\n\n${value}\n\n确定要复制吗？`));
+  }
+  document.getElementById("riskSummary").textContent = `风险类型：${risk.labels.join("、") || risk.warning || "高风险操作"}`;
+  document.getElementById("riskCommand").textContent = value;
+  const details = CORE.commandRiskDetails(risk);
+  document.getElementById("riskDetails").innerHTML = (details.length ? details : ["复制前请确认命令、路径、目标环境和当前上下文。"])
+    .map((detail) => `<li>${RENDER.escapeHtml(detail)}</li>`)
+    .join("");
+  dialog.classList.add("show");
+  document.getElementById("riskCancel").focus();
+  return new Promise((resolve) => {
+    pendingRiskResolve = resolve;
+  });
 }
 
 function loadCheatsheetData() {
@@ -293,7 +315,7 @@ async function handleMainClick(event) {
     if (!example) return;
     const value = CORE.getPlatformExample(example, platform).value;
     const risk = CORE.classifyCommandRisk(value, [example]);
-    if (!confirmRiskCopy(value, risk)) return;
+    if (!await confirmRiskCopy(value, risk)) return;
     if (!await copyText(value, `已复制用法：${value}`)) return;
     recents = CORE.updateRecent(recents, { toolId: entry.toolId, itemId: entry.itemId, command: value }, 20);
     await storageSet({ recentCopies: recents });
@@ -312,7 +334,7 @@ async function handleMainClick(event) {
     }
     const command = platformInfo.command;
     const risk = CORE.classifyCommandRisk(command, entry.item.examples || []);
-    if (!confirmRiskCopy(command, risk)) return;
+    if (!await confirmRiskCopy(command, risk)) return;
     if (!await copyText(command, `已复制命令：${command}`)) return;
     recents = CORE.updateRecent(recents, { toolId: entry.toolId, itemId: entry.itemId, command }, 20);
     await storageSet({ recentCopies: recents });
@@ -333,6 +355,17 @@ function renderManage() {
     webVerify = webToggle.checked;
     storageSet({ webVerify });
   };
+  const toggles = document.getElementById("manageToolToggles");
+  toggles.innerHTML = RENDER.renderManageToolToggles(getAllData(), STATE.getToolIds(getAllData()), currentState());
+  toggles.querySelectorAll("[data-enabled]").forEach((checkbox) => checkbox.addEventListener("change", async () => {
+    checkbox.checked ? enabledTools.add(checkbox.dataset.enabled) : enabledTools.delete(checkbox.dataset.enabled);
+    await storageSet({ enabledTools: [...enabledTools] });
+    if (activeTool !== "all" && !enabledTools.has(activeTool)) activeTool = "all";
+    renderFilters();
+    render();
+    renderManage();
+  }));
+
   const tools = document.getElementById("manageTools");
   tools.innerHTML = RENDER.renderManageTools(getAllData(), STATE.getToolIds(getAllData()), currentState(), STATE, entryIndex);
   tools.querySelectorAll("[data-enabled]").forEach((checkbox) => checkbox.addEventListener("change", async () => {
@@ -341,6 +374,7 @@ function renderManage() {
     if (activeTool !== "all" && !enabledTools.has(activeTool)) activeTool = "all";
     renderFilters();
     render();
+    renderManage();
   }));
   tools.querySelectorAll("[data-update]").forEach((button) => button.addEventListener("click", () => {
     const toolId = button.dataset.update;
@@ -486,6 +520,17 @@ function bindOnboarding() {
   });
 }
 
+function bindRiskDialog() {
+  document.getElementById("riskCancel").addEventListener("click", () => closeRiskDialog(false));
+  document.getElementById("riskConfirm").addEventListener("click", () => closeRiskDialog(true));
+  document.getElementById("riskDialog").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeRiskDialog(false);
+      event.preventDefault();
+    }
+  });
+}
+
 async function initialize() {
   document.getElementById("main").innerHTML = `<div class="empty loading">正在加载速查表…</div>`;
   try {
@@ -524,6 +569,7 @@ async function initialize() {
   bindHomeEvents();
   bindManageEvents();
   bindOnboarding();
+  bindRiskDialog();
   renderFilters();
   render();
   renderManage();

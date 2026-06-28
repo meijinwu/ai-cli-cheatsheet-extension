@@ -5,17 +5,20 @@
     ["清空", "清除", "重置", "clear", "reset"],
     ["退出", "关闭", "结束", "quit", "exit", "close"],
     ["继续", "恢复", "续接", "resume", "continue"],
+    ["撤销", "回滚", "还原", "undo", "rollback", "revert"],
     ["压缩", "精简", "摘要", "compact", "compress", "summarize"],
-    ["模型", "切换模型", "model", "switch model"],
-    ["权限", "审批", "批准", "permission", "approval"],
+    ["模型", "切换模型", "换模型", "选择模型", "model", "switch model", "select model"],
+    ["权限", "审批", "批准", "忽略权限", "跳过权限", "permission", "approval", "bypass permissions"],
     ["帮助", "说明", "help", "docs", "documentation"],
-    ["配置", "设置", "偏好", "config", "settings", "preferences"],
-    ["历史", "记录", "history", "recent"],
+    ["配置", "设置", "偏好", "打开配置", "config", "settings", "preferences"],
+    ["历史", "记录", "清历史", "清除历史", "history", "recent"],
     ["搜索", "查找", "寻找", "search", "find"],
     ["复制", "拷贝", "copy"],
     ["删除", "移除", "remove", "delete"],
     ["更新", "升级", "刷新", "update", "upgrade", "refresh"],
     ["替换", "取代", "replace", "substitute"],
+    ["补全", "自动补全", "completion", "autocomplete"],
+    ["日志", "查看日志", "调试日志", "log", "logs", "debug"],
   ];
 
   // 评分分层：精确 > 前缀 > 包含 > 中文 > 英文 > 上下文 > 工具名 > 分类，
@@ -25,11 +28,11 @@
     PREFIX: 800,
     CONTAINS: 650,
     ZH: 460,
-    KEYWORDS: 420,
+    KEYWORDS: 520,
     EN: 330,
-    CONTEXT: 220,
+    CONTEXT: 300,
     TOOL_NAME: 180,
-    EXAMPLES: 160,
+    EXAMPLES: 260,
     CATEGORY: 140,
     MULTI_TERM_BONUS: 75,
     FAVOURITE_BONUS: 35,
@@ -233,6 +236,19 @@
     };
   }
 
+  const RISK_DETAILS = {
+    safetyBypass: "会绕过工具内置安全保护，复制前确认你信任当前仓库和提示内容。",
+    remoteExecution: "会把远程下载内容直接交给 shell 执行，复制前确认 URL、来源和脚本内容。",
+    deleteOrOverwrite: "可能删除或覆盖文件、目录或磁盘数据，复制前确认路径、通配符和重定向目标。",
+    historyRewrite: "可能重写 Git 提交历史，复制前确认分支、远端协作状态和备份方案。",
+    permissionChange: "会修改文件权限或所有者，复制前确认目标路径和权限范围。",
+    processDisruption: "可能中断服务或关闭系统，复制前确认进程、主机和当前任务状态。",
+  };
+
+  function commandRiskDetails(risk) {
+    return (risk?.types || []).map((type) => RISK_DETAILS[type]).filter(Boolean);
+  }
+
   function scoreTermGroup(item, terms, options = {}) {
     const cmd = normalizeText(options.displayCmd || item.cmd);
     const cmdCompact = compactText(options.displayCmd || item.cmd);
@@ -386,6 +402,7 @@
     scoreItem,
     explainMatch,
     classifyCommandRisk,
+    commandRiskDetails,
     getPlatformCommand,
     getPlatformExample,
     updateRecent,
