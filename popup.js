@@ -33,6 +33,23 @@ let onboardingReturnFocus = null;
 let toastTimer = null;
 let pendingRiskResolve = null;
 
+let _dom = null;
+function getDOM() {
+  if (!_dom) _dom = {
+    search: document.getElementById("search"),
+    countBar: document.getElementById("countBar"),
+    main: document.getElementById("main"),
+  };
+  return _dom;
+}
+
+function applyFilter(updateFn) {
+  updateFn();
+  resetResultLimits();
+  renderFilters();
+  render();
+}
+
 function getAllData() {
   return window.CHEATSHEET_DATA || {};
 }
@@ -248,39 +265,31 @@ function renderFilters() {
   const quick = document.getElementById("quickFilters");
   quick.innerHTML = html.quickHtml;
   quick.querySelectorAll("[data-tool]").forEach((button) => button.addEventListener("click", () => {
-    activeTool = button.dataset.tool;
-    if (activeTool !== "shell") activeShellFilter = null;
-    resetResultLimits();
-    renderFilters();
-    render();
+    applyFilter(() => {
+      activeTool = button.dataset.tool;
+      if (activeTool !== "shell") activeShellFilter = null;
+    });
   }));
 
   const categories = document.getElementById("categoryFilters");
   categories.innerHTML = html.categoryHtml;
   categories.querySelectorAll("[data-cat]").forEach((button) => button.addEventListener("click", () => {
-    activeCat = activeCat === button.dataset.cat ? null : button.dataset.cat;
-    resetResultLimits();
-    renderFilters();
-    render();
+    applyFilter(() => { activeCat = activeCat === button.dataset.cat ? null : button.dataset.cat; });
   }));
   document.getElementById("clearFilters").addEventListener("click", () => {
-    activeTool = "all";
-    activeCat = null;
-    activeShellFilter = null;
-    resetResultLimits();
-    document.getElementById("search").value = "";
-    storageSet({ lastQuery: "" });
-    renderFilters();
-    render();
+    applyFilter(() => {
+      activeTool = "all";
+      activeCat = null;
+      activeShellFilter = null;
+      getDOM().search.value = "";
+      storageSet({ lastQuery: "" });
+    });
   });
 
   const shellFilters = document.getElementById("shellFilters");
   shellFilters.innerHTML = html.shellHtml;
   shellFilters.querySelectorAll("[data-shell-filter]").forEach((button) => button.addEventListener("click", () => {
-    activeShellFilter = button.dataset.shellFilter || null;
-    resetResultLimits();
-    renderFilters();
-    render();
+    applyFilter(() => { activeShellFilter = button.dataset.shellFilter || null; });
   }));
 }
 
@@ -301,7 +310,8 @@ function rankVisibleEntries(query) {
 }
 
 function render() {
-  const query = document.getElementById("search").value;
+  const dom = getDOM();
+  const query = dom.search.value;
   const { entries, relaxed } = rankVisibleEntries(query);
   const normalizedQuery = CORE.normalizeText(query);
   if ((query.trim() || activeTool === "recent" || activeTool === "favourites")
@@ -315,7 +325,7 @@ function render() {
   }
 
   const filterLabel = STATE.activeFilterLabel(getAllData(), currentState());
-  document.getElementById("countBar").innerHTML = RENDER.countBarHtml(
+  dom.countBar.innerHTML = RENDER.countBarHtml(
     entries,
     query,
     currentState(),
@@ -324,7 +334,7 @@ function render() {
     filterLabel,
     relaxed
   );
-  document.getElementById("main").innerHTML = RENDER.renderResults(entries, query, currentState(), {
+  dom.main.innerHTML = RENDER.renderResults(entries, query, currentState(), {
     data: getAllData(),
     core: CORE,
     platform,
@@ -343,15 +353,15 @@ function bindHomeEvents() {
     debouncedRender();
   });
   document.getElementById("clearSearch").addEventListener("click", () => {
-    document.getElementById("search").value = "";
+    getDOM().search.value = "";
     resetResultLimits();
     storageSet({ lastQuery: "" });
     render();
   });
   document.getElementById("openManage").addEventListener("click", () => showView("manage"));
   document.getElementById("closeManage").addEventListener("click", () => showView("home"));
-  document.getElementById("main").addEventListener("click", handleMainClick);
-  document.getElementById("main").addEventListener("keydown", (event) => {
+  getDOM().main.addEventListener("click", handleMainClick);
+  getDOM().main.addEventListener("keydown", (event) => {
     const rows = [...document.querySelectorAll("#main .row-main:not(:disabled)")];
     const index = rows.indexOf(document.activeElement);
     if (index < 0) return;
@@ -362,7 +372,7 @@ function bindHomeEvents() {
   });
   document.addEventListener("keydown", (event) => {
     if (document.getElementById("onboarding").classList.contains("show")) return;
-    const search = document.getElementById("search");
+    const search = getDOM().search;
     const homeActive = document.getElementById("homeView").classList.contains("active");
     if (!homeActive) return;
     if ((event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k"))

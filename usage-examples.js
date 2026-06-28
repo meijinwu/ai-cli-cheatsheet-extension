@@ -2,13 +2,8 @@
   "use strict";
 
   const SOURCE_TYPES = new Set(["official", "quasi-official", "manual", "ai-derived"]);
-  const RISK_PATTERNS = {
-    deleteOrOverwrite: /(?:\brm(?:\s|$)|\breset\s+--hard\b|--delete\b)|(^|\s)>(?!>)/i,
-    permissionChange: /\b(chmod|chown)\b/i,
-    historyRewrite: /\b(reset\s+--hard|push\s+--force|rebase\s+-i)\b/i,
-    safetyBypass: /(?:--yolo|dangerously-bypass)\b/i,
-    processDisruption: /\b(kill\s+-9|restart)\b/i,
-  };
+  const coreRisks = (globalScope.CHEATSHEET_CORE || {}).COMMAND_RISKS || [];
+  const RISK_PATTERNS = Object.fromEntries(coreRisks.map(([key, , regex]) => [key, regex]));
   const RISK_WARNINGS = {
     deleteOrOverwrite: "此操作可能删除或覆盖数据，请先确认目标并做好备份",
     permissionChange: "此操作会改变文件权限或所有者，请确认目标和权限值",

@@ -393,6 +393,7 @@
 
   const api = {
     SYNONYM_GROUPS,
+    COMMAND_RISKS,
     normalizeText,
     matchTypeInValue,
     expandQuery,

@@ -734,16 +734,8 @@ def should_regenerate_invalid_item_id(expected_tool_id):
     return expected_tool_id == "shell"
 
 
-def validate_dataset(payload, expected_tool_id, require_structured_source=True):
-    if not isinstance(payload, dict):
-        raise ValidationError("Claude 返回的数据必须是 JSON 对象")
-    meta = payload.get("meta")
-    items = payload.get("items")
-    if not isinstance(meta, dict) or not isinstance(items, list):
-        raise ValidationError("数据必须包含 meta 对象和 items 数组")
-    if len(items) > MAX_ITEMS:
-        raise ValidationError(f"条目数量不能超过 {MAX_ITEMS}")
-
+def _validate_meta(meta, expected_tool_id, require_structured_source):
+    """校验并清洗 meta 字段，返回 (clean_meta, raw_sources, updated_at)。"""
     meta_id = validate_tool_id(meta.get("id", ""))
     if meta_id != expected_tool_id:
         raise ValidationError(f"meta.id 必须等于文件 ID：{expected_tool_id}")
@@ -841,6 +833,11 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
             "lastVerifiedAt": updated_at or "",
             "purposes": ["command-existence", "option-semantics", "examples"],
         }]
+    return clean_meta, raw_sources, updated_at
+
+
+def _validate_sources(raw_sources, expected_tool_id, require_structured_source):
+    """校验 sources 数组，返回 (clean_sources, source_ids, unregistered_official_repositories)。"""
     if not isinstance(raw_sources, list) or not raw_sources:
         if require_structured_source:
             raise ValidationError("新生成的数据必须包含非空 meta.sources")
@@ -940,6 +937,21 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
         if version:
             clean_source["version"] = version
         clean_sources.append(clean_source)
+    return clean_sources, source_ids, unregistered_official_repositories
+
+
+def validate_dataset(payload, expected_tool_id, require_structured_source=True):
+    if not isinstance(payload, dict):
+        raise ValidationError("Claude 返回的数据必须是 JSON 对象")
+    meta = payload.get("meta")
+    items = payload.get("items")
+    if not isinstance(meta, dict) or not isinstance(items, list):
+        raise ValidationError("数据必须包含 meta 对象和 items 数组")
+    if len(items) > MAX_ITEMS:
+        raise ValidationError(f"条目数量不能超过 {MAX_ITEMS}")
+
+    clean_meta, raw_sources, updated_at = _validate_meta(meta, expected_tool_id, require_structured_source)
+    clean_sources, source_ids, unregistered_official_repositories = _validate_sources(raw_sources, expected_tool_id, require_structured_source)
     if clean_sources:
         clean_meta["sources"] = clean_sources
     source_by_id = {source["id"]: source for source in clean_sources}

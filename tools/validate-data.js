@@ -130,6 +130,7 @@ for (const id of files) {
 const data = context.window.CHEATSHEET_DATA || {};
 const enrichmentFile = path.join(root, "usage-examples.js");
 const enrichmentDir = path.join(root, "enrichments");
+vm.runInContext(fs.readFileSync(path.join(root, "product-core.js"), "utf8"), context, { filename: "product-core.js" });
 for (const filename of fs.readdirSync(enrichmentDir).filter((name) => name.endsWith(".js")).sort()) {
   const fullPath = path.join(enrichmentDir, filename);
   vm.runInContext(fs.readFileSync(fullPath, "utf8"), context, { filename: fullPath });

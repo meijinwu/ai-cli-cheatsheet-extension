@@ -5,6 +5,7 @@ const assert = require("assert");
 global.window = {};
 require("../data/index.js");
 for (const id of window.CHEATSHEET_FILES) require(`../data/${id}.js`);
+require("../product-core.js");
 const fs = require("fs");
 const path = require("path");
 for (const filename of fs.readdirSync(path.join(__dirname, "..", "enrichments"))
