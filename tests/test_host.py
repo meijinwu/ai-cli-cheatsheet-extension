@@ -1697,10 +1697,14 @@ class HostSuggestToolsTests(unittest.TestCase):
             "platform": "mac",
             "count": 99,
             "exclude": ["ripgrep", "BAD ID", "fzf", 123],
+            "enabled": [{"id": "shell", "name": "Shell"}, {"id": "BAD ID", "name": "Bad"}, {"id": "git", "name": ""}],
+            "collected": [{"id": "docker", "name": "Docker"}, {"id": "docker", "name": "Duplicate"}],
         })
         self.assertEqual(request["platform"], "mac")
         self.assertEqual(request["count"], host.SUGGEST_MAX_COUNT)
         self.assertEqual(request["exclude"], ["ripgrep", "fzf"])
+        self.assertEqual(request["enabled"], [{"id": "shell", "name": "Shell"}])
+        self.assertEqual(request["collected"], [{"id": "docker", "name": "Docker"}])
 
     def test_validate_request_rejects_bad_platform(self):
         with self.assertRaises(host.ValidationError):
@@ -1730,6 +1734,27 @@ class HostSuggestToolsTests(unittest.TestCase):
         evil = next(item for item in result["suggestions"] if item["tool"] == "evilcat")
         self.assertEqual(evil["categoryKey"], "cli-utility", "unknown category falls back")
         self.assertEqual(evil["homepage"], "", "non-https homepage is stripped")
+
+    def test_suggest_tools_prompt_includes_context(self):
+        payload = {"tools": [
+            {"tool": "fd", "displayName": "fd", "categoryKey": "cli-utility",
+             "reason": "find 替代", "homepage": "https://github.com/sharkdp/fd"}
+        ]}
+        with mock.patch.object(host, "_has_api_token", return_value=True), \
+                mock.patch.object(host, "_run_generation_prompt", return_value=payload) as generate:
+            result = host.suggest_tools(
+                "mac",
+                3,
+                ["ripgrep"],
+                [{"id": "shell", "name": "Shell"}],
+                [{"id": "docker", "name": "Docker"}],
+            )
+        self.assertTrue(result["ok"])
+        prompt = generate.call_args.args[0]
+        self.assertIn("ripgrep", prompt)
+        self.assertIn("shell(Shell)", prompt)
+        self.assertIn("docker(Docker)", prompt)
+        self.assertIn("补足相邻工作流空白", prompt)
 
     def test_suggest_tools_caps_count(self):
         payload = {"tools": [

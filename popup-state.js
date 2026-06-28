@@ -58,6 +58,7 @@
       priority: 10,
       reason: "现代 GPU 终端，适合常用快捷键、配置和会话操作速查。",
       tags: ["terminal", "config", "shortcuts"],
+      useCases: ["终端", "配置", "快捷键", "会话"],
       homepage: "https://ghostty.org",
       preferWeb: true,
     },
@@ -70,6 +71,7 @@
       priority: 20,
       reason: "交互式终端和 AI 工作流常用，适合补充命令面板与快捷键。",
       tags: ["terminal", "ai", "workflow"],
+      useCases: ["AI 工作流", "终端", "命令面板", "快捷键"],
       homepage: "https://www.warp.dev",
       preferWeb: true,
     },
@@ -106,6 +108,7 @@
       priority: 100,
       reason: "极快的代码搜索（rg），正则、过滤和忽略规则常用，替代 grep。",
       tags: ["search", "grep", "cli-utility"],
+      useCases: ["搜索文件", "代码搜索", "正则", "grep 替代"],
       homepage: "https://github.com/BurntSushi/ripgrep",
       related: ["linux"],
       preferWeb: true,
@@ -119,6 +122,7 @@
       priority: 110,
       reason: "模糊查找器，命令历史、文件和管道筛选的常用快捷集成。",
       tags: ["fuzzy", "search", "cli-utility"],
+      useCases: ["搜索文件", "历史命令", "交互筛选", "Shell 集成"],
       homepage: "https://github.com/junegunn/fzf",
       related: ["shell"],
       preferWeb: true,
@@ -183,6 +187,7 @@
       priority: 80,
       reason: "Python 项目、虚拟环境和依赖管理命令更新快，适合单独收录。",
       tags: ["python", "package-manager"],
+      useCases: ["版本管理", "依赖管理", "虚拟环境", "Python"],
       homepage: "https://docs.astral.sh/uv/",
       preferWeb: true,
     },
@@ -195,6 +200,7 @@
       priority: 90,
       reason: "包管理、workspace 和脚本命令常用，和 npm/yarn 易混淆。",
       tags: ["node", "package-manager"],
+      useCases: ["版本管理", "依赖管理", "workspace", "Node"],
       homepage: "https://pnpm.io",
       preferWeb: true,
     },
@@ -231,6 +237,7 @@
       priority: 96,
       reason: "多语言运行时与环境管理（原 rtx），install/use/env 命令常用。",
       tags: ["version-manager", "dev-env"],
+      useCases: ["版本管理", "运行时管理", "环境变量", "多语言"],
       homepage: "https://mise.jdx.dev",
       preferWeb: true,
     },
@@ -243,6 +250,7 @@
       priority: 60,
       reason: "镜像、容器、日志、网络和 Compose 操作查询频率高。",
       tags: ["container", "devops"],
+      useCases: ["容器", "镜像", "Compose", "日志"],
       homepage: "https://docs.docker.com",
       preferWeb: true,
     },
@@ -255,6 +263,7 @@
       priority: 70,
       reason: "集群排查、资源查看和上下文切换命令复杂，适合速查。",
       tags: ["kubernetes", "devops"],
+      useCases: ["容器", "Kubernetes", "集群排查", "上下文切换"],
       homepage: "https://kubernetes.io/docs/reference/kubectl/",
       related: ["docker"],
       preferWeb: true,
@@ -268,6 +277,7 @@
       priority: 75,
       reason: "Kubernetes 包管理，Chart、release 和 values 操作适合速查。",
       tags: ["kubernetes", "devops", "package-manager"],
+      useCases: ["容器", "Kubernetes", "Chart", "release"],
       homepage: "https://helm.sh",
       related: ["kubectl", "docker"],
       preferWeb: true,
@@ -418,7 +428,7 @@
   }
 
   function recommendationText(item) {
-    return [item.tool, item.displayName, item.category, item.reason, ...(item.tags || [])]
+    return [item.tool, item.displayName, item.category, item.reason, ...(item.tags || []), ...(item.useCases || [])]
       .join(" ")
       .toLowerCase();
   }
@@ -429,10 +439,49 @@
     );
   }
 
-  // 相关推荐（用户已收录关联工具）优先，其余按 priority 排序。
+  function toolName(data, toolId) {
+    return data[toolId]?.meta?.name || toolId;
+  }
+
+  function recommendationSignalContext(data, options = {}) {
+    const enabledToolIds = options.enabledToolIds instanceof Set ? options.enabledToolIds : new Set(options.enabledToolIds || []);
+    const favouriteTools = new Set();
+    const recentTools = new Set();
+    const favourites = options.favourites instanceof Set ? options.favourites : new Set(options.favourites || []);
+    favourites.forEach((key) => {
+      const toolId = String(key).split("::")[0];
+      if (toolId) favouriteTools.add(toolId);
+    });
+    (Array.isArray(options.recents) ? options.recents : []).forEach((item) => {
+      if (item && typeof item.toolId === "string") recentTools.add(item.toolId);
+    });
+    return { enabledToolIds, favouriteTools, recentTools };
+  }
+
+  function recommendationSignals(item, data, context) {
+    const relatedIds = Array.isArray(item.related) ? item.related : [];
+    const relatedEnabled = relatedIds.filter((id) => context.enabledToolIds.has(id));
+    const relatedRecent = relatedIds.filter((id) => context.recentTools.has(id));
+    const relatedFavourite = relatedIds.filter((id) => context.favouriteTools.has(id));
+    const relatedCollected = relatedIds.filter((id) => data[id]);
+    const signalIds = [...new Set([...relatedRecent, ...relatedFavourite, ...relatedEnabled, ...relatedCollected])];
+    const reasons = [];
+    if (relatedRecent.length) reasons.push(`因为你最近用过 ${relatedRecent.map((id) => toolName(data, id)).join("、")}`);
+    if (relatedFavourite.length) reasons.push(`因为你收藏了 ${relatedFavourite.map((id) => toolName(data, id)).join("、")}`);
+    if (relatedEnabled.length) reasons.push(`因为你启用了 ${relatedEnabled.map((id) => toolName(data, id)).join("、")}`);
+    if (!reasons.length && signalIds.length) reasons.push(`因为你已添加 ${signalIds.map((id) => toolName(data, id)).join("、")}`);
+    return {
+      relatedTo: signalIds.map((id) => toolName(data, id)),
+      explainReasons: reasons,
+      relevanceScore: (relatedRecent.length * 60) + (relatedFavourite.length * 50) + (relatedEnabled.length * 30) + (relatedCollected.length * 20),
+    };
+  }
+
+  // 相关推荐（用户使用信号）优先，其余按 priority 排序。
   function sortRecommendationsByRelevance(items) {
     return [...items].sort((a, b) =>
-      ((b.relatedTo?.length ? 1 : 0) - (a.relatedTo?.length ? 1 : 0))
+      ((b.relevanceScore || 0) - (a.relevanceScore || 0))
+      || ((b.relatedTo?.length ? 1 : 0) - (a.relatedTo?.length ? 1 : 0))
       || (a.priority ?? 999) - (b.priority ?? 999)
       || a.displayName.localeCompare(b.displayName)
     );
@@ -492,11 +541,15 @@
     const query = String(options.query || "").trim().toLowerCase();
     const activeCategory = options.category || "all";
     const showDismissed = options.showDismissed === true;
+    const signalContext = recommendationSignalContext(data, options);
     const available = recommendedTools(data, currentPlatform, extraRecommendations).map((item) => ({
       ...item,
       dismissed: dismissed.has(item.tool),
       adding: addingTool === item.tool,
-      relatedTo: recommendationRelatedNames(item, data, collectedToolIds),
+      ...recommendationSignals(item, data, signalContext),
+    })).map((item) => ({
+      ...item,
+      relatedTo: item.relatedTo.length ? item.relatedTo : recommendationRelatedNames(item, data, collectedToolIds),
     }));
     const afterDismissed = available.filter((item) => showDismissed || !item.dismissed);
     const afterQuery = query

@@ -267,7 +267,9 @@
         <div><div class="recommend-name">${escapeHtml(item.displayName)}${item.source === "ai" ? `<span class="recommend-ai">AI</span>` : ""}</div><div class="recommend-cat">${escapeHtml(item.category)}</div></div>
         <div class="recommend-actions">${recommendCardActions(item, webVerify)}</div>
       </div>
-      ${item.relatedTo && item.relatedTo.length ? `<div class="recommend-related">因为你已添加 ${escapeHtml(item.relatedTo.join("、"))}</div>` : ""}
+      ${item.explainReasons && item.explainReasons.length
+        ? item.explainReasons.map((reason) => `<div class="recommend-related">${escapeHtml(reason)}</div>`).join("")
+        : item.relatedTo && item.relatedTo.length ? `<div class="recommend-related">因为你已添加 ${escapeHtml(item.relatedTo.join("、"))}</div>` : ""}
       <div class="meta">${escapeHtml(item.reason)}</div>
       <div class="recommend-tags">${(item.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}${item.preferWeb && !webVerify ? `<span class="recommend-web-hint">建议联网</span>` : ""}</div>
     </div>`;

@@ -52,7 +52,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return false;
     }
 
-    const { tool, display_name, mode, token, confirm_risk, prefer_web, deep_check, platform, count, exclude } = msg;
+    const { tool, display_name, mode, token, confirm_risk, prefer_web, deep_check, platform, count, exclude, enabled, collected } = msg;
     const tokenMode = ['apply_update', 'discard_update'].includes(mode);
     const suggestMode = mode === 'suggest_tools';
     const validToken = typeof token === 'string' && /^[a-f0-9]{32}$/.test(token);
@@ -69,6 +69,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     const TOOL_ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
     const safeExclude = Array.isArray(exclude)
       ? exclude.filter((id) => typeof id === 'string' && TOOL_ID_RE.test(id)).slice(0, 200)
+      : [];
+    const safeToolContext = (items) => Array.isArray(items)
+      ? items.filter((item) => item
+        && typeof item.id === 'string'
+        && TOOL_ID_RE.test(item.id)
+        && typeof item.name === 'string'
+        && item.name.trim().length > 0
+        && item.name.trim().length <= 80)
+        .slice(0, 80)
+        .map((item) => ({ id: item.id, name: item.name.trim() }))
       : [];
     let paramsValid;
     if (suggestMode) paramsValid = validPlatform && validCount;
@@ -119,6 +129,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       platform,
       count,
       exclude: safeExclude,
+      enabled: safeToolContext(enabled),
+      collected: safeToolContext(collected),
     });
     return false;
   }

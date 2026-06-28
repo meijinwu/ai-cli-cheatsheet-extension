@@ -137,13 +137,22 @@ async function mergeAiSuggestions(suggestions) {
 }
 
 function requestAiSuggestions() {
+  const data = getAllData();
   const exclude = [...new Set([
-    ...STATE.getToolIds(getAllData()),
+    ...STATE.getToolIds(data),
     ...STATE.TOOL_RECOMMENDATIONS.map((item) => item.tool),
     ...dismissedRecommendations,
     ...aiRecommendations.map((item) => item.tool),
   ])];
-  taskController.runTask("suggest_tools", { platform, count: AI_SUGGEST_COUNT, exclude });
+  const enabled = [...enabledTools].filter((id) => data[id]).map((id) => ({
+    id,
+    name: data[id].meta?.name || id,
+  }));
+  const collected = STATE.getToolIds(data).map((id) => ({
+    id,
+    name: data[id].meta?.name || id,
+  }));
+  taskController.runTask("suggest_tools", { platform, count: AI_SUGGEST_COUNT, exclude, enabled, collected });
 }
 
 function hideToast() {
@@ -467,6 +476,9 @@ function renderManage() {
     dismissedRecommendations,
     showDismissed: showDismissedRecommendations,
     collectedToolIds: new Set(STATE.getToolIds(getAllData())),
+    enabledToolIds: enabledTools,
+    favourites,
+    recents,
     addingTool: addingRecommendation,
     webVerify,
     batchSize: RECOMMENDATION_BATCH_SIZE,

@@ -70,6 +70,7 @@ RECOMMENDATION_CATEGORY_KEYS = {
 SUGGEST_PLATFORMS = {"mac", "windows", "linux"}
 SUGGEST_MAX_COUNT = 12
 SUGGEST_MAX_EXCLUDE = 200
+SUGGEST_MAX_CONTEXT_TOOLS = 80
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 VALID_CATEGORIES = {"shortcut", "slash", "flag"}
 RESERVED_TOOL_IDS = {"index"}
@@ -503,6 +504,27 @@ def tool_data_path(tool_id):
     return path
 
 
+def clean_suggest_context(raw_items):
+    if not isinstance(raw_items, list):
+        return []
+    cleaned = []
+    seen = set()
+    for item in raw_items[:SUGGEST_MAX_CONTEXT_TOOLS]:
+        if not isinstance(item, dict):
+            continue
+        tool_id = item.get("id")
+        name = item.get("name")
+        if not isinstance(tool_id, str) or not TOOL_ID_RE.fullmatch(tool_id):
+            continue
+        if tool_id in seen:
+            continue
+        if not isinstance(name, str) or not name.strip():
+            continue
+        cleaned.append({"id": tool_id, "name": name.strip()[:80]})
+        seen.add(tool_id)
+    return cleaned
+
+
 def validate_request(message):
     if not isinstance(message, dict):
         raise ValidationError("请求必须是 JSON 对象")
@@ -528,7 +550,14 @@ def validate_request(message):
         for item in raw_exclude[:SUGGEST_MAX_EXCLUDE]:
             if isinstance(item, str) and TOOL_ID_RE.match(item):
                 exclude.append(item)
-        return {"action": "suggest_tools", "platform": platform, "count": count, "exclude": exclude}
+        return {
+            "action": "suggest_tools",
+            "platform": platform,
+            "count": count,
+            "exclude": exclude,
+            "enabled": clean_suggest_context(message.get("enabled", [])),
+            "collected": clean_suggest_context(message.get("collected", [])),
+        }
 
     if action in {"apply_update", "discard_update"}:
         token = message.get("token", "")
@@ -1873,15 +1902,26 @@ def _run_generation_prompt(prompt, use_api, prefer_web=False):
     return _call_claude_cli(prompt, prefer_web)
 
 
-def build_suggest_prompt(platform, count, exclude):
+def suggest_context_text(items):
+    if not items:
+        return "（无）"
+    return "、".join(f"{item['id']}({item['name']})" for item in items[:SUGGEST_MAX_CONTEXT_TOOLS])
+
+
+def build_suggest_prompt(platform, count, exclude, enabled=None, collected=None):
     platform_label = {"mac": "macOS", "windows": "Windows", "linux": "Linux"}[platform]
     exclude_text = "、".join(exclude) if exclude else "（无）"
+    enabled_text = suggest_context_text(enabled or [])
+    collected_text = suggest_context_text(collected or [])
     keys = "、".join(sorted(RECOMMENDATION_CATEGORY_KEYS))
     return f"""
 为 {platform_label} 开发者推荐 {count} 个常用的命令行 / 开发工具，用于一个 CLI 速查表扩展的「推荐添加」列表。
 要求：
 - 只推荐在 {platform_label} 上实际可用、广为使用、且命令/快捷键值得做速查表的工具。
 - 必须排除以下已收录或已展示的工具 ID：{exclude_text}。
+- 用户当前启用的工具：{enabled_text}。
+- 用户当前已收录的工具：{collected_text}。
+- 优先围绕当前启用/已收录工具补足相邻工作流空白，避免推荐功能重复或定位过近的工具。
 - 不要推荐过于宽泛的条目（如 shell、terminal、命令行本身）。
 - 每个工具给出稳定的小写工具 ID（仅小写字母、数字、连字符）。
 - categoryKey 只能从这些值里选：{keys}。
@@ -1946,8 +1986,8 @@ def _normalize_suggestion(raw, platform, seen):
     }
 
 
-def suggest_tools(platform, count, exclude):
-    prompt = build_suggest_prompt(platform, count, exclude)
+def suggest_tools(platform, count, exclude, enabled=None, collected=None):
+    prompt = build_suggest_prompt(platform, count, exclude, enabled, collected)
     use_api = _has_api_token()
     result = _run_generation_prompt(prompt, use_api, prefer_web=False)
     tools = result.get("tools") if isinstance(result, dict) else None
@@ -2957,7 +2997,13 @@ def handle_message(message):
     if request["action"] == "remove_tool":
         return remove_tool(request["tool"])
     if request["action"] == "suggest_tools":
-        return suggest_tools(request["platform"], request["count"], request["exclude"])
+        return suggest_tools(
+            request["platform"],
+            request["count"],
+            request["exclude"],
+            request.get("enabled", []),
+            request.get("collected", []),
+        )
     raise ValidationError(f"未知的 action: {request['action']}")
 
 

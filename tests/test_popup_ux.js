@@ -178,6 +178,8 @@ const macRecommendationResult = state.filterRecommendedTools(data, "mac");
 assert(macRecommendationResult.groups.some((group) => group.key === "terminal" && group.items[0].tool === "ghostty"), "recommendations should group by category");
 const recommendationSearchResult = state.filterRecommendedTools(data, "mac", { query: "GPU" });
 assert.deepStrictEqual(recommendationSearchResult.groups.flatMap((group) => group.items.map((item) => item.tool)), ["ghostty"], "recommendation search should match reasons");
+const recommendationIntentResult = state.filterRecommendedTools(data, "mac", { query: "搜索文件" });
+assert(recommendationIntentResult.groups.flatMap((group) => group.items).some((item) => item.tool === "ripgrep"), "recommendation search should match Chinese use-case intent");
 const recommendationTagResult = state.filterRecommendedTools(data, "mac", { query: "devops" });
 assert(recommendationTagResult.groups.flatMap((group) => group.items).every((item) => item.tags.includes("devops")), "recommendation search should match tags");
 const cloudRecommendations = state.filterRecommendedTools(data, "mac", { category: "cloud-native" });
@@ -217,6 +219,16 @@ const cliItems = personalized.groups.flatMap((group) => group.items);
 assert.strictEqual(cliItems[0].tool, "fzf", "related recommendations should sort ahead of higher-priority unrelated ones");
 assert(cliItems.find((item) => item.tool === "fzf").relatedTo.includes("Shell"), "related recommendation should name the collected tool");
 assert(render.renderRecommendedTools(personalized).includes("因为你已添加"), "related recommendation cards should explain the reason");
+const enabledPersonalized = state.filterRecommendedTools(shellCollected, "mac", { category: "cli-utility", enabledToolIds: new Set(["shell"]) });
+assert.strictEqual(enabledPersonalized.groups.flatMap((group) => group.items)[0].tool, "fzf", "enabled tools should influence recommendation relevance");
+assert(render.renderRecommendedTools(enabledPersonalized).includes("因为你启用了 Shell"), "enabled-tool recommendation cards should explain the signal");
+const favouritePersonalized = state.filterRecommendedTools(shellCollected, "mac", { category: "dev-env", favourites: new Set(["shell::some-item"]) });
+assert.strictEqual(favouritePersonalized.groups.flatMap((group) => group.items)[0].tool, "tmux", "favourite tools should influence recommendation relevance");
+assert(render.renderRecommendedTools(favouritePersonalized).includes("因为你收藏了 Shell"), "favourite-based recommendations should explain the signal");
+const recentDocker = { ...data, docker: { meta: { name: "Docker" }, items: [] } };
+const recentPersonalized = state.filterRecommendedTools(recentDocker, "mac", { category: "cloud-native", recents: [{ toolId: "docker", itemId: "logs" }] });
+assert.strictEqual(recentPersonalized.groups.flatMap((group) => group.items)[0].tool, "kubectl", "recently used tools should influence recommendation relevance");
+assert(render.renderRecommendedTools(recentPersonalized).includes("因为你最近用过 Docker"), "recent-use recommendation cards should explain the signal");
 
 // F: 了解链接与协议安全
 const ghosttyHtml = render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty" }));
@@ -276,6 +288,8 @@ assert(aiHtml.includes("recommend-ai") && aiHtml.includes('data-recommend-tool="
 assert(html.includes('id="aiSuggestBtn"'), "recommendation panel should expose an AI suggest button");
 const relatedBatch = state.filterRecommendedTools({ ...data, docker: { meta: { name: "Docker" }, items: [] } }, "mac", { batchSize: 6, collectedToolIds: new Set(["docker"]) });
 assert(relatedBatch.batch.items.some((item) => item.relatedTo && item.relatedTo.length), "related recommendations should surface in the first batch");
+const enabledBatch = state.filterRecommendedTools(shellCollected, "mac", { batchSize: 6, enabledToolIds: new Set(["shell"]) });
+assert(enabledBatch.batch.items.slice(0, 3).some((item) => item.relatedTo && item.relatedTo.includes("Shell")), "batched browsing should prioritize high-relevance recommendations");
 const batchHtml = render.renderRecommendedTools(firstBatch);
 assert(!batchHtml.includes("recommend-group"), "batched recommendations should render flat without group headers");
 assert((batchHtml.match(/data-recommend-tool=/g) || []).length === 6, "batched view should render the batch cards");
