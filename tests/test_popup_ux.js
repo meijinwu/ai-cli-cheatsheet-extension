@@ -229,6 +229,12 @@ const recentDocker = { ...data, docker: { meta: { name: "Docker" }, items: [] } 
 const recentPersonalized = state.filterRecommendedTools(recentDocker, "mac", { category: "cloud-native", recents: [{ toolId: "docker", itemId: "logs" }] });
 assert.strictEqual(recentPersonalized.groups.flatMap((group) => group.items)[0].tool, "kubectl", "recently used tools should influence recommendation relevance");
 assert(render.renderRecommendedTools(recentPersonalized).includes("因为你最近用过 Docker"), "recent-use recommendation cards should explain the signal");
+// D2: 补全 related 图谱后，原本无关联的终端类推荐也能被个性化激活（改动 1A）
+const terminalPersonalized = state.filterRecommendedTools(data, "mac", { category: "terminal", enabledToolIds: new Set(["iterm2"]) });
+const terminalItems = terminalPersonalized.groups.flatMap((group) => group.items);
+assert(terminalItems.length, "terminal recommendations should exist");
+assert(terminalItems[0].relevanceScore > 0, "backfilled related should activate personalization for terminal recommendations");
+assert(terminalItems[0].relatedTo.length, "personalized terminal recommendation should name its related anchor");
 
 // F: 了解链接与协议安全
 const ghosttyHtml = render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty" }));

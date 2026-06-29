@@ -60,6 +60,7 @@
       tags: ["terminal", "config", "shortcuts"],
       useCases: ["终端", "配置", "快捷键", "会话"],
       homepage: "https://ghostty.org",
+      related: ["iterm2", "shell"],
       preferWeb: true,
     },
     {
@@ -73,6 +74,7 @@
       tags: ["terminal", "ai", "workflow"],
       useCases: ["AI 工作流", "终端", "命令面板", "快捷键"],
       homepage: "https://www.warp.dev",
+      related: ["iterm2", "shell"],
       preferWeb: true,
     },
     {
@@ -85,6 +87,7 @@
       reason: "跨平台终端，配置、窗格、标签页和快捷键值得整理。",
       tags: ["terminal", "cross-platform", "config"],
       homepage: "https://wezterm.org",
+      related: ["iterm2", "shell"],
       preferWeb: true,
     },
     {
@@ -97,6 +100,7 @@
       reason: "轻量终端，适合整理配置文件、快捷键和常用启动方式。",
       tags: ["terminal", "config"],
       homepage: "https://alacritty.org",
+      related: ["iterm2", "shell"],
       preferWeb: true,
     },
     {
@@ -189,6 +193,7 @@
       tags: ["python", "package-manager"],
       useCases: ["版本管理", "依赖管理", "虚拟环境", "Python"],
       homepage: "https://docs.astral.sh/uv/",
+      related: ["git"],
       preferWeb: true,
     },
     {
@@ -202,6 +207,7 @@
       tags: ["node", "package-manager"],
       useCases: ["版本管理", "依赖管理", "workspace", "Node"],
       homepage: "https://pnpm.io",
+      related: ["git", "vs-code"],
       preferWeb: true,
     },
     {
@@ -214,6 +220,7 @@
       reason: "一体化 JS 运行时与包管理，run/install/test 命令值得速查。",
       tags: ["javascript", "runtime", "package-manager"],
       homepage: "https://bun.sh",
+      related: ["git", "vs-code"],
       preferWeb: true,
     },
     {
@@ -226,6 +233,7 @@
       reason: "安全的 TS/JS 运行时，权限标志、任务和兼容选项适合速查。",
       tags: ["typescript", "javascript", "runtime"],
       homepage: "https://deno.com",
+      related: ["git", "vs-code"],
       preferWeb: true,
     },
     {
@@ -239,6 +247,7 @@
       tags: ["version-manager", "dev-env"],
       useCases: ["版本管理", "运行时管理", "环境变量", "多语言"],
       homepage: "https://mise.jdx.dev",
+      related: ["shell", "git"],
       preferWeb: true,
     },
     {
@@ -331,6 +340,7 @@
       reason: "可扩展的 Vim 衍生编辑器，模式、快捷键和 Lua 配置值得整理。",
       tags: ["editor", "vim", "dev-env"],
       homepage: "https://neovim.io",
+      related: ["vs-code", "git"],
       preferWeb: true,
     },
     {
@@ -343,6 +353,7 @@
       reason: "Windows 默认现代终端，配置、窗格、标签页和命令面板常用。",
       tags: ["terminal", "windows", "shortcuts"],
       homepage: "https://learn.microsoft.com/windows/terminal/",
+      related: ["shell"],
       preferWeb: true,
     },
     {
@@ -355,6 +366,7 @@
       reason: "Windows 常用自动化 Shell，管道、对象和常用 cmdlet 需要速查。",
       tags: ["shell", "windows", "scripting"],
       homepage: "https://learn.microsoft.com/powershell/",
+      related: ["shell"],
       preferWeb: true,
     },
     {
@@ -367,6 +379,7 @@
       reason: "Windows 上管理 Linux 发行版、路径和集成终端的常用入口。",
       tags: ["windows", "linux", "dev-env"],
       homepage: "https://learn.microsoft.com/windows/wsl/",
+      related: ["linux", "shell"],
       preferWeb: true,
     },
   ];
