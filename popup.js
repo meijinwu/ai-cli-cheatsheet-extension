@@ -21,6 +21,7 @@ let recommendationBatchOffset = 0;
 let aiRecommendations = [];
 const RECOMMENDATION_BATCH_SIZE = 6;
 const AI_SUGGEST_COUNT = 8;
+const AI_SUGGEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 let pendingUpdate = null;
 let currentTaskMode = null;
 let expandedTools = new Set();
@@ -60,24 +61,6 @@ function storageGet(keys) {
 
 function storageSet(values) {
   return STATE.storageSet(chrome, values);
-}
-
-function storageSessionGet(keys) {
-  return new Promise((resolve) => {
-    try {
-      chrome.storage.session.get(keys, (result) => resolve(result || {}));
-    } catch (_error) {
-      resolve({});
-    }
-  });
-}
-
-function storageSessionSet(values) {
-  try {
-    return chrome.storage.session.set(values);
-  } catch (_error) {
-    return Promise.resolve();
-  }
 }
 
 function currentState() {
@@ -147,8 +130,9 @@ async function mergeAiSuggestions(suggestions) {
     item && typeof item.tool === "string" && !seen.has(item.tool) && !installed[item.tool]
   );
   if (additions.length) {
-    aiRecommendations = [...aiRecommendations, ...additions];
-    await storageSessionSet({ aiRecommendations });
+    const stamped = additions.map((item) => ({ ...item, generatedAt: item.generatedAt || Date.now() }));
+    aiRecommendations = [...aiRecommendations, ...stamped];
+    await storageSet({ aiRecommendations });
   }
   if (manageIsActive()) renderManage();
 }
@@ -341,6 +325,8 @@ function render() {
     expandedExamples,
     favourites,
     helpers: STATE,
+    dismissedRecommendations,
+    aiRecommendations,
   });
   updateManageBadge();
 }
@@ -410,6 +396,17 @@ async function handleMainClick(event) {
   if (event.target.closest("[data-more-results]")) {
     searchLimit += STATE.SEARCH_INITIAL_LIMIT;
     render();
+    return;
+  }
+  const suggestAdd = event.target.closest("[data-suggest-add-tool]");
+  if (suggestAdd) {
+    showView("manage");
+    addingRecommendation = suggestAdd.dataset.suggestAddTool;
+    renderManage();
+    if (!startAddTool(suggestAdd.dataset.suggestAddName, webVerify)) {
+      addingRecommendation = null;
+      renderManage();
+    }
     return;
   }
   const entryWrap = event.target.closest(".entry-wrap");
@@ -781,8 +778,9 @@ async function initialize() {
   favourites = new Set(stored.favourites || []);
   recents = stored.recentCopies || [];
   dismissedRecommendations = new Set(Array.isArray(stored.dismissedRecommendations) ? stored.dismissedRecommendations : []);
-  const sessionState = await storageSessionGet(["aiRecommendations"]);
-  aiRecommendations = Array.isArray(sessionState.aiRecommendations) ? sessionState.aiRecommendations : [];
+  const storedAi = Array.isArray(stored.aiRecommendations) ? stored.aiRecommendations : [];
+  aiRecommendations = STATE.pruneExpiredAiSuggestions(storedAi, Date.now(), AI_SUGGEST_TTL_MS);
+  if (aiRecommendations.length !== storedAi.length) storageSet({ aiRecommendations });
   platform = stored.platform || platform;
   webVerify = stored.webVerify === true;
   enabledTools = new Set(Array.isArray(stored.enabledTools)

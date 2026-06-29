@@ -1,6 +1,15 @@
 (function initProductCore(globalScope) {
   "use strict";
 
+  // 汉字 -> 拼音首字母表（由 tools/gen-pinyin-initials.py 生成）。缺失时安全降级为空表。
+  const PINYIN_INITIALS = (function resolvePinyinInitials() {
+    if (globalScope.PINYIN_INITIALS) return globalScope.PINYIN_INITIALS;
+    if (typeof require === "function") {
+      try { return require("./pinyin-initials.js"); } catch (_error) { /* 拼音表缺失，跳过拼音匹配 */ }
+    }
+    return {};
+  })();
+
   const SYNONYM_GROUPS = [
     ["清空", "清除", "重置", "clear", "reset"],
     ["退出", "关闭", "结束", "quit", "exit", "close"],
@@ -34,18 +43,35 @@
     TOOL_NAME: 180,
     EXAMPLES: 260,
     CATEGORY: 140,
+    // 拼音首字母兜底匹配：最弱信号，权重低于所有真实字段命中（含 CATEGORY），
+    // 仅在其它字段都未命中时启用，确保拼音不会重排任何真实字段匹配的结果。
+    PINYIN: 110,
     MULTI_TERM_BONUS: 75,
     FAVOURITE_BONUS: 35,
     FAVOURITE_EMPTY_QUERY: 30,
     RECENT_BONUS_MAX: 30,
     RECENT_BONUS_MIN: 5,
     RECENT_EMPTY_QUERY_WINDOW: 20,
+    // 使用频率加成：按累计复制次数对数增长（收益递减），与“最近次序”互补。
+    USAGE_BONUS_MAX: 40,
+    USAGE_BONUS_FACTOR: 12,
   };
+
+  /**
+   * 把累计使用次数换算为一个收益递减的加成（单次使用不加成）。
+   * @param {number} [count]
+   * @returns {number}
+   */
+  function usageBonus(count) {
+    if (!Number.isFinite(count) || count <= 1) return 0;
+    return Math.min(SCORE.USAGE_BONUS_MAX, Math.round(SCORE.USAGE_BONUS_FACTOR * Math.log(count)));
+  }
 
   // 归一化是搜索热路径中最频繁的操作（每次按键 × 每条目 × 每字段），
   // 缓存按原始字符串去重，缓存键集合受数据集字段数限制，有界。
   const normalizeCache = new Map();
   const compactCache = new Map();
+  const initialsCache = new Map();
 
   /**
    * NFKC 归一化、转小写、统一连字符与空白。
@@ -78,6 +104,40 @@
     const result = normalizeText(raw).replace(/[\s-]+/g, "");
     compactCache.set(raw, result);
     return result;
+  }
+
+  /**
+   * 把文本转为拼音首字母串：汉字取首字母，ASCII 字母/数字原样小写，其余（空白/标点）丢弃。
+   * 缓存键为字段原始字符串，集合受数据字段数限制，有界。
+   * @param {unknown} value
+   * @returns {string}
+   */
+  function toInitials(value) {
+    const raw = String(value || "");
+    const cached = initialsCache.get(raw);
+    if (cached !== undefined) return cached;
+    let out = "";
+    for (const ch of raw) {
+      const ini = PINYIN_INITIALS[ch];
+      if (ini) out += ini;
+      else if (/[a-z0-9]/i.test(ch)) out += ch.toLowerCase();
+    }
+    initialsCache.set(raw, out);
+    return out;
+  }
+
+  // 拼音首字母查询：纯字母、至少两位（单字母噪声太大不启用）。
+  function isPinyinInitialQuery(term) {
+    return /^[a-z]{2,}$/.test(term);
+  }
+
+  // 查询的拼音首字母是否命中条目的中文字段（中文说明 / 工具名 / 关键词）。
+  function matchesPinyinInitials(item, options, term) {
+    const targets = [item.zh, options.toolName, ...(Array.isArray(item.keywords) ? item.keywords : [])];
+    return targets.some((target) => {
+      const initials = toInitials(target);
+      return initials.length >= term.length && (initials.startsWith(term) || initials.includes(term));
+    });
   }
 
   function matchTypeInValue(value, term) {
@@ -272,6 +332,7 @@
       else if (matchTypeInValue(options.toolName, term)) score = Math.max(score, SCORE.TOOL_NAME);
       else if (matchTypeInValue(examples, term)) score = Math.max(score, SCORE.EXAMPLES);
       else if (matchTypeInValue(options.categoryLabel, term)) score = Math.max(score, SCORE.CATEGORY);
+      else if (isPinyinInitialQuery(term) && matchesPinyinInitials(item, options, term)) score = Math.max(score, SCORE.PINYIN);
     });
     return score;
   }
@@ -281,7 +342,8 @@
    * @param {Record<string, any>} item 数据条目（cmd/en/zh/context 等）
    * @param {string} query 用户查询
    * @param {{ displayCmd?: string, toolName?: string, categoryLabel?: string,
-   *           isFavourite?: boolean, recentRank?: number, matchMode?: "any" }} [options]
+   *           isFavourite?: boolean, recentRank?: number, usageCount?: number,
+   *           matchMode?: "any" }} [options]
    * @returns {number} 分数（>=0 命中，-1 未命中）
    */
   function scoreItem(item, query, options = {}) {
@@ -292,7 +354,7 @@
         0,
         SCORE.RECENT_EMPTY_QUERY_WINDOW - (options.recentRank ?? SCORE.RECENT_EMPTY_QUERY_WINDOW)
       );
-      return favouriteBonus + recentBonus;
+      return favouriteBonus + recentBonus + usageBonus(options.usageCount);
     }
 
     const scores = groups.map((terms) => scoreTermGroup(item, terms, options));
@@ -305,6 +367,7 @@
     if (Number.isInteger(options.recentRank)) {
       score += Math.max(SCORE.RECENT_BONUS_MIN, SCORE.RECENT_BONUS_MAX - options.recentRank);
     }
+    score += usageBonus(options.usageCount);
     return score;
   }
 
@@ -342,17 +405,20 @@
   }
 
   /**
-   * 将一次复制记录置顶并去重，返回新的最近列表（不可变）。
-   * @param {Array<{ toolId: string, itemId: string, copiedAt?: number }>} recents
+   * 将一次复制记录置顶、去重并累加使用次数，返回新的最近列表（不可变）。
+   * @param {Array<{ toolId: string, itemId: string, copiedAt?: number, count?: number }>} recents
    * @param {{ toolId: string, itemId: string, copiedAt?: number }} entry
    * @param {number} [limit]
    * @returns {Array<object>}
    */
   function updateRecent(recents, entry, limit = 20) {
     const key = `${entry.toolId}::${entry.itemId}`;
-    const filtered = (Array.isArray(recents) ? recents : [])
-      .filter((item) => `${item.toolId}::${item.itemId}` !== key);
-    return [{ ...entry, copiedAt: entry.copiedAt || Date.now() }, ...filtered].slice(0, limit);
+    const list = Array.isArray(recents) ? recents : [];
+    const existing = list.find((item) => `${item.toolId}::${item.itemId}` === key);
+    const filtered = list.filter((item) => `${item.toolId}::${item.itemId}` !== key);
+    // 老数据无 count 视为已用 1 次，再次复制累加（向后兼容，无需迁移）。
+    const priorCount = existing ? (existing.count || 1) : 0;
+    return [{ ...entry, copiedAt: entry.copiedAt || Date.now(), count: priorCount + 1 }, ...filtered].slice(0, limit);
   }
 
   /**
@@ -367,6 +433,9 @@
     const recentMap = new Map(
       (options.recents || []).map((item, index) => [`${item.toolId}::${item.itemId}`, index])
     );
+    const usageMap = new Map(
+      (options.recents || []).map((item) => [`${item.toolId}::${item.itemId}`, item.count || 1])
+    );
     return items
       .map((entry, originalIndex) => {
         const key = `${entry.toolId}::${entry.itemId}`;
@@ -376,6 +445,7 @@
           categoryLabel: entry.categoryLabel,
           isFavourite: options.favourites?.has(key),
           recentRank: recentMap.get(key),
+          usageCount: usageMap.get(key),
           matchMode: options.matchMode,
         });
         const matchReason = score >= 0 && query.trim()
@@ -396,6 +466,7 @@
     COMMAND_RISKS,
     normalizeText,
     matchTypeInValue,
+    toInitials,
     expandQuery,
     expandedSynonyms,
     emptySearchHint,

@@ -229,6 +229,44 @@ const recentDocker = { ...data, docker: { meta: { name: "Docker" }, items: [] } 
 const recentPersonalized = state.filterRecommendedTools(recentDocker, "mac", { category: "cloud-native", recents: [{ toolId: "docker", itemId: "logs" }] });
 assert.strictEqual(recentPersonalized.groups.flatMap((group) => group.items)[0].tool, "kubectl", "recently used tools should influence recommendation relevance");
 assert(render.renderRecommendedTools(recentPersonalized).includes("因为你最近用过 Docker"), "recent-use recommendation cards should explain the signal");
+// D2: 补全 related 图谱后，原本无关联的终端类推荐也能被个性化激活（改动 1A）
+const terminalPersonalized = state.filterRecommendedTools(data, "mac", { category: "terminal", enabledToolIds: new Set(["iterm2"]) });
+const terminalItems = terminalPersonalized.groups.flatMap((group) => group.items);
+assert(terminalItems.length, "terminal recommendations should exist");
+assert(terminalItems[0].relevanceScore > 0, "backfilled related should activate personalization for terminal recommendations");
+assert(terminalItems[0].relatedTo.length, "personalized terminal recommendation should name its related anchor");
+// D3: 类目亲和度——用户活跃于某类目时，该类目下无显式关联的推荐也获得小幅加成（改动 1B）
+const affinityResult = state.filterRecommendedTools(data, "mac", { category: "dev-env", enabledToolIds: new Set(["vs-code"]) });
+const devEnvItems = affinityResult.groups.flatMap((group) => group.items);
+const lazygitItem = devEnvItems.find((item) => item.tool === "lazygit");
+assert(lazygitItem && lazygitItem.relevanceScore === 8, "category affinity alone should lift a recommendation lacking related edges");
+assert(render.renderRecommendedTools(affinityResult).includes("因为你常关注"), "affinity-only recommendation cards should explain the category signal");
+// D4: 搜索↔推荐打通——无结果且查询命中未收录工具时渲染添加 CTA（改动 2）
+const bridgeCtx = { data, core, platform: "mac", helpers: state, favourites: new Set(), expandedExamples: new Set() };
+const bridgeEmpty = render.renderResults([], "ripgrep", { activeTool: "all", activeCat: null }, bridgeCtx);
+assert(bridgeEmpty.includes('data-suggest-add-tool="ripgrep"'), "empty search matching an uninstalled tool should render an add CTA");
+assert(bridgeEmpty.includes("速查表还没收录"), "the add CTA should explain the suggestion");
+assert(!render.renderResults([], "zzzznotatool", { activeTool: "all", activeCat: null }, bridgeCtx).includes("data-suggest-add-tool"), "no matching uninstalled tool should not render a CTA");
+assert(!render.renderResults([], "ripgrep", { activeTool: "all", activeCat: "shortcut" }, bridgeCtx).includes("data-suggest-add-tool"), "filter-only empty state should not show the add CTA");
+assert(!render.renderResults([], "", { activeTool: "recent", activeCat: null }, bridgeCtx).includes("data-suggest-add-tool"), "the recent tab empty state should not show the add CTA");
+// CTA 与管理面板一致：尊重已忽略项、纳入 AI 现荐
+const bridgeDismissed = { ...bridgeCtx, dismissedRecommendations: new Set(["ripgrep"]) };
+assert(!render.renderResults([], "ripgrep", { activeTool: "all", activeCat: null }, bridgeDismissed).includes("data-suggest-add-tool"), "dismissed tools should not be offered by the empty-search CTA");
+const bridgeAi = { ...bridgeCtx, aiRecommendations: [{ tool: "fd", displayName: "fd", category: "命令行增强", categoryKey: "cli-utility", reason: "find 替代", tags: ["search"], platforms: ["mac"], source: "ai" }] };
+assert(render.renderResults([], "fd", { activeTool: "all", activeCat: null }, bridgeAi).includes('data-suggest-add-tool="fd"'), "AI recommendations should be eligible for the empty-search CTA");
+
+// E: AI 建议持久化的过期剪枝（改动 3）
+assert(state.STORAGE_KEYS.includes("aiRecommendations"), "AI suggestions should be persisted in local storage");
+const aiNow = 1_000_000_000;
+const aiTtl = 7 * 24 * 60 * 60 * 1000;
+const prunedAi = state.pruneExpiredAiSuggestions([
+  { tool: "fresh", generatedAt: aiNow - 1000 },
+  { tool: "stale", generatedAt: aiNow - aiTtl - 1000 },
+  { tool: "legacy" },
+  { notATool: true },
+], aiNow, aiTtl);
+assert.deepStrictEqual(prunedAi.map((item) => item.tool), ["fresh", "legacy"], "expired suggestions drop; fresh and legacy (no timestamp) survive");
+assert.strictEqual(state.pruneExpiredAiSuggestions(null, aiNow, aiTtl).length, 0, "non-array input prunes to empty");
 
 // F: 了解链接与协议安全
 const ghosttyHtml = render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty" }));
@@ -259,11 +297,19 @@ assert.notDeepStrictEqual(
   firstBatch.batch.items.map((item) => item.tool),
   "shuffling should advance to a different batch"
 );
-const wrappedBatch = state.filterRecommendedTools(data, "mac", { batchSize: 6, batchOffset: macRecommendations.length });
+// 智能换一批：钉住个性化命中头部，仅轮换中性长尾（改动 4）
+assert(firstBatch.batch.pinned > 0, "personalized hits should be pinned at the head");
+assert.deepStrictEqual(
+  secondBatch.batch.items.slice(0, firstBatch.batch.pinned).map((item) => item.tool),
+  firstBatch.batch.items.slice(0, firstBatch.batch.pinned).map((item) => item.tool),
+  "shuffling should keep the pinned personalized head constant"
+);
+const tailRotation = firstBatch.batch.total - firstBatch.batch.pinned;
+const wrappedBatch = state.filterRecommendedTools(data, "mac", { batchSize: 6, batchOffset: tailRotation });
 assert.deepStrictEqual(
   wrappedBatch.batch.items.map((item) => item.tool),
   firstBatch.batch.items.map((item) => item.tool),
-  "an offset of one full rotation should wrap to the first batch"
+  "an offset of one full tail rotation should wrap to the first batch"
 );
 assert(!state.filterRecommendedTools(data, "mac", { batchSize: 6, query: "Ghostty" }).batched, "search should disable batching");
 assert(!state.filterRecommendedTools(data, "mac", { batchSize: 6, category: "cloud-native" }).batched, "a specific category should disable batching");

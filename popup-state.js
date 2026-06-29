@@ -1,7 +1,7 @@
 "use strict";
 
 (function initPopupState(globalScope) {
-  const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate", "lastQualityWarnings", "webVerify", "dismissedRecommendations"];
+  const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate", "lastQualityWarnings", "webVerify", "dismissedRecommendations", "aiRecommendations"];
   const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "› 命令", flag: "⚑ 参数/选项" };
   const SHELL_FILTER_LABELS = {
     layer: {
@@ -60,6 +60,7 @@
       tags: ["terminal", "config", "shortcuts"],
       useCases: ["终端", "配置", "快捷键", "会话"],
       homepage: "https://ghostty.org",
+      related: ["iterm2", "shell"],
       preferWeb: true,
     },
     {
@@ -73,6 +74,7 @@
       tags: ["terminal", "ai", "workflow"],
       useCases: ["AI 工作流", "终端", "命令面板", "快捷键"],
       homepage: "https://www.warp.dev",
+      related: ["iterm2", "shell"],
       preferWeb: true,
     },
     {
@@ -85,6 +87,7 @@
       reason: "跨平台终端，配置、窗格、标签页和快捷键值得整理。",
       tags: ["terminal", "cross-platform", "config"],
       homepage: "https://wezterm.org",
+      related: ["iterm2", "shell"],
       preferWeb: true,
     },
     {
@@ -97,6 +100,7 @@
       reason: "轻量终端，适合整理配置文件、快捷键和常用启动方式。",
       tags: ["terminal", "config"],
       homepage: "https://alacritty.org",
+      related: ["iterm2", "shell"],
       preferWeb: true,
     },
     {
@@ -189,6 +193,7 @@
       tags: ["python", "package-manager"],
       useCases: ["版本管理", "依赖管理", "虚拟环境", "Python"],
       homepage: "https://docs.astral.sh/uv/",
+      related: ["git"],
       preferWeb: true,
     },
     {
@@ -202,6 +207,7 @@
       tags: ["node", "package-manager"],
       useCases: ["版本管理", "依赖管理", "workspace", "Node"],
       homepage: "https://pnpm.io",
+      related: ["git", "vs-code"],
       preferWeb: true,
     },
     {
@@ -214,6 +220,7 @@
       reason: "一体化 JS 运行时与包管理，run/install/test 命令值得速查。",
       tags: ["javascript", "runtime", "package-manager"],
       homepage: "https://bun.sh",
+      related: ["git", "vs-code"],
       preferWeb: true,
     },
     {
@@ -226,6 +233,7 @@
       reason: "安全的 TS/JS 运行时，权限标志、任务和兼容选项适合速查。",
       tags: ["typescript", "javascript", "runtime"],
       homepage: "https://deno.com",
+      related: ["git", "vs-code"],
       preferWeb: true,
     },
     {
@@ -239,6 +247,7 @@
       tags: ["version-manager", "dev-env"],
       useCases: ["版本管理", "运行时管理", "环境变量", "多语言"],
       homepage: "https://mise.jdx.dev",
+      related: ["shell", "git"],
       preferWeb: true,
     },
     {
@@ -331,6 +340,7 @@
       reason: "可扩展的 Vim 衍生编辑器，模式、快捷键和 Lua 配置值得整理。",
       tags: ["editor", "vim", "dev-env"],
       homepage: "https://neovim.io",
+      related: ["vs-code", "git"],
       preferWeb: true,
     },
     {
@@ -343,6 +353,7 @@
       reason: "Windows 默认现代终端，配置、窗格、标签页和命令面板常用。",
       tags: ["terminal", "windows", "shortcuts"],
       homepage: "https://learn.microsoft.com/windows/terminal/",
+      related: ["shell"],
       preferWeb: true,
     },
     {
@@ -355,6 +366,7 @@
       reason: "Windows 常用自动化 Shell，管道、对象和常用 cmdlet 需要速查。",
       tags: ["shell", "windows", "scripting"],
       homepage: "https://learn.microsoft.com/powershell/",
+      related: ["shell"],
       preferWeb: true,
     },
     {
@@ -367,6 +379,7 @@
       reason: "Windows 上管理 Linux 发行版、路径和集成终端的常用入口。",
       tags: ["windows", "linux", "dev-env"],
       homepage: "https://learn.microsoft.com/windows/wsl/",
+      related: ["linux", "shell"],
       preferWeb: true,
     },
   ];
@@ -443,6 +456,31 @@
     return data[toolId]?.meta?.name || toolId;
   }
 
+  // 常见基础工具（不在推荐池里）到推荐类目的映射，用于「类目亲和度」信号。
+  const BASE_TOOL_CATEGORY = {
+    shell: "terminal",
+    iterm2: "terminal",
+    git: "dev-env",
+    linux: "cli-utility",
+    "vs-code": "dev-env",
+    idea: "dev-env",
+    cursor: "dev-env",
+    typora: "dev-env",
+  };
+  // 类目亲和度加成：每个同类目活跃信号 +8，封顶 24（低于显式 related 命中，避免淹没强信号）。
+  const CATEGORY_AFFINITY_PER = 8;
+  const CATEGORY_AFFINITY_CAP = 24;
+
+  function recommendationCategoryOf(toolId) {
+    const rec = TOOL_RECOMMENDATIONS.find((item) => item.tool === toolId);
+    return rec ? rec.categoryKey : (BASE_TOOL_CATEGORY[toolId] || null);
+  }
+
+  function recommendationCategoryLabel(categoryKey) {
+    const category = RECOMMENDATION_CATEGORIES.find((entry) => entry.key === categoryKey);
+    return category ? category.label : "";
+  }
+
   function recommendationSignalContext(data, options = {}) {
     const enabledToolIds = options.enabledToolIds instanceof Set ? options.enabledToolIds : new Set(options.enabledToolIds || []);
     const favouriteTools = new Set();
@@ -455,7 +493,13 @@
     (Array.isArray(options.recents) ? options.recents : []).forEach((item) => {
       if (item && typeof item.toolId === "string") recentTools.add(item.toolId);
     });
-    return { enabledToolIds, favouriteTools, recentTools };
+    // 类目亲和度只看用户的活跃信号（启用/收藏/最近），不含「已收录」——后者近乎全集，无区分度。
+    const categoryAffinity = new Map();
+    new Set([...enabledToolIds, ...favouriteTools, ...recentTools]).forEach((toolId) => {
+      const key = recommendationCategoryOf(toolId);
+      if (key) categoryAffinity.set(key, (categoryAffinity.get(key) || 0) + 1);
+    });
+    return { enabledToolIds, favouriteTools, recentTools, categoryAffinity };
   }
 
   function recommendationSignals(item, data, context) {
@@ -465,15 +509,21 @@
     const relatedFavourite = relatedIds.filter((id) => context.favouriteTools.has(id));
     const relatedCollected = relatedIds.filter((id) => data[id]);
     const signalIds = [...new Set([...relatedRecent, ...relatedFavourite, ...relatedEnabled, ...relatedCollected])];
+    const affinityCount = context.categoryAffinity?.get(item.categoryKey) || 0;
+    const categoryBonus = Math.min(CATEGORY_AFFINITY_CAP, affinityCount * CATEGORY_AFFINITY_PER);
     const reasons = [];
     if (relatedRecent.length) reasons.push(`因为你最近用过 ${relatedRecent.map((id) => toolName(data, id)).join("、")}`);
     if (relatedFavourite.length) reasons.push(`因为你收藏了 ${relatedFavourite.map((id) => toolName(data, id)).join("、")}`);
     if (relatedEnabled.length) reasons.push(`因为你启用了 ${relatedEnabled.map((id) => toolName(data, id)).join("、")}`);
     if (!reasons.length && signalIds.length) reasons.push(`因为你已添加 ${signalIds.map((id) => toolName(data, id)).join("、")}`);
+    if (!reasons.length && categoryBonus > 0) {
+      const label = recommendationCategoryLabel(item.categoryKey);
+      if (label) reasons.push(`因为你常关注「${label}」类工具`);
+    }
     return {
       relatedTo: signalIds.map((id) => toolName(data, id)),
       explainReasons: reasons,
-      relevanceScore: (relatedRecent.length * 60) + (relatedFavourite.length * 50) + (relatedEnabled.length * 30) + (relatedCollected.length * 20),
+      relevanceScore: (relatedRecent.length * 60) + (relatedFavourite.length * 50) + (relatedEnabled.length * 30) + (relatedCollected.length * 20) + categoryBonus,
     };
   }
 
@@ -492,6 +542,16 @@
     return item.related
       .filter((id) => collectedToolIds.has(id))
       .map((id) => data[id]?.meta?.name || id);
+  }
+
+  // 剔除过期的 AI 建议（持久化到 local storage 后按 generatedAt 与 TTL 过滤）。
+  // ttl 为 0 时不按时间过滤，仅保留结构合法（有 tool 字段）的项；无 generatedAt 的旧项保留。
+  function pruneExpiredAiSuggestions(list, now = Date.now(), ttl = 0) {
+    if (!Array.isArray(list)) return [];
+    return list.filter((item) =>
+      item && typeof item.tool === "string"
+      && (!ttl || !item.generatedAt || (now - item.generatedAt) < ttl)
+    );
   }
 
   // 把额外推荐（如 AI 现荐）并入静态精选池，按 tool id 去重（静态优先）。
@@ -519,15 +579,35 @@
     return recommendedTools(data, currentPlatform, extra).filter((item) => !dismissed.has(item.tool)).length;
   }
 
-  // 默认浏览态（全部分类 + 无搜索 + 不看已忽略）下，从相关性排序后的完整列表里环形切出一批。
+  // 「换一批」最多钉住的个性化命中条数，其余批次额度留给中性长尾轮换。
+  const PINNED_RECOMMENDATION_MAX = 3;
+
+  // 默认浏览态（全部分类 + 无搜索 + 不看已忽略）下，从相关性排序后的列表里切出一批：
+  // 钉住个性化命中头部（relevanceScore>0，至多 PINNED_RECOMMENDATION_MAX 条），
+  // 只对中性长尾做环形轮换，避免「换一批」把最相关的推荐也转走。
   function sliceRecommendationBatch(items, batchSize, batchOffset) {
     const total = items.length;
-    if (!total) return { items: [], total: 0, offset: 0, canShuffle: false };
-    const size = Math.min(batchSize, total);
-    const start = (((batchOffset % total) + total) % total);
-    const batch = [];
-    for (let i = 0; i < size; i++) batch.push(items[(start + i) % total]);
-    return { items: batch, total, offset: start, canShuffle: total > batchSize };
+    if (!total) return { items: [], total: 0, offset: 0, pinned: 0, canShuffle: false };
+    const personalizedCount = items.filter((item) => (item.relevanceScore || 0) > 0).length;
+    const pinnedCount = Math.min(PINNED_RECOMMENDATION_MAX, batchSize, personalizedCount);
+    const pinned = items.slice(0, pinnedCount);
+    const tail = items.slice(pinnedCount);
+    const tailTotal = tail.length;
+    const tailSlots = Math.max(0, Math.min(batchSize, total) - pinnedCount);
+    const tailBatch = [];
+    let start = 0;
+    if (tailSlots > 0 && tailTotal > 0) {
+      const size = Math.min(tailSlots, tailTotal);
+      start = (((batchOffset % tailTotal) + tailTotal) % tailTotal);
+      for (let i = 0; i < size; i++) tailBatch.push(tail[(start + i) % tailTotal]);
+    }
+    return {
+      items: [...pinned, ...tailBatch],
+      total,
+      offset: start,
+      pinned: pinnedCount,
+      canShuffle: tailSlots > 0 && tailTotal > tailSlots,
+    };
   }
 
   function filterRecommendedTools(data, currentPlatform, options = {}) {
@@ -783,6 +863,7 @@
     recommendedTools,
     countRecommendations,
     filterRecommendedTools,
+    pruneExpiredAiSuggestions,
     itemId,
     entryKey,
     buildEnrichmentIndex,
