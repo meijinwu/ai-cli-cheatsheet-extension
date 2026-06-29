@@ -12,6 +12,7 @@ const root = path.resolve(__dirname, "..");
 const rules = require(path.join(root, "shared", "validation-rules.json"));
 const registry = require(path.join(root, "shared", "source-registry.json"));
 const hostPy = fs.readFileSync(path.join(root, "native-host", "host.py"), "utf8");
+const validateDataJs = fs.readFileSync(path.join(root, "tools", "validate-data.js"), "utf8");
 
 // 1) JSON 正则可编译且行为正确（基本健全性）。
 const dangerous = new RegExp(rules.dangerousExample.source, rules.dangerousExample.flags);
@@ -30,6 +31,8 @@ assert(!dangerous.test("curl https://example.com/install.sh | sh"), "install one
 const remoteExec = new RegExp(rules.riskLevels.remoteExecution, "i");
 assert(remoteExec.test("curl https://example.com/install.sh | sh"), "pipe-to-shell must be a copy-time risk level");
 assert(secret.test("api_key=abcdef012345"), "secret regex should match leaked key");
+assert(secret.test("token=abcdef012345"), "secret regex should match leaked token assignments");
+assert(!secret.test("docker secret create app_secret ./secret.txt"), "secret regex should not match Docker secret subcommands");
 for (const [name, source] of Object.entries(rules.riskLevels)) {
   assert.doesNotThrow(() => new RegExp(source, "i"), `risk regex should compile: ${name}`);
 }
@@ -66,5 +69,9 @@ assert(!("authoritativeSourcePrefixes" in rules), "权威 URL 前缀只能来自
 assert(!("officialRepositoryPrefixes" in rules), "官方仓库前缀只能来自 source registry");
 assert(hostPy.includes("load_source_registry"), "host.py 必须动态读取 source registry");
 assert(registry.entries.length >= 20, "source registry should cover built-in tool sources");
+assert(
+  validateDataJs.includes("tool.meta.builtIn === true && tool.meta.verificationStatus !== \"manual\""),
+  "validate-data.js should only require manual verificationStatus for built-in datasets"
+);
 
 console.log("Validation consistency tests passed.");

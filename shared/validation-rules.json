@@ -22,7 +22,7 @@
     "processDisruption": "\\b(kill\\s+-9|restart|shutdown|reboot|halt|poweroff)\\b"
   },
   "possibleSecret": {
-    "source": "api[_-]?key|secret|token\\s*[=:]\\s*[a-z0-9_-]{12,}",
+    "source": "(?:api[_-]?key|secret|token)\\s*[=:]\\s*[a-z0-9_-]{12,}",
     "flags": "i"
   }
 }

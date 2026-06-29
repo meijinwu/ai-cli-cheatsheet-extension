@@ -193,7 +193,7 @@ for (const id of files) {
     && !["web-assisted", "model-knowledge", "manual"].includes(tool.meta.verificationStatus)) {
     fail(`${id}: invalid verificationStatus`);
   }
-  if (tool.meta.verificationStatus !== "manual") {
+  if (tool.meta.builtIn === true && tool.meta.verificationStatus !== "manual") {
     fail(`${id}: built-in dataset must declare manual maintenance`);
   }
   if (tool.meta.sourceTier !== undefined) {

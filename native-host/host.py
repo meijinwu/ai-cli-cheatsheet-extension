@@ -134,15 +134,18 @@ DANGEROUS_EXAMPLE_RE = re.compile(
     re.IGNORECASE,
 )
 POSSIBLE_SECRET_RE = re.compile(
-    r"api[_-]?key|secret|token\s*[=:]\s*[a-z0-9_-]{12,}", re.IGNORECASE
+    r"(?:api[_-]?key|secret|token)\s*[=:]\s*[a-z0-9_-]{12,}", re.IGNORECASE
 )
-SHELL_DEFAULT_DANGER_WARNING = (
+DEFAULT_DANGER_WARNING = (
     "这是高风险操作，执行前请确认目标、先备份或先使用预览/ dry-run 方式验证。"
 )
 # A risky example must carry a safer-preview/backup step in its caveat (mirrors
 # the committed-data gate in tests/test_usage_examples.js).
-SHELL_SAFE_PREVIEW_RE = re.compile(r"预览|备份|确认|检查|隔离|只读")
-SHELL_DEFAULT_DANGER_CAVEAT = "执行前先确认目标，必要时先备份或用预览/ dry-run 方式验证。"
+SAFE_PREVIEW_RE = re.compile(r"预览|备份|确认|检查|隔离|只读")
+DEFAULT_DANGER_CAVEAT = "执行前先确认目标，必要时先备份或用预览/ dry-run 方式验证。"
+SHELL_DEFAULT_DANGER_WARNING = DEFAULT_DANGER_WARNING
+SHELL_SAFE_PREVIEW_RE = SAFE_PREVIEW_RE
+SHELL_DEFAULT_DANGER_CAVEAT = DEFAULT_DANGER_CAVEAT
 # 镜像 shared/validation-rules.json，由 tests/test_validation_consistency.js 防漂移。
 SOURCE_TIERS = {"official", "quasi-official", "community"}
 EXAMPLE_SOURCE_TYPES = {"official", "quasi-official", "manual", "ai-derived"}
@@ -687,22 +690,33 @@ def validate_shell_meta(item, expected_tool_id, field):
     }
 
 
-def apply_shell_danger_fallback(clean_example, warning):
+def apply_danger_fallback(clean_example, warning):
     if not DANGEROUS_EXAMPLE_RE.search(clean_example["value"]):
         return warning
     if not warning:
-        clean_example["warning"] = SHELL_DEFAULT_DANGER_WARNING
+        clean_example["warning"] = DEFAULT_DANGER_WARNING
         clean_example["copyable"] = False
-        warning = SHELL_DEFAULT_DANGER_WARNING
+        warning = DEFAULT_DANGER_WARNING
     # A dangerous example must also spell out a safer-preview/backup step in its
     # caveat, or the committed-data linter rejects it. Append a standard note if
     # the model's caveat (if any) lacks one.
     caveat = clean_example.get("caveat", "")
-    if not SHELL_SAFE_PREVIEW_RE.search(caveat):
+    if not SAFE_PREVIEW_RE.search(caveat):
         clean_example["caveat"] = (
-            caveat + "；" + SHELL_DEFAULT_DANGER_CAVEAT if caveat else SHELL_DEFAULT_DANGER_CAVEAT
+            caveat + "；" + DEFAULT_DANGER_CAVEAT if caveat else DEFAULT_DANGER_CAVEAT
         )
     return warning
+
+
+def apply_shell_danger_fallback(clean_example, warning):
+    return apply_danger_fallback(clean_example, warning)
+
+
+def redact_possible_secret(value):
+    return POSSIBLE_SECRET_RE.sub(
+        lambda match: re.sub(r"([=:]\s*)[a-z0-9_-]{12,}$", r"\1<TOKEN>", match.group(0), flags=re.IGNORECASE),
+        value,
+    )
 
 
 def prune_unused_sources(dataset):
@@ -1030,6 +1044,8 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
             )
         clean_item["evidenceStatus"] = evidence_status
         keywords = item.get("keywords")
+        if isinstance(keywords, list) and not keywords:
+            keywords = None
         if keywords is not None:
             if (
                 not isinstance(keywords, list)
@@ -1070,6 +1086,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                     ),
                     "copyable": example.get("copyable", True),
                 }
+                clean_example["value"] = redact_possible_secret(clean_example["value"])
                 if not isinstance(clean_example["copyable"], bool):
                     raise ValidationError(
                         f"items[{index}].examples[{example_index}].copyable 必须是布尔值"
@@ -1263,8 +1280,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                 )
                 if warning:
                     clean_example["warning"] = warning
-                if expected_tool_id == "shell":
-                    warning = apply_shell_danger_fallback(clean_example, warning)
+                warning = apply_danger_fallback(clean_example, warning)
                 if DANGEROUS_EXAMPLE_RE.search(clean_example["value"]) and not warning:
                     raise ValidationError(
                         f"items[{index}].examples[{example_index}] 危险操作必须包含 warning"
@@ -1274,6 +1290,8 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                         f"items[{index}].examples[{example_index}] 疑似包含密钥"
                     )
                 example_platforms = example.get("platforms")
+                if isinstance(example_platforms, list) and not example_platforms:
+                    example_platforms = None
                 if example_platforms is not None:
                     if (
                         not isinstance(example_platforms, list)
@@ -1288,8 +1306,10 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                         )
                     clean_example["platforms"] = list(dict.fromkeys(example_platforms))
                 platform_values = example.get("platformValues")
+                if isinstance(platform_values, dict) and not platform_values:
+                    platform_values = None
                 if platform_values is not None:
-                    if not isinstance(platform_values, dict) or not platform_values:
+                    if not isinstance(platform_values, dict):
                         raise ValidationError(
                             f"items[{index}].examples[{example_index}].platformValues 必须是非空对象"
                         )
@@ -1299,16 +1319,18 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                             raise ValidationError(
                                 f"items[{index}].examples[{example_index}].platformValues 平台非法"
                             )
-                        clean_values[example_platform] = checked_text(
+                        clean_values[example_platform] = redact_possible_secret(checked_text(
                             value,
                             f"items[{index}].examples[{example_index}].platformValues.{example_platform}",
-                        )
+                        ))
                     clean_example["platformValues"] = clean_values
                 clean_examples.append(clean_example)
             clean_item["examples"] = clean_examples
         if expected_tool_id == "shell" and DANGEROUS_EXAMPLE_RE.search(clean_item["cmd"]) and not clean_item.get("examples"):
             raise ValidationError(f"items[{index}] 高风险 Shell 条目必须提供示例和 warning")
         item_platforms = item.get("platforms")
+        if isinstance(item_platforms, list) and not item_platforms:
+            item_platforms = None
         if item_platforms is not None:
             if (
                 not isinstance(item_platforms, list)
@@ -1319,7 +1341,7 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
             clean_item["platforms"] = list(dict.fromkeys(item_platforms))
         platform_cmds = item.get("platformCmds")
         if platform_cmds is not None:
-            if not isinstance(platform_cmds, dict) or not platform_cmds:
+            if not isinstance(platform_cmds, dict):
                 raise ValidationError(f"items[{index}].platformCmds 必须是非空对象")
             clean_platform_cmds = {}
             for platform, command in platform_cmds.items():
@@ -1328,7 +1350,8 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                 clean_platform_cmds[platform] = checked_text(
                     command, f"items[{index}].platformCmds.{platform}"
                 )
-            clean_item["platformCmds"] = clean_platform_cmds
+            if clean_platform_cmds:
+                clean_item["platformCmds"] = clean_platform_cmds
         duplicate_key = (
             category,
             clean_item["cmd"].casefold(),
@@ -1695,7 +1718,7 @@ JSON 格式：
 4. 同一 cat、cmd、context 组合不得重复。
 5. 更新时保留仍有效的条目及其 id，只修改确有变化的内容。{upgrade_note}
 6. 所有字符串必须是有效 JSON 字符串。
-7. sources、updatePolicy、contentCheckedAt、sourceCheckedAt、coverage 必须填写；updatedAt 仅为旧数据兼容字段，新数据可省略。网页来源必须记录 resolvedUrl、pageTitle、checkedAt。每个 item 必须提供 evidenceRefs，evidenceStatus 由系统根据 claims 自动推导，不要臆测；平台快捷键应尽量使用 platformCmds 表达。
+7. sources、updatePolicy、contentCheckedAt、sourceCheckedAt、coverage 必须填写；updatedAt 仅为旧数据兼容字段，新数据可省略。网页来源必须记录 resolvedUrl、pageTitle、checkedAt。每个 item 必须提供 evidenceRefs，evidenceStatus 由系统根据 claims 自动推导，不要臆测；平台快捷键应尽量使用 platformCmds 表达。可选数组/对象没有内容时直接省略，不要输出空数组或空对象；没有平台差异时省略 platforms、platformValues、platformCmds。
 8. verified 必须同时有 existence 与 semantics 断言且 locator 可具体定位；只有宽泛首页或只确认命令存在时只能是 partial；无证据为 unverified。
 9. 每个条目都必须提供 keywords；除 Shell 聚合工具的非核心参数表条目外，每个条目都必须提供 examples；每条最多 3 个示例。Shell 的核心、高频、危险、易错或平台差异参数必须提供 examples、caveat 或 warning。
 9a. examples 中面向 UI 展示的说明字段必须使用中文：description、scenario、goal、expected、prerequisites、caveat、warning。命令值 value、cmd、官方英文 en、URL、产品名和命令参数可保留英文。

@@ -198,6 +198,27 @@ class HostValidationTests(unittest.TestCase):
         self.assertEqual(dataset["items"][0]["examples"][0]["sourceType"], "ai-derived")
         self.assertFalse(dataset["qualityWarnings"])
 
+    def test_platform_cmds_empty_object_is_dropped_but_invalid_shapes_still_fail(self):
+        payload = valid_dataset()
+        payload["items"][0]["platformCmds"] = {}
+        dataset = host.validate_dataset(payload, "sample")
+        self.assertNotIn("platformCmds", dataset["items"][0])
+
+        payload = valid_dataset()
+        payload["items"][0]["platformCmds"] = {"mac": "Cmd+K"}
+        dataset = host.validate_dataset(payload, "sample")
+        self.assertEqual(dataset["items"][0]["platformCmds"], {"mac": "Cmd+K"})
+
+        payload = valid_dataset()
+        payload["items"][0]["platformCmds"] = []
+        with self.assertRaisesRegex(host.ValidationError, "platformCmds 必须是非空对象"):
+            host.validate_dataset(payload, "sample")
+
+        payload = valid_dataset()
+        payload["items"][0]["platformCmds"] = {"solaris": "Ctrl+K"}
+        with self.assertRaisesRegex(host.ValidationError, "platformCmds 平台非法"):
+            host.validate_dataset(payload, "sample")
+
     def test_evidenced_example_requires_matching_source_ids(self):
         payload = valid_dataset()
         payload["items"][0]["examples"] = [{
@@ -398,7 +419,7 @@ class HostValidationTests(unittest.TestCase):
         dataset = host.validate_dataset(payload, "sample")
         self.assertIn("示例覆盖不足", dataset["qualityWarnings"][0])
 
-    def test_rejects_dangerous_example_without_warning(self):
+    def test_dangerous_example_without_warning_gets_fallback(self):
         payload = valid_dataset()
         payload["items"][0].update({
             "keywords": ["删除", "清理", "目录"],
@@ -411,8 +432,11 @@ class HostValidationTests(unittest.TestCase):
                 "adaptation": "scenario-derived",
             }],
         })
-        with self.assertRaisesRegex(host.ValidationError, "必须包含 warning"):
-            host.validate_dataset(payload, "sample")
+        dataset = host.validate_dataset(payload, "sample")
+        example = dataset["items"][0]["examples"][0]
+        self.assertEqual(example["warning"], host.DEFAULT_DANGER_WARNING)
+        self.assertFalse(example["copyable"])
+        self.assertRegex(example["caveat"], host.SAFE_PREVIEW_RE)
 
     def test_shell_dangerous_example_gets_warning_fallback(self):
         payload = valid_shell_dataset()
@@ -429,7 +453,7 @@ class HostValidationTests(unittest.TestCase):
         self.assertEqual(example["warning"], host.SHELL_DEFAULT_DANGER_WARNING)
         self.assertFalse(example["copyable"])
 
-    def test_rejects_newly_covered_dangerous_examples(self):
+    def test_newly_covered_dangerous_examples_get_warning_fallback(self):
         for value in (
             "dd if=/dev/zero of=/dev/sda",
             "mkfs.ext4 /dev/sdb",
@@ -448,8 +472,75 @@ class HostValidationTests(unittest.TestCase):
                     "adaptation": "scenario-derived",
                 }],
             })
-            with self.assertRaisesRegex(host.ValidationError, "必须包含 warning"):
-                host.validate_dataset(payload, "sample")
+            dataset = host.validate_dataset(payload, "sample")
+            example = dataset["items"][0]["examples"][0]
+            self.assertEqual(example["warning"], host.DEFAULT_DANGER_WARNING)
+            self.assertFalse(example["copyable"])
+
+    def test_docker_secret_command_is_not_treated_as_leaked_secret(self):
+        payload = valid_dataset()
+        payload["items"][0].update({
+            "keywords": ["secret", "docker", "配置"],
+            "examples": [{
+                "value": "docker secret create app_secret ./secret.txt",
+                "description": "把本地文件内容注册为 Docker secret",
+                "sourceType": "ai-derived",
+                "authorship": "generated",
+                "evidenceTier": "none",
+                "adaptation": "scenario-derived",
+            }],
+        })
+        dataset = host.validate_dataset(payload, "sample")
+        self.assertEqual(
+            dataset["items"][0]["examples"][0]["value"],
+            "docker secret create app_secret ./secret.txt",
+        )
+
+    def test_generated_secret_assignments_are_redacted_before_validation(self):
+        payload = valid_dataset()
+        payload["items"][0].update({
+            "keywords": ["token", "环境变量", "脱敏"],
+            "examples": [{
+                "value": "docker run -e TOKEN=abcdef0123456789 nginx",
+                "description": "用占位 token 演示环境变量传递",
+                "sourceType": "ai-derived",
+                "authorship": "generated",
+                "evidenceTier": "none",
+                "adaptation": "scenario-derived",
+                "platformValues": {
+                    "mac": "docker run -e api_key=abcdef0123456789 nginx",
+                },
+            }],
+        })
+        dataset = host.validate_dataset(payload, "sample")
+        example = dataset["items"][0]["examples"][0]
+        self.assertEqual(example["value"], "docker run -e TOKEN=<TOKEN> nginx")
+        self.assertEqual(example["platformValues"]["mac"], "docker run -e api_key=<TOKEN> nginx")
+
+    def test_empty_optional_generated_containers_are_dropped(self):
+        payload = valid_dataset()
+        payload["items"][0].update({
+            "keywords": [],
+            "platforms": [],
+            "platformCmds": {},
+            "examples": [{
+                "value": "Ctrl+K",
+                "description": "打开命令面板",
+                "sourceType": "ai-derived",
+                "authorship": "generated",
+                "evidenceTier": "none",
+                "adaptation": "scenario-derived",
+                "platforms": [],
+                "platformValues": {},
+            }],
+        })
+        dataset = host.validate_dataset(payload, "sample")
+        item = dataset["items"][0]
+        self.assertNotIn("keywords", item)
+        self.assertNotIn("platforms", item)
+        self.assertNotIn("platformCmds", item)
+        self.assertNotIn("platforms", item["examples"][0])
+        self.assertNotIn("platformValues", item["examples"][0])
 
     def test_allows_incidental_dd_substring(self):
         self.assertIsNone(host.DANGEROUS_EXAMPLE_RE.search("npm run dd-report"))
