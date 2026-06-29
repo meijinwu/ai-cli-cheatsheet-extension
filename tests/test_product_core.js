@@ -100,6 +100,15 @@ const recent = core.updateRecent(
 );
 assert.deepStrictEqual(recent.map((item) => item.itemId), ["new", "old"]);
 
+// 累计使用次数：首次复制 count=1，重复复制递增且去重；老数据无 count 视为 1（改动 5）
+const firstCopy = core.updateRecent([], { toolId: "x", itemId: "y" });
+assert.strictEqual(firstCopy[0].count, 1, "first copy should set count to 1");
+const secondCopy = core.updateRecent(firstCopy, { toolId: "x", itemId: "y" });
+assert.strictEqual(secondCopy[0].count, 2, "re-copy should increment count");
+assert.strictEqual(secondCopy.length, 1, "re-copy should dedupe");
+const legacyRecopy = core.updateRecent([{ toolId: "x", itemId: "y" }], { toolId: "x", itemId: "y" });
+assert.strictEqual(legacyRecopy[0].count, 2, "re-copying a countless legacy entry should accumulate to 2");
+
 // 归一化记忆化：同一输入多次调用结果稳定，且与未缓存的等价形式一致。
 assert.strictEqual(core.normalizeText("  Clear  Conversation  "), "clear conversation");
 assert.strictEqual(core.normalizeText("Cmd_K"), "cmd-k");
@@ -127,6 +136,18 @@ const ranked = core.rankItems([
 ], "clear", { favourites: new Set(), recents: [] });
 assert.strictEqual(ranked[0].itemId, "1");
 assert.strictEqual(ranked[0].matchReason.field, "command");
+
+// 使用频率权重：同等匹配下复制次数越多得分越高，单次使用不加成（改动 5）
+const freqBase = { cat: "x", cmd: "deploy", en: "Deploy", zh: "部署" };
+assert(
+  core.scoreItem(freqBase, "deploy", { usageCount: 10 }) > core.scoreItem(freqBase, "deploy", { usageCount: 1 }),
+  "higher usage count should score higher"
+);
+assert.strictEqual(
+  core.scoreItem(freqBase, "deploy", { usageCount: 1 }),
+  core.scoreItem(freqBase, "deploy", {}),
+  "a single use should add no usage bonus"
+);
 
 assert.strictEqual(core.classifyCommandRisk("git status").requiresConfirmation, false);
 assert(core.classifyCommandRisk("rm -rf ./tmp").types.includes("deleteOrOverwrite"));
