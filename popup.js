@@ -396,6 +396,17 @@ async function handleMainClick(event) {
     render();
     return;
   }
+  const suggestAdd = event.target.closest("[data-suggest-add-tool]");
+  if (suggestAdd) {
+    showView("manage");
+    addingRecommendation = suggestAdd.dataset.suggestAddTool;
+    renderManage();
+    if (!startAddTool(suggestAdd.dataset.suggestAddName, webVerify)) {
+      addingRecommendation = null;
+      renderManage();
+    }
+    return;
+  }
   const entryWrap = event.target.closest(".entry-wrap");
   if (!entryWrap) return;
   const entry = STATE.findEntry(entryIndex, entryWrap.dataset.tool, entryWrap.dataset.item);

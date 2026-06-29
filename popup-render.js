@@ -312,6 +312,27 @@
   </div>`;
   }
 
+  // 搜索无结果时，从未收录的推荐池里按查询匹配，给出「添加到速查表」的引导（改动 2）。
+  function findUninstalledSuggestions(query, ctx, limit = 2) {
+    if (!ctx || !ctx.helpers || typeof ctx.helpers.filterRecommendedTools !== "function") return [];
+    const result = ctx.helpers.filterRecommendedTools(ctx.data || {}, ctx.platform, { query });
+    return result.groups.flatMap((group) => group.items).slice(0, limit);
+  }
+
+  function renderUninstalledSuggestions(query, ctx) {
+    const items = findUninstalledSuggestions(query, ctx);
+    if (!items.length) return "";
+    const cards = items.map((item) => {
+      const homepage = safeHttpsUrl(item.homepage);
+      const learn = homepage ? ` <a class="suggest-learn" href="${escapeHtml(homepage)}" target="_blank" rel="noopener noreferrer">了解 ↗</a>` : "";
+      return `<div class="suggest-add-item">
+        <button class="text-btn primary" data-suggest-add-tool="${escapeHtml(item.tool)}" data-suggest-add-name="${escapeHtml(item.displayName)}">添加 ${escapeHtml(item.displayName)}</button>${learn}
+        <div class="suggest-add-reason">${escapeHtml(item.reason || "")}</div>
+      </div>`;
+    }).join("");
+    return `<div class="suggest-add"><div class="suggest-add-title">速查表还没收录，要加进来吗？</div>${cards}</div>`;
+  }
+
   function renderResults(entries, query, state, ctx) {
     if (!entries.length) {
       const hasFilter = Boolean(state.activeCat) || !["all", "recent", "favourites"].includes(state.activeTool);
@@ -320,7 +341,10 @@
         : state.activeTool === "favourites"
           ? "还没有收藏的命令，点条目右侧的 ♡ 即可收藏"
           : ctx.core.emptySearchHint(query, { hasFilter });
-      return `<div class="empty">${escapeHtml(emptyMessage)}</div>`;
+      const suggestHtml = query.trim() && !hasFilter && state.activeTool !== "recent" && state.activeTool !== "favourites"
+        ? renderUninstalledSuggestions(query, ctx)
+        : "";
+      return suggestHtml + `<div class="empty">${escapeHtml(emptyMessage)}</div>`;
     }
 
     if (query.trim() || state.activeTool === "recent" || state.activeTool === "favourites") {

@@ -241,6 +241,14 @@ const devEnvItems = affinityResult.groups.flatMap((group) => group.items);
 const lazygitItem = devEnvItems.find((item) => item.tool === "lazygit");
 assert(lazygitItem && lazygitItem.relevanceScore === 8, "category affinity alone should lift a recommendation lacking related edges");
 assert(render.renderRecommendedTools(affinityResult).includes("因为你常关注"), "affinity-only recommendation cards should explain the category signal");
+// D4: 搜索↔推荐打通——无结果且查询命中未收录工具时渲染添加 CTA（改动 2）
+const bridgeCtx = { data, core, platform: "mac", helpers: state, favourites: new Set(), expandedExamples: new Set() };
+const bridgeEmpty = render.renderResults([], "ripgrep", { activeTool: "all", activeCat: null }, bridgeCtx);
+assert(bridgeEmpty.includes('data-suggest-add-tool="ripgrep"'), "empty search matching an uninstalled tool should render an add CTA");
+assert(bridgeEmpty.includes("速查表还没收录"), "the add CTA should explain the suggestion");
+assert(!render.renderResults([], "zzzznotatool", { activeTool: "all", activeCat: null }, bridgeCtx).includes("data-suggest-add-tool"), "no matching uninstalled tool should not render a CTA");
+assert(!render.renderResults([], "ripgrep", { activeTool: "all", activeCat: "shortcut" }, bridgeCtx).includes("data-suggest-add-tool"), "filter-only empty state should not show the add CTA");
+assert(!render.renderResults([], "", { activeTool: "recent", activeCat: null }, bridgeCtx).includes("data-suggest-add-tool"), "the recent tab empty state should not show the add CTA");
 
 // E: AI 建议持久化的过期剪枝（改动 3）
 assert(state.STORAGE_KEYS.includes("aiRecommendations"), "AI suggestions should be persisted in local storage");
