@@ -1,7 +1,7 @@
 "use strict";
 
 (function initPopupState(globalScope) {
-  const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate", "lastQualityWarnings", "webVerify", "dismissedRecommendations"];
+  const STORAGE_KEYS = ["favourites", "recentCopies", "enabledTools", "platform", "onboarded", "lastQuery", "pendingUpdate", "lastQualityWarnings", "webVerify", "dismissedRecommendations", "aiRecommendations"];
   const CAT_LABEL = { shortcut: "⌨ 快捷键", slash: "› 命令", flag: "⚑ 参数/选项" };
   const SHELL_FILTER_LABELS = {
     layer: {
@@ -507,6 +507,16 @@
       .map((id) => data[id]?.meta?.name || id);
   }
 
+  // 剔除过期的 AI 建议（持久化到 local storage 后按 generatedAt 与 TTL 过滤）。
+  // ttl 为 0 时不按时间过滤，仅保留结构合法（有 tool 字段）的项；无 generatedAt 的旧项保留。
+  function pruneExpiredAiSuggestions(list, now = Date.now(), ttl = 0) {
+    if (!Array.isArray(list)) return [];
+    return list.filter((item) =>
+      item && typeof item.tool === "string"
+      && (!ttl || !item.generatedAt || (now - item.generatedAt) < ttl)
+    );
+  }
+
   // 把额外推荐（如 AI 现荐）并入静态精选池，按 tool id 去重（静态优先）。
   function mergeRecommendationPool(extra) {
     const pool = [...TOOL_RECOMMENDATIONS];
@@ -816,6 +826,7 @@
     recommendedTools,
     countRecommendations,
     filterRecommendedTools,
+    pruneExpiredAiSuggestions,
     itemId,
     entryKey,
     buildEnrichmentIndex,

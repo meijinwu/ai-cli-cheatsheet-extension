@@ -236,6 +236,19 @@ assert(terminalItems.length, "terminal recommendations should exist");
 assert(terminalItems[0].relevanceScore > 0, "backfilled related should activate personalization for terminal recommendations");
 assert(terminalItems[0].relatedTo.length, "personalized terminal recommendation should name its related anchor");
 
+// E: AI 建议持久化的过期剪枝（改动 3）
+assert(state.STORAGE_KEYS.includes("aiRecommendations"), "AI suggestions should be persisted in local storage");
+const aiNow = 1_000_000_000;
+const aiTtl = 7 * 24 * 60 * 60 * 1000;
+const prunedAi = state.pruneExpiredAiSuggestions([
+  { tool: "fresh", generatedAt: aiNow - 1000 },
+  { tool: "stale", generatedAt: aiNow - aiTtl - 1000 },
+  { tool: "legacy" },
+  { notATool: true },
+], aiNow, aiTtl);
+assert.deepStrictEqual(prunedAi.map((item) => item.tool), ["fresh", "legacy"], "expired suggestions drop; fresh and legacy (no timestamp) survive");
+assert.strictEqual(state.pruneExpiredAiSuggestions(null, aiNow, aiTtl).length, 0, "non-array input prunes to empty");
+
 // F: 了解链接与协议安全
 const ghosttyHtml = render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty" }));
 assert(ghosttyHtml.includes('href="https://ghostty.org"') && ghosttyHtml.includes('rel="noopener noreferrer"'), "recommendation cards should link to a homepage");
