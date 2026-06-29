@@ -149,6 +149,16 @@ assert.strictEqual(
   "a single use should add no usage bonus"
 );
 
+// 拼音首字母匹配：纯字母查询在其它字段未命中时兜底匹配中文首字母（改动 6）
+assert.strictEqual(core.toInitials("清空"), "qk", "toInitials should map hanzi to pinyin initials");
+assert.strictEqual(core.toInitials("清X空"), "qxk", "toInitials should keep ascii letters and drop punctuation");
+const pinyinItem = { cat: "slash", cmd: "/foo", en: "Foo", zh: "清空对话" };
+assert(core.scoreItem(pinyinItem, "qk") > 0, "pinyin initials should match the Chinese description");
+assert.strictEqual(core.scoreItem(pinyinItem, "q"), -1, "single-letter queries should not trigger pinyin matching");
+assert.strictEqual(core.scoreItem(pinyinItem, "zzz"), -1, "non-matching pinyin should not score");
+const enWins = { cat: "x", cmd: "/foo", en: "log", zh: "日志查看" };
+assert(core.scoreItem(enWins, "log") > core.scoreItem(pinyinItem, "qk"), "real field matches should outrank the pinyin fallback");
+
 assert.strictEqual(core.classifyCommandRisk("git status").requiresConfirmation, false);
 assert(core.classifyCommandRisk("rm -rf ./tmp").types.includes("deleteOrOverwrite"));
 assert(core.classifyCommandRisk("chmod 777 file").types.includes("permissionChange"));
