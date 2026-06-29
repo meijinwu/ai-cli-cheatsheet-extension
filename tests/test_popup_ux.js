@@ -265,11 +265,19 @@ assert.notDeepStrictEqual(
   firstBatch.batch.items.map((item) => item.tool),
   "shuffling should advance to a different batch"
 );
-const wrappedBatch = state.filterRecommendedTools(data, "mac", { batchSize: 6, batchOffset: macRecommendations.length });
+// 智能换一批：钉住个性化命中头部，仅轮换中性长尾（改动 4）
+assert(firstBatch.batch.pinned > 0, "personalized hits should be pinned at the head");
+assert.deepStrictEqual(
+  secondBatch.batch.items.slice(0, firstBatch.batch.pinned).map((item) => item.tool),
+  firstBatch.batch.items.slice(0, firstBatch.batch.pinned).map((item) => item.tool),
+  "shuffling should keep the pinned personalized head constant"
+);
+const tailRotation = firstBatch.batch.total - firstBatch.batch.pinned;
+const wrappedBatch = state.filterRecommendedTools(data, "mac", { batchSize: 6, batchOffset: tailRotation });
 assert.deepStrictEqual(
   wrappedBatch.batch.items.map((item) => item.tool),
   firstBatch.batch.items.map((item) => item.tool),
-  "an offset of one full rotation should wrap to the first batch"
+  "an offset of one full tail rotation should wrap to the first batch"
 );
 assert(!state.filterRecommendedTools(data, "mac", { batchSize: 6, query: "Ghostty" }).batched, "search should disable batching");
 assert(!state.filterRecommendedTools(data, "mac", { batchSize: 6, category: "cloud-native" }).batched, "a specific category should disable batching");

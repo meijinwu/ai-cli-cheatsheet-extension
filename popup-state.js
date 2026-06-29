@@ -532,15 +532,35 @@
     return recommendedTools(data, currentPlatform, extra).filter((item) => !dismissed.has(item.tool)).length;
   }
 
-  // 默认浏览态（全部分类 + 无搜索 + 不看已忽略）下，从相关性排序后的完整列表里环形切出一批。
+  // 「换一批」最多钉住的个性化命中条数，其余批次额度留给中性长尾轮换。
+  const PINNED_RECOMMENDATION_MAX = 3;
+
+  // 默认浏览态（全部分类 + 无搜索 + 不看已忽略）下，从相关性排序后的列表里切出一批：
+  // 钉住个性化命中头部（relevanceScore>0，至多 PINNED_RECOMMENDATION_MAX 条），
+  // 只对中性长尾做环形轮换，避免「换一批」把最相关的推荐也转走。
   function sliceRecommendationBatch(items, batchSize, batchOffset) {
     const total = items.length;
-    if (!total) return { items: [], total: 0, offset: 0, canShuffle: false };
-    const size = Math.min(batchSize, total);
-    const start = (((batchOffset % total) + total) % total);
-    const batch = [];
-    for (let i = 0; i < size; i++) batch.push(items[(start + i) % total]);
-    return { items: batch, total, offset: start, canShuffle: total > batchSize };
+    if (!total) return { items: [], total: 0, offset: 0, pinned: 0, canShuffle: false };
+    const personalizedCount = items.filter((item) => (item.relevanceScore || 0) > 0).length;
+    const pinnedCount = Math.min(PINNED_RECOMMENDATION_MAX, batchSize, personalizedCount);
+    const pinned = items.slice(0, pinnedCount);
+    const tail = items.slice(pinnedCount);
+    const tailTotal = tail.length;
+    const tailSlots = Math.max(0, Math.min(batchSize, total) - pinnedCount);
+    const tailBatch = [];
+    let start = 0;
+    if (tailSlots > 0 && tailTotal > 0) {
+      const size = Math.min(tailSlots, tailTotal);
+      start = (((batchOffset % tailTotal) + tailTotal) % tailTotal);
+      for (let i = 0; i < size; i++) tailBatch.push(tail[(start + i) % tailTotal]);
+    }
+    return {
+      items: [...pinned, ...tailBatch],
+      total,
+      offset: start,
+      pinned: pinnedCount,
+      canShuffle: tailSlots > 0 && tailTotal > tailSlots,
+    };
   }
 
   function filterRecommendedTools(data, currentPlatform, options = {}) {
