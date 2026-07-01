@@ -138,4 +138,19 @@ for (const status of rules.evidenceStatuses) {
   assert(hostPy.includes(`"${status}"`), `host.py EVIDENCE_STATUSES 缺少 ${status}`);
 }
 
+// 8) 危险/密钥扫描必须同时覆盖 example.value 与 platformValues 的每个平台值，
+//    且两个校验器都要（曾经只扫 value，platformValues 里的危险命令会被放行）。
+assert(
+  validateDataJs.includes("dangerousExampleTexts"),
+  "validate-data.js 必须通过 dangerousExampleTexts 同时扫描 value 与 platformValues"
+);
+assert(
+  hostPy.includes("def apply_platform_danger_fallback"),
+  "host.py 必须对 platformValues 应用危险降级（apply_platform_danger_fallback）"
+);
+assert(
+  hostPy.includes("apply_platform_danger_fallback(clean_example)"),
+  "host.py _clean_example 必须调用 apply_platform_danger_fallback"
+);
+
 console.log("Validation consistency tests passed.");

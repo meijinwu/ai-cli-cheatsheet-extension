@@ -309,6 +309,15 @@ assert.strictEqual(state.restoreFavourites("alpha::x").size, 0, "string favourit
 assert.strictEqual(state.restoreFavourites(undefined).size, 0, "missing favourites should reset to an empty set");
 assert.strictEqual(state.migrateFavourites(data, "corrupted").favourites.size, 0, "migrateFavourites should tolerate non-set input");
 
+// 证据一致性：命令本身 unverified 时，first-party 示例标签必须降级说明，避免示例徽章高于命令实际核验状态。
+const firstPartyExample = { authorship: "editorial", evidenceTier: "first-party", adaptation: "adapted" };
+assert.strictEqual(render.exampleProvenanceLabel(firstPartyExample, "verified"), "基于官方资料改写", "verified commands keep the plain first-party label");
+assert.strictEqual(render.exampleProvenanceLabel(firstPartyExample, "unverified"), "基于官方资料改写（命令待核验）", "unverified commands must degrade the first-party label");
+assert.strictEqual(render.exampleProvenanceLabel(firstPartyExample), "基于官方资料改写", "callers without item context keep the plain label");
+assert(render.exampleProvenanceTooltip(firstPartyExample, "unverified").includes("命令级证据"), "degraded tooltip should explain the missing command-level evidence");
+assert(!render.exampleProvenanceTooltip(firstPartyExample, "verified").includes("命令级证据"), "verified commands should not carry the degradation note");
+assert.strictEqual(render.exampleProvenanceLabel({ authorship: "editorial", evidenceTier: "none" }, "unverified"), "编辑整理场景", "non-first-party examples are not affected by the degradation");
+
 // B: 新增中状态
 assert(render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty", addingTool: "ghostty" })).includes("添加中…"), "adding recommendation should render a busy state");
 
@@ -425,6 +434,19 @@ const collapsedRowHtml = render.renderRow(explainedOpenEntry, "文件", {
   favourites: baseState.favourites,
   helpers: state,
 }, true);
+const unverifiedEntry = {
+  ...explainedOpenEntry,
+  item: { ...explainedOpenEntry.item, evidenceStatus: "unverified", evidenceRefs: undefined },
+};
+const unverifiedRowHtml = render.renderRow(unverifiedEntry, "文件", {
+  data,
+  core,
+  platform: "windows",
+  expandedExamples: new Set(["alpha::open-item"]),
+  favourites: baseState.favourites,
+  helpers: state,
+}, true);
+assert(unverifiedRowHtml.includes("基于官方资料改写（命令待核验）"), "renderRow must pass the item evidence status into the example provenance label");
 assert(!collapsedRowHtml.includes("命令证据："), "collapsed rows should not expose detailed evidence text");
 assert(!collapsedRowHtml.includes("Open file"), "collapsed rows should keep English detail out of the primary scan path");
 assert(render.commandExampleHtml(core, "git checkout <branch>", "").includes("placeholder"), "usage examples should mark replaceable placeholders");

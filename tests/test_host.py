@@ -438,6 +438,47 @@ class HostValidationTests(unittest.TestCase):
         self.assertFalse(example["copyable"])
         self.assertRegex(example["caveat"], host.SAFE_PREVIEW_RE)
 
+    def test_dangerous_platform_value_gets_warning_fallback(self):
+        # 危险命令只出现在 platformValues 某个平台值时，也必须与 value 命中同样降级：
+        # 补 warning、禁复制、补安全预览 caveat。
+        payload = valid_dataset()
+        payload["items"][0].update({
+            "keywords": ["删除", "清理", "目录"],
+            "examples": [{
+                "value": "Remove-Item -Recurse .\\example",
+                "description": "删除目录",
+                "sourceType": "ai-derived",
+                "authorship": "generated",
+                "evidenceTier": "none",
+                "adaptation": "scenario-derived",
+                "platformValues": {"linux": "rm -rf ./example"},
+            }],
+        })
+        dataset = host.validate_dataset(payload, "sample")
+        example = dataset["items"][0]["examples"][0]
+        self.assertEqual(example["warning"], host.DEFAULT_DANGER_WARNING)
+        self.assertFalse(example["copyable"])
+        self.assertRegex(example["caveat"], host.SAFE_PREVIEW_RE)
+
+    def test_safe_platform_values_stay_copyable(self):
+        payload = valid_dataset()
+        payload["items"][0].update({
+            "keywords": ["列出", "查看", "目录"],
+            "examples": [{
+                "value": "ls -la",
+                "description": "列出目录内容",
+                "sourceType": "ai-derived",
+                "authorship": "generated",
+                "evidenceTier": "none",
+                "adaptation": "scenario-derived",
+                "platformValues": {"windows": "dir /a"},
+            }],
+        })
+        dataset = host.validate_dataset(payload, "sample")
+        example = dataset["items"][0]["examples"][0]
+        self.assertNotIn("warning", example)
+        self.assertNotEqual(example.get("copyable"), False)
+
     def test_shell_dangerous_example_gets_warning_fallback(self):
         payload = valid_shell_dataset()
         payload["items"][0]["examples"] = [{
