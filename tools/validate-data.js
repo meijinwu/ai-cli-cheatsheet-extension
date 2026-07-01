@@ -77,6 +77,18 @@ function evidenceStatusFor(refs) {
   return claims.has("existence") && claims.has("semantics") ? "verified" : "partial";
 }
 
+// 危险/密钥扫描必须同时覆盖 value 与 platformValues 的每个平台值（与 host.py 同步）。
+function dangerousExampleTexts(example) {
+  const platformValues = example.platformValues && typeof example.platformValues === "object" && !Array.isArray(example.platformValues)
+    ? Object.values(example.platformValues)
+    : [];
+  return [example.value, ...platformValues].filter((text) => typeof text === "string");
+}
+
+// 信息级统计：示例标 first-party 但命令本身 unverified（示例徽章高于命令核验状态）。
+// 不 fail——这是数据补全（补 evidenceRefs）的进度指标，随证据补全逐步归零。
+const firstPartyOnUnverified = new Map();
+
 for (const entry of sourceRegistry.entries || []) {
   if (!entry.id || !Array.isArray(entry.urlPrefixes) || !entry.urlPrefixes.length
     || !entry.title || !/^https:\/\/\S+$/.test(entry.canonicalUrl || "")
@@ -410,14 +422,18 @@ for (const id of files) {
             }
           }
         }
-        if (DANGEROUS_EXAMPLE_RE.test(example.value) && !example.warning) {
+        const dangerScanTexts = dangerousExampleTexts(example);
+        if (dangerScanTexts.some((text) => DANGEROUS_EXAMPLE_RE.test(text)) && !example.warning) {
           fail(`${id}[${index}].examples[${exampleIndex}]: dangerous example requires warning`);
         }
-        if (DANGEROUS_EXAMPLE_RE.test(example.value) && example.copyable !== false) {
+        if (dangerScanTexts.some((text) => DANGEROUS_EXAMPLE_RE.test(text)) && example.copyable !== false) {
           fail(`${id}[${index}].examples[${exampleIndex}]: dangerous example must not be copyable`);
         }
-        if (POSSIBLE_SECRET_RE.test(example.value)) {
+        if (dangerScanTexts.some((text) => POSSIBLE_SECRET_RE.test(text))) {
           fail(`${id}[${index}].examples[${exampleIndex}]: possible secret`);
+        }
+        if (example.evidenceTier === "first-party" && item.evidenceStatus === "unverified") {
+          firstPartyOnUnverified.set(id, (firstPartyOnUnverified.get(id) || 0) + 1);
         }
       });
     } else if (id !== "shell") fail(`${id}[${index}]: examples required`);
@@ -487,3 +503,9 @@ qualitySummaryRows().forEach((row) => {
     `- ${row.tool}: items=${row.items}, examples=${row.examples}, evidenceRefs=${row.evidenceRefs}, verified=${row.verified}, partial=${row.partial}, unverified=${row.unverified}`
   );
 });
+if (firstPartyOnUnverified.size) {
+  console.warn("Evidence-tier mismatches (first-party example on unverified command; fix by adding evidenceRefs):");
+  [...firstPartyOnUnverified.entries()].forEach(([tool, count]) => {
+    console.warn(`- ${tool}: ${count} example(s)`);
+  });
+}

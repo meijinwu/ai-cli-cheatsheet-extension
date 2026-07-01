@@ -54,9 +54,15 @@
     return "官方";
   }
 
-  function exampleProvenanceLabel(example) {
-    if (example.authorship === "official" && example.adaptation === "verbatim") return "官方原例";
-    if (example.evidenceTier === "first-party") return "基于官方资料改写";
+  // 示例证据不得高于命令实际核验状态：命令 unverified 时给 first-party 示例标签降级说明。
+  function exampleEvidenceDowngraded(example, itemEvidenceStatus) {
+    return example.evidenceTier === "first-party" && itemEvidenceStatus === "unverified";
+  }
+
+  function exampleProvenanceLabel(example, itemEvidenceStatus) {
+    const suffix = exampleEvidenceDowngraded(example, itemEvidenceStatus) ? "（命令待核验）" : "";
+    if (example.authorship === "official" && example.adaptation === "verbatim") return `官方原例${suffix}`;
+    if (example.evidenceTier === "first-party") return `基于官方资料改写${suffix}`;
     if (example.evidenceTier === "authoritative-community") return "权威社区补充";
     if (example.authorship === "editorial") return "编辑整理场景";
     return "自动生成";
@@ -84,14 +90,17 @@
     return "来源为官方一手文档";
   }
 
-  function exampleProvenanceTooltip(example) {
+  function exampleProvenanceTooltip(example, itemEvidenceStatus) {
     const tier = {
       "first-party": "有官方一手出处",
       "authoritative-community": "有权威社区出处",
       community: "社区出处",
       none: "无独立出处",
     }[example.evidenceTier] || "无独立出处";
-    return `${exampleProvenanceLabel(example)}：${tier}`;
+    const note = exampleEvidenceDowngraded(example, itemEvidenceStatus)
+      ? "，但该命令本身尚无命令级证据定位"
+      : "";
+    return `${exampleProvenanceLabel(example, itemEvidenceStatus)}：${tier}${note}`;
   }
 
   function itemEvidence(entry) {
@@ -189,7 +198,7 @@
       ${example.expected ? `<div class="example-context">结果：${escapeHtml(example.expected)}</div>` : ""}
       ${example.prerequisites ? `<div class="example-context">前提：${escapeHtml(example.prerequisites)}</div>` : ""}
       ${example.caveat ? `<div class="example-context">注意：${escapeHtml(example.caveat)}</div>` : ""}
-      <div class="example-source" title="${escapeHtml(exampleProvenanceTooltip(example))}">${escapeHtml(exampleProvenanceLabel(example))}${exampleEvidenceUrl(example, sources) ? ` · ${evidenceLinkHtml(exampleEvidenceUrl(example, sources), "证据", "example-doc")}` : ""}</div>
+      <div class="example-source" title="${escapeHtml(exampleProvenanceTooltip(example, entry.item.evidenceStatus))}">${escapeHtml(exampleProvenanceLabel(example, entry.item.evidenceStatus))}${exampleEvidenceUrl(example, sources) ? ` · ${evidenceLinkHtml(exampleEvidenceUrl(example, sources), "证据", "example-doc")}` : ""}</div>
       ${example.warning ? `<div class="example-warning">⚠ ${escapeHtml(example.warning)}</div>` : ""}
       ${example.copyable !== false ? `<button class="act example-copy" data-example="${example.index}" title="复制此用法" aria-label="复制此用法">复制</button>` : ""}
     </div>`).join("")}${commandEvidenceHtml(entry.item, sources)}</div>` : "";
@@ -488,6 +497,7 @@
     normalizedSources,
     evidenceLabel,
     exampleProvenanceLabel,
+    exampleProvenanceTooltip,
     commandEvidenceHtml,
     commandExampleHtml,
     renderFilters,

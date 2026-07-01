@@ -740,6 +740,22 @@ def apply_shell_danger_fallback(clean_example, warning):
     return apply_danger_fallback(clean_example, warning)
 
 
+def apply_platform_danger_fallback(clean_example):
+    """platformValues 中任一平台值命中危险正则时，与 value 命中同样降级：
+    补 warning、禁复制、补安全预览 caveat（与 tools/validate-data.js 的扫描范围同步）。"""
+    platform_values = clean_example.get("platformValues") or {}
+    if not any(DANGEROUS_EXAMPLE_RE.search(value) for value in platform_values.values()):
+        return
+    if not clean_example.get("warning"):
+        clean_example["warning"] = DEFAULT_DANGER_WARNING
+    clean_example["copyable"] = False
+    caveat = clean_example.get("caveat", "")
+    if not SAFE_PREVIEW_RE.search(caveat):
+        clean_example["caveat"] = (
+            caveat + "；" + DEFAULT_DANGER_CAVEAT if caveat else DEFAULT_DANGER_CAVEAT
+        )
+
+
 def redact_possible_secret(value):
     return POSSIBLE_SECRET_RE.sub(
         lambda match: re.sub(r"([=:]\s*)[a-z0-9_-]{12,}$", r"\1<TOKEN>", match.group(0), flags=re.IGNORECASE),
@@ -1241,6 +1257,7 @@ def _validate_example(example, item_index, example_index, expected_tool_id,
                 f"items[{item_index}].examples[{example_index}].platformValues.{example_platform}",
             ))
         clean_example["platformValues"] = clean_values
+        apply_platform_danger_fallback(clean_example)
     return clean_example, was_downgraded
 
 

@@ -151,7 +151,9 @@ meta：
 - **仓库端（`tools/validate-data.js`，严格）**：提交进仓库的数据，每条目都**必须**带合法的 `keywords`（3..8）与 `examples`（1..3）。CI 会对全量数据执行，缺失即失败。
 - **示例 UI 文案语言**：`description`、`scenario`、`goal`、`expected`、`prerequisites`、`caveat`、`warning` 必须包含中文；`value`、`cmd`、`en`、URL、产品名和命令参数可以保留英文。
 
-两侧的数量上下限与危险/密钥正则保持一致，统一声明在 `shared/validation-rules.json`，并由 `tests/test_validation_consistency.js` 防止漂移。改任一侧规则前先更新该 JSON。
+两侧的数量上下限与危险/密钥正则保持一致，统一声明在 `shared/validation-rules.json`，并由 `tests/test_validation_consistency.js` 防止漂移。改任一侧规则前先更新该 JSON。危险/密钥正则同时作用于 `examples[].value` 与 `examples[].platformValues` 的每个平台值：仓库端命中即要求 `warning` + `copyable: false`；生成端命中会自动降级（补 warning、禁复制、补安全预览 caveat）。
+
+另有一条信息级一致性检查（不阻塞 CI）：示例标 `evidenceTier: "first-party"` 但父条目 `evidenceStatus` 为 `unverified` 时，`tools/validate-data.js` 会按工具输出警告计数，UI 也会给该示例的来源标签追加「（命令待核验）」。消除方式是为条目补 `evidenceRefs`，而不是调低示例的证据字段。
 
 含义：本地用 host.py 生成的工具即使个别条目缺 examples 也能正常使用（仅少了示例），但若要回贡献到仓库，需补齐到满足仓库端严格校验。
 
