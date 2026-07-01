@@ -280,6 +280,35 @@ assert.strictEqual(render.safeHttpsUrl("http://example.com"), "", "plain http ur
 assert.strictEqual(render.safeHttpsUrl("  https://example.com  "), "https://example.com", "surrounding whitespace should be trimmed, not rejected");
 assert.strictEqual(render.safeHttpsUrl(null), "", "missing urls should resolve to empty");
 
+// 证据/来源链接必须统一走协议校验；非 https 降级为纯文本但保留原始 URL 供人工复核。
+const safeLink = render.evidenceLinkHtml("https://example.com/doc", "证据", "example-doc");
+assert(safeLink.includes('href="https://example.com/doc"') && safeLink.includes('rel="noopener noreferrer"') && safeLink.includes('class="example-doc"'), "https evidence links should render as anchors");
+const unsafeLink = render.evidenceLinkHtml("javascript:alert(1)", "证据");
+assert(!unsafeLink.includes("href="), "non-https evidence urls must not become clickable");
+assert(unsafeLink.includes("javascript:alert(1)"), "rejected evidence urls should stay visible as text for manual review");
+assert(!unsafeLink.includes("<a"), "rejected evidence urls must not render an anchor");
+assert.strictEqual(render.evidenceLinkHtml("", "证据"), "证据", "missing evidence urls should render the bare label");
+const poisonedEvidence = render.commandEvidenceHtml(
+  {
+    evidenceRefs: [{ sourceId: "bad-source", claims: ["existence"], locator: "docs" }],
+  },
+  [{ id: "bad-source", title: "Bad Source", url: "javascript:alert(1)" }]
+);
+assert(!poisonedEvidence.includes("href="), "command evidence must reject non-https source urls");
+assert(poisonedEvidence.includes("Bad Source"), "rejected command evidence should keep the source title visible");
+
+// meta.sourceUrl 非法时 normalizedSources 不应抛异常中断渲染。
+const brokenSource = render.normalizedSources({ source: "Broken Docs", sourceUrl: "not a url" });
+assert.strictEqual(brokenSource.length, 1, "invalid sourceUrl should still yield a normalized source");
+assert.strictEqual(brokenSource[0].maintainer, "", "invalid sourceUrl should degrade maintainer to empty");
+
+// 收藏损坏数据回退：非数组/混入非字符串成员不应中断初始化。
+assert.deepStrictEqual([...state.restoreFavourites(["alpha::open-item", 7, null])], ["alpha::open-item"], "restoreFavourites should keep only string keys");
+assert.strictEqual(state.restoreFavourites(12345).size, 0, "non-array favourites should reset to an empty set");
+assert.strictEqual(state.restoreFavourites("alpha::x").size, 0, "string favourites should reset instead of iterating characters");
+assert.strictEqual(state.restoreFavourites(undefined).size, 0, "missing favourites should reset to an empty set");
+assert.strictEqual(state.migrateFavourites(data, "corrupted").favourites.size, 0, "migrateFavourites should tolerate non-set input");
+
 // B: 新增中状态
 assert(render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty", addingTool: "ghostty" })).includes("添加中…"), "adding recommendation should render a busy state");
 
