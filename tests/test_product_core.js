@@ -88,6 +88,15 @@ assert.strictEqual(core.getPlatformCommand({
   cmd: "Windows only",
   platforms: ["windows"],
 }, "mac").unsupported, true);
+// 平台回退：定义了 platformCmds 但当前平台缺失时回退通用 cmd 并标记 usedFallback。
+const fallbackPlatform = core.getPlatformCommand({
+  cmd: "generic",
+  platformCmds: { windows: "win-only" },
+}, "mac");
+assert.strictEqual(fallbackPlatform.command, "generic", "missing platform entry should fall back to the generic cmd");
+assert.strictEqual(fallbackPlatform.usedFallback, true, "falling back must be flagged so the UI can explain it");
+assert.strictEqual(fallbackPlatform.unsupported, false, "fallback without a platforms list is not unsupported");
+assert.strictEqual(core.getPlatformCommand({ cmd: "generic" }, "mac").usedFallback, false, "no platformCmds means no fallback flag");
 assert.strictEqual(core.getPlatformExample({
   value: "sed -i 's/a/b/g' file",
   platformValues: { mac: "sed -i '' 's/a/b/g' file" },
