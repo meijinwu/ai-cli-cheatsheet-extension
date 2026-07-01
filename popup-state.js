@@ -760,8 +760,14 @@
     return entry ? { toolId, itemId: itemIdValue, item: entry.item } : null;
   }
 
+  // 从 storage 恢复收藏集合；损坏数据（非数组、混入非字符串成员）安全回退，避免中断初始化。
+  function restoreFavourites(rawValue) {
+    if (!Array.isArray(rawValue)) return new Set();
+    return new Set(rawValue.filter((key) => typeof key === "string"));
+  }
+
   function migrateFavourites(data, favourites) {
-    const next = new Set(favourites);
+    const next = favourites instanceof Set ? new Set(favourites) : new Set();
     let changed = false;
     Object.entries(data).forEach(([toolId, tool]) => {
       tool.items.forEach((item) => {
@@ -871,6 +877,7 @@
     createEntryIndex,
     collectEntries,
     findEntry,
+    restoreFavourites,
     migrateFavourites,
     pruneRecents,
     activeFilterLabel,

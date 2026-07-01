@@ -775,8 +775,8 @@ async function initialize() {
     return;
   }
   const stored = await storageGet(STATE.STORAGE_KEYS);
-  favourites = new Set(stored.favourites || []);
-  recents = stored.recentCopies || [];
+  favourites = STATE.restoreFavourites(stored.favourites);
+  recents = Array.isArray(stored.recentCopies) ? stored.recentCopies : [];
   dismissedRecommendations = new Set(Array.isArray(stored.dismissedRecommendations) ? stored.dismissedRecommendations : []);
   const storedAi = Array.isArray(stored.aiRecommendations) ? stored.aiRecommendations : [];
   aiRecommendations = STATE.pruneExpiredAiSuggestions(storedAi, Date.now(), AI_SUGGEST_TTL_MS);

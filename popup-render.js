@@ -22,12 +22,18 @@
     if (Array.isArray(meta.sources) && meta.sources.length) return meta.sources;
     if (!meta.sourceUrl) return [];
     const tier = meta.sourceTier || "official";
+    let maintainer = "";
+    try {
+      maintainer = new URL(meta.sourceUrl).hostname;
+    } catch (_error) {
+      // 数据文件里的 sourceUrl 可能不合法（半可信来源），渲染不应因此中断。
+    }
     return [{
       id: "primary",
       title: meta.source,
       url: meta.sourceUrl,
       kind: tier === "official" ? "official-doc" : tier === "quasi-official" ? "authoritative-reference" : "community",
-      maintainer: new URL(meta.sourceUrl).hostname,
+      maintainer,
       evidenceTier: tier === "official" ? "first-party" : tier === "quasi-official" ? "authoritative-community" : "community",
       lastVerifiedAt: meta.updatedAt,
     }];
@@ -113,9 +119,7 @@
         existence: "存在性", semantics: "语义", platform: "平台", example: "案例",
       })[claim] || claim).join("、");
       const label = `${source?.title || ref.sourceId} · ${claims} · ${ref.locator}`;
-      return source?.url
-        ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`
-        : escapeHtml(label);
+      return source?.url ? evidenceLinkHtml(source.url, label) : escapeHtml(label);
     }).join("<br>")}</div>`;
   }
 
@@ -185,7 +189,7 @@
       ${example.expected ? `<div class="example-context">结果：${escapeHtml(example.expected)}</div>` : ""}
       ${example.prerequisites ? `<div class="example-context">前提：${escapeHtml(example.prerequisites)}</div>` : ""}
       ${example.caveat ? `<div class="example-context">注意：${escapeHtml(example.caveat)}</div>` : ""}
-      <div class="example-source" title="${escapeHtml(exampleProvenanceTooltip(example))}">${escapeHtml(exampleProvenanceLabel(example))}${exampleEvidenceUrl(example, sources) ? ` · <a class="example-doc" href="${escapeHtml(exampleEvidenceUrl(example, sources))}" target="_blank" rel="noopener noreferrer">证据</a>` : ""}</div>
+      <div class="example-source" title="${escapeHtml(exampleProvenanceTooltip(example))}">${escapeHtml(exampleProvenanceLabel(example))}${exampleEvidenceUrl(example, sources) ? ` · ${evidenceLinkHtml(exampleEvidenceUrl(example, sources), "证据", "example-doc")}` : ""}</div>
       ${example.warning ? `<div class="example-warning">⚠ ${escapeHtml(example.warning)}</div>` : ""}
       ${example.copyable !== false ? `<button class="act example-copy" data-example="${example.index}" title="复制此用法" aria-label="复制此用法">复制</button>` : ""}
     </div>`).join("")}${commandEvidenceHtml(entry.item, sources)}</div>` : "";
@@ -215,6 +219,14 @@
   function safeHttpsUrl(value) {
     const url = String(value || "").trim();
     return /^https:\/\//i.test(url) ? url : "";
+  }
+
+  // 证据/来源链接统一出口：https 才渲染为可点击链接；
+  // 其余协议降级为纯文本并保留原始 URL，供人工复核而不丢失来源信息。
+  function evidenceLinkHtml(url, label, className = "") {
+    const safe = safeHttpsUrl(url);
+    if (!safe) return escapeHtml(url ? `${label}（${url}）` : label);
+    return `<a${className ? ` class="${escapeHtml(className)}"` : ""} href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
   }
 
   function renderRecommendationCategories(result) {
@@ -297,7 +309,7 @@
     const sources = normalizedSources(meta);
     const sourceEntry = (source) => `<div class="source-entry">
     <span>${escapeHtml(evidenceLabel(source.evidenceTier, source.kind))} · ${escapeHtml(source.title || source.id)} · ${escapeHtml(source.maintainer || "维护者未标注")}${source.lastVerifiedAt ? ` · ${escapeHtml(source.lastVerifiedAt)}` : ""}</span>
-    ${source.url ? ` <a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">打开 ↗</a>` : ""}
+    ${source.url ? ` ${evidenceLinkHtml(source.url, "打开 ↗")}` : ""}
   </div>`;
     const primarySources = sources.slice(0, 6);
     const remainingSources = sources.slice(6);
@@ -483,6 +495,7 @@
     renderResults,
     renderManageToolToggles,
     safeHttpsUrl,
+    evidenceLinkHtml,
     renderRecommendationCategories,
     renderRecommendedTools,
     countBarHtml,
