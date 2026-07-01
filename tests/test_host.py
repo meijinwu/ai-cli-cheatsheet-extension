@@ -1156,6 +1156,23 @@ class HostFileTests(unittest.TestCase):
             with self.assertRaisesRegex(host.ValidationError, "联网核对需要 Claude Code"):
                 host.run_claude_query("sample", "Sample Tool", "add", prefer_web=True)
 
+    def test_add_tool_without_token_or_claude_returns_protocol_error(self):
+        # 完全没有本机 AI 环境（无 API token 且未安装 claude CLI）时，
+        # add_tool 必须走协议返回友好中文错误，而不是崩溃或泄露堆栈。
+        request = {"action": "add_tool", "tool": "sample", "display_name": "Sample Tool"}
+        sent = []
+        with mock.patch.object(host, "_has_api_token", return_value=False), mock.patch.object(
+            host, "CLAUDE_BIN", None
+        ), mock.patch.object(host, "read_message", return_value=request), mock.patch.object(
+            host, "send_message", side_effect=lambda payload: sent.append(payload)
+        ):
+            host.main()
+        self.assertEqual(len(sent), 1)
+        self.assertFalse(sent[0]["ok"])
+        self.assertIn("找不到 claude 命令", sent[0]["error"])
+        self.assertNotIn("Traceback", sent[0]["error"])
+        self.assertFalse((self.data_dir / "sample.js").exists())
+
     def test_preview_apply_and_discard_update(self):
         old_dataset = valid_dataset()
         old_dataset["items"][0]["id"] = "stable-item"

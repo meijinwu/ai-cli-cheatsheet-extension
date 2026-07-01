@@ -273,6 +273,12 @@ const ghosttyHtml = render.renderRecommendedTools(state.filterRecommendedTools(d
 assert(ghosttyHtml.includes('href="https://ghostty.org"') && ghosttyHtml.includes('rel="noopener noreferrer"'), "recommendation cards should link to a homepage");
 assert.strictEqual(render.safeHttpsUrl("javascript:alert(1)"), "", "non-https urls should be rejected");
 assert.strictEqual(render.safeHttpsUrl("https://example.com"), "https://example.com", "https urls should pass through");
+assert.strictEqual(render.safeHttpsUrl("data:text/html,<script>alert(1)</script>"), "", "data: urls should be rejected");
+assert.strictEqual(render.safeHttpsUrl("vbscript:msgbox(1)"), "", "vbscript: urls should be rejected");
+assert.strictEqual(render.safeHttpsUrl("//evil.example.com/x"), "", "protocol-relative urls should be rejected");
+assert.strictEqual(render.safeHttpsUrl("http://example.com"), "", "plain http urls should be rejected");
+assert.strictEqual(render.safeHttpsUrl("  https://example.com  "), "https://example.com", "surrounding whitespace should be trimmed, not rejected");
+assert.strictEqual(render.safeHttpsUrl(null), "", "missing urls should resolve to empty");
 
 // B: 新增中状态
 assert(render.renderRecommendedTools(state.filterRecommendedTools(data, "mac", { query: "Ghostty", addingTool: "ghostty" })).includes("添加中…"), "adding recommendation should render a busy state");
@@ -465,6 +471,28 @@ resumedController.startTaskTimer("add_tool", Date.now(), { tool: "shell" });
 resumedController.stopTaskTimer();
 assert(statusMessages[0].includes("分批生成 Shell"), "resumed Shell task should keep the aggregate progress message");
 
+// Native Host 不可用（{ok:false}）时的降级：错误状态可见、管理按钮恢复、popup 不崩溃。
+const failedStatus = [];
+const failedButtonCalls = [];
+const failingController = taskMessages.createTaskController({
+  chrome: { runtime: { sendMessage() {}, reload() {}, lastError: null } },
+  setStatus(text, kind) { failedStatus.push({ text, kind }); },
+  setManageButtonsDisabled(disabled) { failedButtonCalls.push(disabled); },
+  storageSet() {},
+  renderPending() {},
+  getCurrentTaskMode() { return "add_tool"; },
+  setCurrentTaskMode() {},
+  setPendingUpdate() {},
+});
+
+// 收藏迁移：legacy cmd 键应折叠为稳定 id 键；纯稳定键输入不应标记 changed。
+const migratedFavourites = state.migrateFavourites(data, new Set(["alpha::Cmd+P", "alpha::open-item"]));
+assert.strictEqual(migratedFavourites.changed, true, "legacy favourite keys should trigger migration");
+assert.deepStrictEqual([...migratedFavourites.favourites], ["alpha::open-item"], "legacy cmd key should fold into the stable id key");
+const stableFavourites = state.migrateFavourites(data, new Set(["alpha::open-item"]));
+assert.strictEqual(stableFavourites.changed, false, "stable-id-only favourites should not be marked as migrated");
+assert.deepStrictEqual([...stableFavourites.favourites], ["alpha::open-item"], "stable id keys should survive migration untouched");
+
 const context = {
   window: {
     CHEATSHEET_CORE: core,
@@ -530,6 +558,14 @@ assert(context.window.CHEATSHEET_POPUP_TESTS, "popup test hooks should be availa
     "already collected recommendations should not start add tasks"
   );
   assert(context.window.CHEATSHEET_POPUP_TESTS.addToolPayload("CLI", true).error.includes("范围过大"), "broad recommendation names should stay blocked");
+
+  await failingController.finishTask({ ok: false, error: "连接本地更新程序失败。请确认已运行安装脚本并完全重启浏览器。" });
+  assert.strictEqual(failedStatus.length, 1, "a failed task should surface exactly one status message");
+  assert(failedStatus[0].text.startsWith("❌ 连接本地更新程序失败"), "failed task status should surface the host error");
+  assert.strictEqual(failedStatus[0].kind, "err", "failed task status should use the error style");
+  assert.deepStrictEqual(failedButtonCalls, [false], "a failed task must re-enable management buttons");
+  await failingController.finishTask({ ok: false });
+  assert(failedStatus[1].text.includes("未知错误"), "missing error detail should fall back to a generic message");
 
   console.log("Popup UX behavior tests passed.");
 })().catch((error) => {

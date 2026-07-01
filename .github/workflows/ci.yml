@@ -18,10 +18,15 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check popup.js
+          node --check popup-state.js
+          node --check popup-render.js
+          node --check popup-tasks.js
+          node --check pinyin-initials.js
           node --check background.js
           node --check product-core.js
           node --check usage-examples.js
           find data -name '*.js' -print0 | xargs -0 -n1 node --check
+          find enrichments -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Validate cheatsheet data
         run: |
           node tools/validate-data.js
