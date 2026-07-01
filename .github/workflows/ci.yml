@@ -29,5 +29,6 @@ jobs:
           node tests/test_product_core.js
           node tests/test_usage_examples.js
           node tests/test_popup_ux.js
+          node tests/test_background.js
       - name: Run native host tests
         run: python -m unittest discover -s tests -v

@@ -17,7 +17,7 @@
     "deleteOrOverwrite": "(?:\\brm(?:\\s|$)|\\bdd\\s+(?:if|of|bs|count|conv|status|seek|skip)=|\\b(?:reset\\s+--hard|mkfs)\\b|--delete\\b)|(^|\\s)>(?!>)",
     "permissionChange": "\\b(chmod|chown)\\b",
     "historyRewrite": "\\b(reset\\s+--hard|push\\s+--force|rebase\\s+-i)\\b",
-    "safetyBypass": "(?:--yolo|dangerously-bypass)\\b",
+    "safetyBypass": "(?:--yolo|dangerously-bypass|bypassPermissions)\\b",
     "remoteExecution": "\\b(curl|wget)\\b[^|\\n]*\\|\\s*(sudo\\s+)?(ba)?sh\\b|:\\(\\)\\s*\\{\\s*:",
     "processDisruption": "\\b(kill\\s+-9|restart|shutdown|reboot|halt|poweroff)\\b"
   },

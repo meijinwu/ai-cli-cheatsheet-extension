@@ -391,7 +391,7 @@ for (const id of files) {
           !Array.isArray(example.riskLevels)
           || !example.riskLevels.length
           || example.riskLevels.some((level) =>
-            !["deleteOrOverwrite", "permissionChange", "historyRewrite", "safetyBypass", "processDisruption"].includes(level))
+            !["deleteOrOverwrite", "permissionChange", "historyRewrite", "safetyBypass", "remoteExecution", "processDisruption"].includes(level))
         )) fail(`${id}[${index}].examples[${exampleIndex}]: invalid riskLevels`);
         if (example.platforms !== undefined && (
           !Array.isArray(example.platforms)

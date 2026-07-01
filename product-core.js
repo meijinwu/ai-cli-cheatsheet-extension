@@ -140,6 +140,19 @@
     });
   }
 
+  // 短查询词（1-3 字符）需要按词边界匹配，编译一次后按词复用；
+  // 缓存键集合受用户输入的不同短词数量限制，有界。
+  const shortTermBoundaryRegexCache = new Map();
+
+  function shortTermBoundaryRegex(normalizedTerm) {
+    const cached = shortTermBoundaryRegexCache.get(normalizedTerm);
+    if (cached) return cached;
+    const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`(?:^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, "i");
+    shortTermBoundaryRegexCache.set(normalizedTerm, regex);
+    return regex;
+  }
+
   function matchTypeInValue(value, term) {
     const normalized = normalizeText(value);
     const compact = compactText(value);
@@ -148,10 +161,7 @@
     if (!termCompact) return "";
     if (normalized === normalizedTerm || compact === termCompact) return "exact";
     if (/^[a-z0-9]{1,3}$/.test(termCompact)) {
-      const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return new RegExp(`(?:^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, "i").test(normalized)
-        ? "contains"
-        : "";
+      return shortTermBoundaryRegex(normalizedTerm).test(normalized) ? "contains" : "";
     }
     if (normalized.startsWith(normalizedTerm) || compact.startsWith(termCompact)) return "prefix";
     if (normalized.includes(normalizedTerm) || compact.includes(termCompact)) return "contains";

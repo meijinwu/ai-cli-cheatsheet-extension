@@ -7,6 +7,8 @@ import glob
 import hashlib
 import http.client
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 import os
 import re
 import secrets
@@ -432,6 +434,32 @@ PROJECT_DIR = os.path.realpath(
 DATA_DIR = os.path.realpath(os.path.join(PROJECT_DIR, "data"))
 DATA_INDEX = os.path.join(DATA_DIR, "index.js")
 PENDING_DIR = os.path.realpath(os.path.join(PROJECT_DIR, ".aicli-pending"))
+
+
+def _setup_logger():
+    # host.py runs as a deployed copy under the user's system Python with no
+    # terminal attached, so print()/stderr is invisible; a small rotating log
+    # file next to the pending-update state is the only place to see what an
+    # unexpected exception actually was. The protocol response sent back to
+    # the extension stays generic (see main()) regardless of what is logged.
+    logger = logging.getLogger("aicli_cheatsheet_host")
+    logger.setLevel(logging.INFO)
+    try:
+        os.makedirs(PENDING_DIR, exist_ok=True)
+        handler = RotatingFileHandler(
+            os.path.join(PENDING_DIR, "host.log"),
+            maxBytes=1_000_000,
+            backupCount=2,
+            encoding="utf-8",
+        )
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        logger.addHandler(handler)
+    except OSError:
+        logger.addHandler(logging.NullHandler())
+    return logger
+
+
+LOGGER = _setup_logger()
 
 
 class ValidationError(ValueError):
@@ -954,6 +982,268 @@ def _validate_sources(raw_sources, expected_tool_id, require_structured_source):
     return clean_sources, source_ids, unregistered_official_repositories
 
 
+def _validate_example(example, item_index, example_index, expected_tool_id,
+                       require_structured_source, source_ids, source_by_id, clean_sources):
+    """Validate and normalize one items[].examples[] entry.
+
+    Reconciles authorship/evidenceTier/adaptation/sourceIds and downgrades
+    over-claimed evidence to "none" when sourceIds are missing, invalid, or
+    inconsistent with the declared tier. Returns (clean_example, was_downgraded);
+    was_downgraded tells the caller whether to count this example toward the
+    dataset's downgraded-evidence quality warning.
+    """
+    if not isinstance(example, dict):
+        raise ValidationError(f"items[{item_index}].examples[{example_index}] 必须是对象")
+    clean_example = {
+        "value": checked_text(
+            example.get("value"), f"items[{item_index}].examples[{example_index}].value"
+        ),
+        "description": checked_text(
+            example.get("description"),
+            f"items[{item_index}].examples[{example_index}].description",
+        ),
+        "copyable": example.get("copyable", True),
+    }
+    clean_example["value"] = redact_possible_secret(clean_example["value"])
+    if not isinstance(clean_example["copyable"], bool):
+        raise ValidationError(
+            f"items[{item_index}].examples[{example_index}].copyable 必须是布尔值"
+        )
+    legacy_source_type = example.get("sourceType")
+    if legacy_source_type is not None and legacy_source_type not in EXAMPLE_SOURCE_TYPES:
+        raise ValidationError(
+            f"items[{item_index}].examples[{example_index}].sourceType 非法"
+        )
+    example_source_url = checked_text(
+        example.get("sourceUrl"),
+        f"items[{item_index}].examples[{example_index}].sourceUrl",
+        required=False,
+    )
+    if example_source_url:
+        if not re.fullmatch(r"https://[^\s]+", example_source_url):
+            raise ValidationError(
+                f"items[{item_index}].examples[{example_index}].sourceUrl 必须是 HTTPS URL"
+            )
+        clean_example["sourceUrl"] = example_source_url
+    if (
+        legacy_source_type == "quasi-official"
+        and example_source_url
+        and not host_in_quasi_official_whitelist(example_source_url)
+    ):
+        raise ValidationError(
+            f"items[{item_index}].examples[{example_index}].sourceType 为 quasi-official 时，"
+            "sourceUrl 主机名必须在白名单内"
+        )
+    authorship = example.get("authorship")
+    if require_structured_source and any(
+        example.get(field) is None
+        for field in ("authorship", "evidenceTier", "adaptation")
+    ):
+        raise ValidationError(
+            f"items[{item_index}].examples[{example_index}] 新数据必须显式填写 "
+            "authorship、evidenceTier 和 adaptation"
+        )
+    if authorship is None:
+        authorship = (
+            "generated" if legacy_source_type == "ai-derived" else "editorial"
+        )
+    evidence_tier = example.get("evidenceTier")
+    if evidence_tier is None:
+        evidence_tier = {
+            "official": "first-party",
+            "quasi-official": "authoritative-community",
+            "manual": "community" if example_source_url else "none",
+            "ai-derived": "none",
+        }.get(legacy_source_type, "none")
+    adaptation = example.get("adaptation")
+    if adaptation is None:
+        adaptation = (
+            "verbatim" if authorship == "official" else
+            "scenario-derived" if authorship == "generated" else "adapted"
+        )
+    if authorship not in AUTHORSHIPS:
+        raise ValidationError(f"items[{item_index}].examples[{example_index}].authorship 非法")
+    if evidence_tier not in EVIDENCE_TIERS:
+        raise ValidationError(f"items[{item_index}].examples[{example_index}].evidenceTier 非法")
+    if adaptation not in ADAPTATIONS:
+        raise ValidationError(f"items[{item_index}].examples[{example_index}].adaptation 非法")
+    source_ids_were_invalid = False
+    try:
+        example_source_ids = validate_source_ids(
+            example.get("sourceIds"),
+            f"items[{item_index}].examples[{example_index}].sourceIds",
+            source_ids,
+        )
+    except ValidationError:
+        if expected_tool_id == "shell":
+            raise
+        example_source_ids = []
+        source_ids_were_invalid = True
+        evidence_tier = "none"
+
+    downgraded_this_example = False
+    if evidence_tier in {"first-party", "authoritative-community", "community"}:
+        if not example_source_ids:
+            if expected_tool_id == "shell":
+                raise ValidationError(
+                    f"items[{item_index}].examples[{example_index}] 声明 {evidence_tier} "
+                    "证据时必须提供 sourceIds"
+                )
+            downgraded_this_example = True
+        referenced_tiers = {
+            source_by_id[source_id].get("evidenceTier")
+            for source_id in example_source_ids
+        }
+        if example_source_ids and evidence_tier not in referenced_tiers:
+            if expected_tool_id == "shell":
+                raise ValidationError(
+                    f"items[{item_index}].examples[{example_index}] 的 evidenceTier "
+                    "与 sourceIds 引用来源不一致"
+                )
+            downgraded_this_example = True
+    if authorship == "official" and (
+        adaptation != "verbatim"
+        or evidence_tier != "first-party"
+        or not example_source_ids
+        or not example_source_url
+    ):
+        if expected_tool_id == "shell":
+            raise ValidationError(
+                f"items[{item_index}].examples[{example_index}] 官方原例必须是 verbatim，"
+                "并提供第一方 sourceIds 和具体 sourceUrl"
+            )
+        downgraded_this_example = True
+    source_url_matches_referenced_source = False
+    if example_source_url and example_source_ids:
+        referenced_for_url = [
+            source_by_id[source_id] for source_id in example_source_ids
+            if source_id in source_by_id
+        ]
+        source_url_matches_referenced_source = any(
+            source.get("kind") == "local-help"
+            or url_matches_prefixes(
+                example_source_url,
+                [
+                    value for value in (
+                        source.get("url"),
+                        source.get("resolvedUrl"),
+                    ) if value
+                ],
+            )
+            for source in referenced_for_url
+        )
+    # A single example can fail either the evidence/sourceIds consistency check
+    # above or the sourceIds-syntax check earlier; either one resets evidenceTier
+    # to "none" and counts once toward the caller's downgraded-evidence warning
+    # (the two could never both fire independently in the original inline code).
+    was_downgraded = downgraded_this_example or source_ids_were_invalid
+    if was_downgraded:
+        evidence_tier = "none"
+        if authorship == "official":
+            authorship = "editorial"
+        if adaptation == "verbatim":
+            adaptation = (
+                "scenario-derived" if authorship == "generated" else "adapted"
+            )
+        example_source_ids = []
+        if not source_url_matches_referenced_source:
+            clean_example.pop("sourceUrl", None)
+    final_source_type = legacy_source_type or (
+        "official" if evidence_tier == "first-party" else
+        "quasi-official" if evidence_tier == "authoritative-community" else
+        "ai-derived" if authorship == "generated" else "manual"
+    )
+    if evidence_tier == "none" and final_source_type in {"official", "quasi-official"}:
+        final_source_type = "ai-derived" if authorship == "generated" else "manual"
+    clean_example.update({
+        "authorship": authorship,
+        "evidenceTier": evidence_tier,
+        "adaptation": adaptation,
+        # sourceType 仅为旧版读取兼容，不再作为作者或证据的事实来源。
+        "sourceType": final_source_type,
+    })
+    if example_source_ids:
+        clean_example["sourceIds"] = example_source_ids
+    if clean_example["sourceType"] == "official" and example_source_url:
+        referenced = [
+            source_by_id[source_id] for source_id in example_source_ids
+            if source_id in source_by_id
+        ] or [
+            source for source in clean_sources
+            if source.get("evidenceTier") == "first-party"
+        ]
+        example_host = urllib.parse.urlparse(example_source_url).hostname
+        if referenced and not any(
+            source.get("kind") == "local-help"
+            or urllib.parse.urlparse(source.get("url", "")).hostname == example_host
+            or url_matches_prefixes(example_source_url, OFFICIAL_REPOSITORY_PREFIXES)
+            for source in referenced
+        ):
+            raise ValidationError(
+                f"items[{item_index}].examples[{example_index}] 的 official URL 不是第一方来源"
+            )
+    for optional_field in ("scenario", "goal", "expected", "prerequisites", "caveat"):
+        optional_value = checked_text(
+            example.get(optional_field),
+            f"items[{item_index}].examples[{example_index}].{optional_field}",
+            required=False,
+        )
+        if optional_value:
+            clean_example[optional_field] = optional_value
+    warning = checked_text(
+        example.get("warning"),
+        f"items[{item_index}].examples[{example_index}].warning",
+        required=False,
+    )
+    if warning:
+        clean_example["warning"] = warning
+    warning = apply_danger_fallback(clean_example, warning)
+    if DANGEROUS_EXAMPLE_RE.search(clean_example["value"]) and not warning:
+        raise ValidationError(
+            f"items[{item_index}].examples[{example_index}] 危险操作必须包含 warning"
+        )
+    if POSSIBLE_SECRET_RE.search(clean_example["value"]):
+        raise ValidationError(
+            f"items[{item_index}].examples[{example_index}] 疑似包含密钥"
+        )
+    example_platforms = example.get("platforms")
+    if isinstance(example_platforms, list) and not example_platforms:
+        example_platforms = None
+    if example_platforms is not None:
+        if (
+            not isinstance(example_platforms, list)
+            or not example_platforms
+            or any(
+                example_platform not in {"mac", "windows", "linux"}
+                for example_platform in example_platforms
+            )
+        ):
+            raise ValidationError(
+                f"items[{item_index}].examples[{example_index}].platforms 非法"
+            )
+        clean_example["platforms"] = list(dict.fromkeys(example_platforms))
+    platform_values = example.get("platformValues")
+    if isinstance(platform_values, dict) and not platform_values:
+        platform_values = None
+    if platform_values is not None:
+        if not isinstance(platform_values, dict):
+            raise ValidationError(
+                f"items[{item_index}].examples[{example_index}].platformValues 必须是非空对象"
+            )
+        clean_values = {}
+        for example_platform, value in platform_values.items():
+            if example_platform not in {"mac", "windows", "linux"}:
+                raise ValidationError(
+                    f"items[{item_index}].examples[{example_index}].platformValues 平台非法"
+                )
+            clean_values[example_platform] = redact_possible_secret(checked_text(
+                value,
+                f"items[{item_index}].examples[{example_index}].platformValues.{example_platform}",
+            ))
+        clean_example["platformValues"] = clean_values
+    return clean_example, was_downgraded
+
+
 def validate_dataset(payload, expected_tool_id, require_structured_source=True):
     if not isinstance(payload, dict):
         raise ValidationError("Claude 返回的数据必须是 JSON 对象")
@@ -1074,256 +1364,12 @@ def validate_dataset(payload, expected_tool_id, require_structured_source=True):
                 raise ValidationError(f"items[{index}].examples 必须包含 1 到 {MAX_EXAMPLES} 个示例")
             clean_examples = []
             for example_index, example in enumerate(examples):
-                if not isinstance(example, dict):
-                    raise ValidationError(f"items[{index}].examples[{example_index}] 必须是对象")
-                clean_example = {
-                    "value": checked_text(
-                        example.get("value"), f"items[{index}].examples[{example_index}].value"
-                    ),
-                    "description": checked_text(
-                        example.get("description"),
-                        f"items[{index}].examples[{example_index}].description",
-                    ),
-                    "copyable": example.get("copyable", True),
-                }
-                clean_example["value"] = redact_possible_secret(clean_example["value"])
-                if not isinstance(clean_example["copyable"], bool):
-                    raise ValidationError(
-                        f"items[{index}].examples[{example_index}].copyable 必须是布尔值"
-                    )
-                legacy_source_type = example.get("sourceType")
-                if legacy_source_type is not None and legacy_source_type not in EXAMPLE_SOURCE_TYPES:
-                    raise ValidationError(
-                        f"items[{index}].examples[{example_index}].sourceType 非法"
-                    )
-                example_source_url = checked_text(
-                    example.get("sourceUrl"),
-                    f"items[{index}].examples[{example_index}].sourceUrl",
-                    required=False,
+                clean_example, was_downgraded = _validate_example(
+                    example, index, example_index, expected_tool_id,
+                    require_structured_source, source_ids, source_by_id, clean_sources,
                 )
-                if example_source_url:
-                    if not re.fullmatch(r"https://[^\s]+", example_source_url):
-                        raise ValidationError(
-                            f"items[{index}].examples[{example_index}].sourceUrl 必须是 HTTPS URL"
-                        )
-                    clean_example["sourceUrl"] = example_source_url
-                if (
-                    legacy_source_type == "quasi-official"
-                    and example_source_url
-                    and not host_in_quasi_official_whitelist(example_source_url)
-                ):
-                    raise ValidationError(
-                        f"items[{index}].examples[{example_index}].sourceType 为 quasi-official 时，"
-                        "sourceUrl 主机名必须在白名单内"
-                    )
-                authorship = example.get("authorship")
-                if require_structured_source and any(
-                    example.get(field) is None
-                    for field in ("authorship", "evidenceTier", "adaptation")
-                ):
-                    raise ValidationError(
-                        f"items[{index}].examples[{example_index}] 新数据必须显式填写 "
-                        "authorship、evidenceTier 和 adaptation"
-                    )
-                if authorship is None:
-                    authorship = (
-                        "generated" if legacy_source_type == "ai-derived" else "editorial"
-                    )
-                evidence_tier = example.get("evidenceTier")
-                if evidence_tier is None:
-                    evidence_tier = {
-                        "official": "first-party",
-                        "quasi-official": "authoritative-community",
-                        "manual": "community" if example_source_url else "none",
-                        "ai-derived": "none",
-                    }.get(legacy_source_type, "none")
-                adaptation = example.get("adaptation")
-                if adaptation is None:
-                    adaptation = (
-                        "verbatim" if authorship == "official" else
-                        "scenario-derived" if authorship == "generated" else "adapted"
-                    )
-                if authorship not in AUTHORSHIPS:
-                    raise ValidationError(f"items[{index}].examples[{example_index}].authorship 非法")
-                if evidence_tier not in EVIDENCE_TIERS:
-                    raise ValidationError(f"items[{index}].examples[{example_index}].evidenceTier 非法")
-                if adaptation not in ADAPTATIONS:
-                    raise ValidationError(f"items[{index}].examples[{example_index}].adaptation 非法")
-                source_ids_were_invalid = False
-                try:
-                    example_source_ids = validate_source_ids(
-                        example.get("sourceIds"),
-                        f"items[{index}].examples[{example_index}].sourceIds",
-                        source_ids,
-                    )
-                except ValidationError:
-                    if expected_tool_id == "shell":
-                        raise
-                    example_source_ids = []
-                    source_ids_were_invalid = True
-                    evidence_tier = "none"
-
-                downgraded_this_example = False
-                if evidence_tier in {"first-party", "authoritative-community", "community"}:
-                    if not example_source_ids:
-                        if expected_tool_id == "shell":
-                            raise ValidationError(
-                                f"items[{index}].examples[{example_index}] 声明 {evidence_tier} "
-                                "证据时必须提供 sourceIds"
-                            )
-                        downgraded_this_example = True
-                    referenced_tiers = {
-                        source_by_id[source_id].get("evidenceTier")
-                        for source_id in example_source_ids
-                    }
-                    if example_source_ids and evidence_tier not in referenced_tiers:
-                        if expected_tool_id == "shell":
-                            raise ValidationError(
-                                f"items[{index}].examples[{example_index}] 的 evidenceTier "
-                                "与 sourceIds 引用来源不一致"
-                            )
-                        downgraded_this_example = True
-                if authorship == "official" and (
-                    adaptation != "verbatim"
-                    or evidence_tier != "first-party"
-                    or not example_source_ids
-                    or not example_source_url
-                ):
-                    if expected_tool_id == "shell":
-                        raise ValidationError(
-                            f"items[{index}].examples[{example_index}] 官方原例必须是 verbatim，"
-                            "并提供第一方 sourceIds 和具体 sourceUrl"
-                        )
-                    downgraded_this_example = True
-                source_url_matches_referenced_source = False
-                if example_source_url and example_source_ids:
-                    referenced_for_url = [
-                        source_by_id[source_id] for source_id in example_source_ids
-                        if source_id in source_by_id
-                    ]
-                    source_url_matches_referenced_source = any(
-                        source.get("kind") == "local-help"
-                        or url_matches_prefixes(
-                            example_source_url,
-                            [
-                                value for value in (
-                                    source.get("url"),
-                                    source.get("resolvedUrl"),
-                                ) if value
-                            ],
-                        )
-                        for source in referenced_for_url
-                    )
-                if downgraded_this_example:
-                    if not source_ids_were_invalid:
-                        downgraded_example_evidence += 1
-                    evidence_tier = "none"
-                if source_ids_were_invalid:
+                if was_downgraded:
                     downgraded_example_evidence += 1
-                    evidence_tier = "none"
-                if downgraded_this_example or source_ids_were_invalid:
-                    if authorship == "official":
-                        authorship = "editorial"
-                    if adaptation == "verbatim":
-                        adaptation = (
-                            "scenario-derived" if authorship == "generated" else "adapted"
-                        )
-                    example_source_ids = []
-                    if not source_url_matches_referenced_source:
-                        clean_example.pop("sourceUrl", None)
-                final_source_type = legacy_source_type or (
-                    "official" if evidence_tier == "first-party" else
-                    "quasi-official" if evidence_tier == "authoritative-community" else
-                    "ai-derived" if authorship == "generated" else "manual"
-                )
-                if evidence_tier == "none" and final_source_type in {"official", "quasi-official"}:
-                    final_source_type = "ai-derived" if authorship == "generated" else "manual"
-                clean_example.update({
-                    "authorship": authorship,
-                    "evidenceTier": evidence_tier,
-                    "adaptation": adaptation,
-                    # sourceType 仅为旧版读取兼容，不再作为作者或证据的事实来源。
-                    "sourceType": final_source_type,
-                })
-                if example_source_ids:
-                    clean_example["sourceIds"] = example_source_ids
-                if clean_example["sourceType"] == "official" and example_source_url:
-                    referenced = [
-                        source_by_id[source_id] for source_id in example_source_ids
-                        if source_id in source_by_id
-                    ] or [
-                        source for source in clean_sources
-                        if source.get("evidenceTier") == "first-party"
-                    ]
-                    example_host = urllib.parse.urlparse(example_source_url).hostname
-                    if referenced and not any(
-                        source.get("kind") == "local-help"
-                        or urllib.parse.urlparse(source.get("url", "")).hostname == example_host
-                        or url_matches_prefixes(example_source_url, OFFICIAL_REPOSITORY_PREFIXES)
-                        for source in referenced
-                    ):
-                        raise ValidationError(
-                            f"items[{index}].examples[{example_index}] 的 official URL 不是第一方来源"
-                        )
-                for optional_field in ("scenario", "goal", "expected", "prerequisites", "caveat"):
-                    optional_value = checked_text(
-                        example.get(optional_field),
-                        f"items[{index}].examples[{example_index}].{optional_field}",
-                        required=False,
-                    )
-                    if optional_value:
-                        clean_example[optional_field] = optional_value
-                warning = checked_text(
-                    example.get("warning"),
-                    f"items[{index}].examples[{example_index}].warning",
-                    required=False,
-                )
-                if warning:
-                    clean_example["warning"] = warning
-                warning = apply_danger_fallback(clean_example, warning)
-                if DANGEROUS_EXAMPLE_RE.search(clean_example["value"]) and not warning:
-                    raise ValidationError(
-                        f"items[{index}].examples[{example_index}] 危险操作必须包含 warning"
-                    )
-                if POSSIBLE_SECRET_RE.search(clean_example["value"]):
-                    raise ValidationError(
-                        f"items[{index}].examples[{example_index}] 疑似包含密钥"
-                    )
-                example_platforms = example.get("platforms")
-                if isinstance(example_platforms, list) and not example_platforms:
-                    example_platforms = None
-                if example_platforms is not None:
-                    if (
-                        not isinstance(example_platforms, list)
-                        or not example_platforms
-                        or any(
-                            example_platform not in {"mac", "windows", "linux"}
-                            for example_platform in example_platforms
-                        )
-                    ):
-                        raise ValidationError(
-                            f"items[{index}].examples[{example_index}].platforms 非法"
-                        )
-                    clean_example["platforms"] = list(dict.fromkeys(example_platforms))
-                platform_values = example.get("platformValues")
-                if isinstance(platform_values, dict) and not platform_values:
-                    platform_values = None
-                if platform_values is not None:
-                    if not isinstance(platform_values, dict):
-                        raise ValidationError(
-                            f"items[{index}].examples[{example_index}].platformValues 必须是非空对象"
-                        )
-                    clean_values = {}
-                    for example_platform, value in platform_values.items():
-                        if example_platform not in {"mac", "windows", "linux"}:
-                            raise ValidationError(
-                                f"items[{index}].examples[{example_index}].platformValues 平台非法"
-                            )
-                        clean_values[example_platform] = redact_possible_secret(checked_text(
-                            value,
-                            f"items[{index}].examples[{example_index}].platformValues.{example_platform}",
-                        ))
-                    clean_example["platformValues"] = clean_values
                 clean_examples.append(clean_example)
             clean_item["examples"] = clean_examples
         if expected_tool_id == "shell" and DANGEROUS_EXAMPLE_RE.search(clean_item["cmd"]) and not clean_item.get("examples"):
@@ -2588,7 +2634,8 @@ def prune_pending_files(current_tool_id=None, keep_token=None):
         path = os.path.join(real_pending_dir, name)
         try:
             stale = (now - os.path.getmtime(path)) > PENDING_MAX_AGE_SECONDS
-        except OSError:
+        except OSError as exc:
+            LOGGER.debug("prune_pending_files: could not stat %s: %s", path, exc)
             continue
         superseded = False
         if current_tool_id and not stale:
@@ -2600,8 +2647,8 @@ def prune_pending_files(current_tool_id=None, keep_token=None):
         if stale or superseded:
             try:
                 os.unlink(path)
-            except OSError:
-                pass
+            except OSError as exc:
+                LOGGER.debug("prune_pending_files: could not remove %s: %s", path, exc)
 
 
 def item_signature(item):
@@ -2860,6 +2907,7 @@ def add_tool(tool_id, display_name, prefer_web=False):
     try:
         write_data_index()
     except Exception:
+        LOGGER.warning("add_tool: rolling back %s after write_data_index failure", data_path, exc_info=True)
         os.unlink(data_path)
         raise
     return {
@@ -3004,6 +3052,7 @@ def remove_tool(tool_id):
     try:
         write_data_index()
     except Exception:
+        LOGGER.warning("remove_tool: restoring %s after write_data_index failure", data_path, exc_info=True)
         atomic_write(data_path, old_content)
         raise
     return {
@@ -3052,6 +3101,7 @@ def main():
     except ValidationError as exc:
         send_message({"ok": False, "error": str(exc)})
     except Exception as exc:  # Native hosts must always return a protocol response.
+        LOGGER.exception("Unhandled error while processing native message")
         send_message({"ok": False, "error": f"本地更新程序异常：{exc}"})
 
 

@@ -27,6 +27,7 @@ node tests/test_validation_consistency.js
 node tests/test_product_core.js
 node tests/test_usage_examples.js
 node tests/test_popup_ux.js
+node tests/test_background.js
 
 # 本机 Host 测试（CI 用 unittest；本地也有带 pytest 的 .venv）
 python3 -m unittest discover -s tests -v
