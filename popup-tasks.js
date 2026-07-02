@@ -2,6 +2,8 @@
 
 (function initPopupTasks(globalScope) {
   const TASK_DISABLED_STATE = "taskDisabledState";
+  // 数据变更后延迟重载扩展，给用户留出读完成状态的时间。
+  const RELOAD_DELAY_MS = 900;
 
   function taskBaseMsg(mode, payload = {}) {
     if (mode === "preview_update") return "正在检查实际版本变化；如需生成预览会继续核对资料，关闭面板不会中断";
@@ -95,7 +97,7 @@
           });
         }
         deps.setStatus(`✅ ${response.output || "完成"}${response.qualityWarnings?.length ? `\n⚠ ${response.qualityWarnings.join("\n⚠ ")}` : ""}${response.changed ? "\n正在重新加载扩展…" : ""}`, "ok");
-        if (response.changed) setTimeout(() => deps.chrome.runtime.reload(), 900);
+        if (response.changed) setTimeout(() => deps.chrome.runtime.reload(), RELOAD_DELAY_MS);
       } finally {
         if (deps.afterFinish) deps.afterFinish(mode, response);
       }

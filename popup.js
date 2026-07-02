@@ -22,6 +22,14 @@ let aiRecommendations = [];
 const RECOMMENDATION_BATCH_SIZE = 6;
 const AI_SUGGEST_COUNT = 8;
 const AI_SUGGEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// 与 popup-state.js pruneRecents 的截断上限保持一致。
+const RECENTS_LIMIT = 20;
+const TOAST_DURATION_MS = 1800;
+const UNDO_TOAST_DURATION_MS = 4000;
+// 弹窗重开时，多久以内的任务结果仍值得回放展示。
+const TASK_RESULT_FRESH_MS = 120000;
+// 上次生成的质量告警在管理视图保留展示的时长。
+const QUALITY_WARNING_TTL_MS = 86400000;
 let pendingUpdate = null;
 let currentTaskMode = null;
 let expandedTools = new Set();
@@ -167,7 +175,7 @@ function showToast(text) {
   toast.textContent = text;
   toast.classList.add("show");
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), TOAST_DURATION_MS);
 }
 
 function showUndoToast(text, onUndo) {
@@ -186,7 +194,12 @@ function showUndoToast(text, onUndo) {
   toast.append(label, undo);
   toast.classList.add("show");
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 4000);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), UNDO_TOAST_DURATION_MS);
+}
+
+async function recordCopy(entry, command) {
+  recents = CORE.updateRecent(recents, { toolId: entry.toolId, itemId: entry.itemId, command }, RECENTS_LIMIT);
+  await storageSet({ recentCopies: recents });
 }
 
 async function copyText(value, successMessage) {
@@ -210,6 +223,12 @@ function closeRiskDialog(confirmed) {
 function confirmRiskCopy(value, risk) {
   if (!risk.requiresConfirmation) return Promise.resolve(true);
   const dialog = typeof document.getElementById === "function" ? document.getElementById("riskDialog") : null;
+  if (pendingRiskResolve) {
+    // 已有未决的风险确认：第二次复制请求直接按"未确认"处理，
+    // 前一个 Promise 仍由用户在对话框里的操作决议，不会永久挂起。
+    if (dialog) showToast("请先处理当前的风险确认");
+    return Promise.resolve(false);
+  }
   if (!dialog) {
     return Promise.resolve(confirm(`这是高风险命令：${risk.warning}\n\n${value}\n\n确定要复制吗？`));
   }
@@ -422,8 +441,7 @@ async function handleMainClick(event) {
     const risk = CORE.classifyCommandRisk(value, [example]);
     if (!await confirmRiskCopy(value, risk)) return;
     if (!await copyText(value, `已复制用法：${value}`)) return;
-    recents = CORE.updateRecent(recents, { toolId: entry.toolId, itemId: entry.itemId, command: value }, 20);
-    await storageSet({ recentCopies: recents });
+    await recordCopy(entry, value);
     return;
   }
   if (event.target.closest("[data-usage]")) {
@@ -441,8 +459,7 @@ async function handleMainClick(event) {
     const risk = CORE.classifyCommandRisk(command, entry.item.examples || []);
     if (!await confirmRiskCopy(command, risk)) return;
     if (!await copyText(command, `已复制命令：${command}`)) return;
-    recents = CORE.updateRecent(recents, { toolId: entry.toolId, itemId: entry.itemId, command }, 20);
-    await storageSet({ recentCopies: recents });
+    await recordCopy(entry, command);
     return;
   }
   if (event.target.closest(".fav-btn")) {
@@ -450,6 +467,15 @@ async function handleMainClick(event) {
     await storageSet({ favourites: [...favourites] });
     render();
   }
+}
+
+async function handleEnabledToolToggle(checkbox) {
+  checkbox.checked ? enabledTools.add(checkbox.dataset.enabled) : enabledTools.delete(checkbox.dataset.enabled);
+  await storageSet({ enabledTools: [...enabledTools] });
+  if (activeTool !== "all" && !enabledTools.has(activeTool)) activeTool = "all";
+  renderFilters();
+  render();
+  renderManage();
 }
 
 function renderManage() {
@@ -463,14 +489,8 @@ function renderManage() {
   };
   const toggles = document.getElementById("manageToolToggles");
   toggles.innerHTML = RENDER.renderManageToolToggles(getAllData(), STATE.getToolIds(getAllData()), currentState());
-  toggles.querySelectorAll("[data-enabled]").forEach((checkbox) => checkbox.addEventListener("change", async () => {
-    checkbox.checked ? enabledTools.add(checkbox.dataset.enabled) : enabledTools.delete(checkbox.dataset.enabled);
-    await storageSet({ enabledTools: [...enabledTools] });
-    if (activeTool !== "all" && !enabledTools.has(activeTool)) activeTool = "all";
-    renderFilters();
-    render();
-    renderManage();
-  }));
+  toggles.querySelectorAll("[data-enabled]").forEach((checkbox) =>
+    checkbox.addEventListener("change", () => handleEnabledToolToggle(checkbox)));
 
   const recommended = document.getElementById("recommendedTools");
   const recommendSearch = document.getElementById("recommendSearch");
@@ -525,14 +545,8 @@ function renderManage() {
 
   const tools = document.getElementById("manageTools");
   tools.innerHTML = RENDER.renderManageTools(getAllData(), STATE.getToolIds(getAllData()), currentState(), STATE, entryIndex);
-  tools.querySelectorAll("[data-enabled]").forEach((checkbox) => checkbox.addEventListener("change", async () => {
-    checkbox.checked ? enabledTools.add(checkbox.dataset.enabled) : enabledTools.delete(checkbox.dataset.enabled);
-    await storageSet({ enabledTools: [...enabledTools] });
-    if (activeTool !== "all" && !enabledTools.has(activeTool)) activeTool = "all";
-    renderFilters();
-    render();
-    renderManage();
-  }));
+  tools.querySelectorAll("[data-enabled]").forEach((checkbox) =>
+    checkbox.addEventListener("change", () => handleEnabledToolToggle(checkbox)));
   tools.querySelectorAll("[data-update]").forEach((button) => button.addEventListener("click", () => {
     const toolId = button.dataset.update;
     taskController.runTask("preview_update", {
@@ -733,20 +747,25 @@ function bindOnboarding() {
       event.preventDefault();
       return;
     }
-    if (event.key !== "Tab") return;
-    const focusable = [...dialog.querySelectorAll("button, input, select, [tabindex]:not([tabindex='-1'])")]
-      .filter((element) => !element.disabled && !element.hidden);
-    if (!focusable.length) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      last.focus();
-      event.preventDefault();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      first.focus();
-      event.preventDefault();
-    }
+    trapDialogFocus(dialog, event);
   });
+}
+
+// 对话框内 Tab 焦点循环，onboarding 与 riskDialog 共用。
+function trapDialogFocus(dialog, event) {
+  if (event.key !== "Tab") return;
+  const focusable = [...dialog.querySelectorAll("button, input, select, [tabindex]:not([tabindex='-1'])")]
+    .filter((element) => !element.disabled && !element.hidden);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    last.focus();
+    event.preventDefault();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    first.focus();
+    event.preventDefault();
+  }
 }
 
 function bindRiskDialog() {
@@ -756,7 +775,9 @@ function bindRiskDialog() {
     if (event.key === "Escape") {
       closeRiskDialog(false);
       event.preventDefault();
+      return;
     }
+    trapDialogFocus(event.currentTarget, event);
   });
 }
 
@@ -807,7 +828,7 @@ async function initialize() {
   render();
   renderManage();
   if (stored.lastQualityWarnings?.messages?.length
-    && Date.now() - (stored.lastQualityWarnings.createdAt || 0) < 86400000) {
+    && Date.now() - (stored.lastQualityWarnings.createdAt || 0) < QUALITY_WARNING_TTL_MS) {
     setStatus(`⚠ ${stored.lastQualityWarnings.messages.join("\n⚠ ")}`, "warn");
   }
 
@@ -820,7 +841,7 @@ async function initialize() {
       currentTaskMode = status.mode;
       taskController.startTaskTimer(status.mode, status.startedAt || Date.now(), status);
       setManageButtonsDisabled(true);
-    } else if (status.result && status.finishedAt && Date.now() - status.finishedAt < 120000) {
+    } else if (status.result && status.finishedAt && Date.now() - status.finishedAt < TASK_RESULT_FRESH_MS) {
       currentTaskMode = status.mode;
       taskController.finishTask(status.result, status.mode);
       chrome.storage.session.set({ taskStatus: { running: false } });
@@ -839,6 +860,8 @@ if (window.CHEATSHEET_ENABLE_TEST_HOOKS) {
     render: RENDER,
     tasks: window.CHEATSHEET_POPUP_TASKS,
     confirmRiskCopy,
+    closeRiskDialog,
+    trapDialogFocus,
     addToolPayload,
     rankVisibleEntries,
   };

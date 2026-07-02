@@ -113,7 +113,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     else if (tokenMode) paramsValid = validToken;
     else paramsValid = validTool && validName;
     if (!validMode || !paramsValid) {
-      sendResponse({ ok: false, error: '任务参数无效。' });
+      sendResponse({ ok: false, error: '任务参数无效，请关闭并重新打开弹窗后重试；若反复出现，请更新扩展或反馈问题。' });
       return false;
     }
     taskActive = true;
