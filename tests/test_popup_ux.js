@@ -11,6 +11,7 @@ const core = require("../product-core.js");
 const state = require("../popup-state.js");
 const render = require("../popup-render.js");
 const toast = require("../popup-toast.js");
+const dialogs = require("../popup-dialogs.js");
 
 assert(!html.includes('id="toolSelect"'), "tool filters should remain directly visible");
 assert(html.includes('id="categoryFilters" class="filters"'), "category filters should remain directly visible");
@@ -26,10 +27,12 @@ assert(
   html.includes('<script src="popup-state.js"></script>')
     && html.includes('<script src="popup-render.js"></script>')
     && html.includes('<script src="popup-toast.js"></script>')
+    && html.includes('<script src="popup-dialogs.js"></script>')
     && html.includes('<script src="popup-tasks.js"></script>')
     && html.indexOf('popup-state.js') < html.indexOf('popup.js')
     && html.indexOf('popup-render.js') < html.indexOf('popup-toast.js')
-    && html.indexOf('popup-toast.js') < html.indexOf('popup.js'),
+    && html.indexOf('popup-toast.js') < html.indexOf('popup-dialogs.js')
+    && html.indexOf('popup-dialogs.js') < html.indexOf('popup.js'),
   "popup modules must load before popup.js"
 );
 
@@ -574,6 +577,7 @@ const context = {
     CHEATSHEET_POPUP_STATE: state,
     CHEATSHEET_POPUP_RENDER: render,
     CHEATSHEET_POPUP_TOAST: toast,
+    CHEATSHEET_POPUP_DIALOGS: dialogs,
     CHEATSHEET_POPUP_TASKS: taskMessages,
     CHEATSHEET_ENABLE_TEST_HOOKS: true,
     CHEATSHEET_DATA: {},
@@ -635,6 +639,7 @@ const dialogContext = {
     CHEATSHEET_POPUP_STATE: state,
     CHEATSHEET_POPUP_RENDER: render,
     CHEATSHEET_POPUP_TOAST: toast,
+    CHEATSHEET_POPUP_DIALOGS: dialogs,
     CHEATSHEET_POPUP_TASKS: taskMessages,
     CHEATSHEET_ENABLE_TEST_HOOKS: true,
     CHEATSHEET_DATA: {},
@@ -725,7 +730,8 @@ const dialogHooks = dialogContext.window.CHEATSHEET_POPUP_TESTS;
   focusCalls.length = 0;
   dialogHooks.trapDialogFocus(trapDialog, { key: "a", preventDefault() { throw new Error("non-Tab keys must not be intercepted"); } });
   assert.strictEqual(focusCalls.length, 0, "non-Tab keys must not move focus");
-  assert(/function bindRiskDialog[\s\S]{0,400}trapDialogFocus/.test(popupSource), "bindRiskDialog should wire the shared focus trap");
+  const dialogsSource = fs.readFileSync(path.join(root, "popup-dialogs.js"), "utf8");
+  assert(/function bindRiskDialog[\s\S]{0,700}trapDialogFocus/.test(dialogsSource), "bindRiskDialog should wire the shared focus trap");
 
   await failingController.finishTask({ ok: false, error: "连接本地更新程序失败。请确认已运行安装脚本并完全重启浏览器。" });
   assert.strictEqual(failedStatus.length, 1, "a failed task should surface exactly one status message");
