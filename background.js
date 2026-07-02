@@ -5,6 +5,12 @@
 
 const NATIVE_HOST = 'com.aicli.cheatsheet_updater';
 
+// Watchdog: the native host has its own 900s CLI timeout; 20 minutes leaves
+// headroom for that plus retries. Uses alarms (not setTimeout) so the deadline
+// survives service-worker recycling.
+const TASK_TIMEOUT_MINUTES = 20;
+const TASK_TIMEOUT_ERROR = `任务超过 ${TASK_TIMEOUT_MINUTES} 分钟无响应，已自动终止。可直接重试；若反复出现，请重新运行 native-host 安装脚本并完全重启浏览器。`;
+
 let nativePort = null;
 let taskActive = false;
 
@@ -14,8 +20,30 @@ let taskActive = false;
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'keepalive') {
     chrome.storage.session.get('_ka').catch(() => {});
+    return;
+  }
+  if (alarm.name === 'taskTimeout') {
+    // taskActive lives in the SW instance; after a SW restart it is false even
+    // though the task is still recorded in session storage, so consult both.
+    const wasActive = taskActive;
+    chrome.storage.session.get(['taskStatus'])
+      .then((res) => handleTaskTimeout(wasActive, res.taskStatus))
+      .catch(() => handleTaskTimeout(wasActive, null));
   }
 });
+
+function handleTaskTimeout(wasActive, status) {
+  if (!wasActive && !status?.running) return; // stale alarm; task already finished
+  taskActive = false;
+  stopKeepalive();
+  if (nativePort) {
+    try { nativePort.disconnect(); } catch (_e) { /* port already gone */ }
+    nativePort = null;
+  }
+  const response = { ok: false, error: TASK_TIMEOUT_ERROR };
+  setSessionStatus({ running: false, result: response, mode: status?.mode, finishedAt: Date.now() });
+  broadcastCompletion(response);
+}
 
 function startKeepalive() {
   chrome.alarms.create('keepalive', { periodInMinutes: 1 });
@@ -90,6 +118,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
     taskActive = true;
     startKeepalive();
+    chrome.alarms.create('taskTimeout', { delayInMinutes: TASK_TIMEOUT_MINUTES });
     setSessionStatus({ running: true, tool, display_name, mode, token, startedAt: Date.now() });
 
     // Ack immediately so popup can update its UI without waiting for the task
@@ -100,6 +129,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     nativePort.onMessage.addListener((response) => {
       taskActive = false;
       stopKeepalive();
+      chrome.alarms.clear('taskTimeout');
       nativePort.disconnect();
       nativePort = null;
       setSessionStatus({ running: false, result: response, mode, finishedAt: Date.now() });
@@ -110,6 +140,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (!taskActive) return; // already handled via onMessage
       taskActive = false;
       stopKeepalive();
+      chrome.alarms.clear('taskTimeout');
       nativePort = null;
       const errMsg = chrome.runtime.lastError?.message
         ?? '连接本地更新程序失败。请确认已运行安装脚本并完全重启浏览器。';

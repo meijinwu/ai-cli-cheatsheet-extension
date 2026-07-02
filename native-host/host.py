@@ -462,6 +462,29 @@ def _setup_logger():
 LOGGER = _setup_logger()
 
 
+def sanitize_error_text(text):
+    """面向 UI 的错误文本脱敏：把本机绝对路径前缀替换为占位符并截断到 500 字符。
+
+    完整原文只进本地日志（host.log）。先替换项目路径再替换 home，
+    因为项目目录通常位于 home 之下。
+    """
+    value = str(text or "")
+    if not value:
+        return ""
+    try:
+        project = os.path.realpath(PROJECT_DIR)
+        if project and project != os.sep:
+            value = value.replace(project, "<project>")
+    except (OSError, ValueError):
+        pass
+    home = os.path.expanduser("~")
+    if home and home != "~" and home != os.sep:
+        value = value.replace(home, "~")
+    if len(value) > 500:
+        value = value[:500] + "…"
+    return value
+
+
 class ValidationError(ValueError):
     """Raised when a native message or generated dataset is invalid."""
 
@@ -1918,7 +1941,8 @@ def _call_api_direct(prompt, max_tokens=None):
         resp = conn.getresponse()
         body = resp.read().decode("utf-8")
         if resp.status != 200:
-            raise ValidationError(f"API 错误 {resp.status}：{body[:500]}")
+            LOGGER.error("API error %s: %s", resp.status, body[:2000])
+            raise ValidationError(f"API 错误 {resp.status}：{sanitize_error_text(body)}")
         data = json.loads(body)
         if data.get("stop_reason") == "max_tokens":
             raise TruncatedGenerationError(
@@ -1928,12 +1952,13 @@ def _call_api_direct(prompt, max_tokens=None):
         parts = data.get("content", [])
         text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
         if not text.strip():
-            raise ValidationError(f"API 未返回文本内容：{body[:500]}")
+            raise ValidationError(f"API 未返回文本内容：{sanitize_error_text(body)}")
         return text
     except ValidationError:
         raise
     except (OSError, ssl.SSLError, json.JSONDecodeError, KeyError) as exc:
-        raise ValidationError(f"API 调用失败：{exc}") from exc
+        LOGGER.error("API call failed: %s", exc)
+        raise ValidationError(f"API 调用失败：{sanitize_error_text(exc)}") from exc
     finally:
         conn.close()
 
@@ -1977,18 +2002,20 @@ def _call_claude_cli(prompt, prefer_web=False):
             raise ValidationError("执行超时（超过 15 分钟）")
         returncode = _active_proc.returncode
     except OSError as exc:
-        raise ValidationError(f"启动 Claude Code 失败：{exc}") from exc
+        LOGGER.error("failed to start claude CLI: %s", exc)
+        raise ValidationError(f"启动 Claude Code 失败：{sanitize_error_text(exc)}") from exc
     finally:
         _active_proc = None
 
     if returncode != 0:
         error = stderr.strip()[:2000] or "claude 命令执行失败"
+        LOGGER.error("claude CLI failed (rc=%s): %s", returncode, error)
         if reports_missing_node_runtime(error):
             raise ValidationError(
                 "已找到 Claude Code，但它需要的 Node.js 运行时不可用。"
                 "请安装 Node.js，或重新运行 native-host 安装脚本刷新运行路径。"
             )
-        raise ValidationError(error)
+        raise ValidationError(sanitize_error_text(error))
 
     return extract_json_output(stdout)
 
@@ -3119,7 +3146,7 @@ def main():
         send_message({"ok": False, "error": str(exc)})
     except Exception as exc:  # Native hosts must always return a protocol response.
         LOGGER.exception("Unhandled error while processing native message")
-        send_message({"ok": False, "error": f"本地更新程序异常：{exc}"})
+        send_message({"ok": False, "error": f"本地更新程序异常：{sanitize_error_text(exc)}（详情见本地日志）"})
 
 
 if __name__ == "__main__":
