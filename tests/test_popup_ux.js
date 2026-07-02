@@ -12,6 +12,7 @@ const state = require("../popup-state.js");
 const render = require("../popup-render.js");
 const toast = require("../popup-toast.js");
 const dialogs = require("../popup-dialogs.js");
+const loader = require("../popup-loader.js");
 
 assert(!html.includes('id="toolSelect"'), "tool filters should remain directly visible");
 assert(html.includes('id="categoryFilters" class="filters"'), "category filters should remain directly visible");
@@ -28,11 +29,13 @@ assert(
     && html.includes('<script src="popup-render.js"></script>')
     && html.includes('<script src="popup-toast.js"></script>')
     && html.includes('<script src="popup-dialogs.js"></script>')
+    && html.includes('<script src="popup-loader.js"></script>')
     && html.includes('<script src="popup-tasks.js"></script>')
     && html.indexOf('popup-state.js') < html.indexOf('popup.js')
     && html.indexOf('popup-render.js') < html.indexOf('popup-toast.js')
     && html.indexOf('popup-toast.js') < html.indexOf('popup-dialogs.js')
-    && html.indexOf('popup-dialogs.js') < html.indexOf('popup.js'),
+    && html.indexOf('popup-dialogs.js') < html.indexOf('popup-loader.js')
+    && html.indexOf('popup-loader.js') < html.indexOf('popup.js'),
   "popup modules must load before popup.js"
 );
 
@@ -489,6 +492,25 @@ assert(pending.html.includes("来源冲突") && pending.html.includes("核验状
 
 const taskMessages = require("../popup-tasks.js");
 
+// 数据加载器：ID 白名单校验，非法 ID 拒绝而不是拼接路径
+{
+  const appended = [];
+  const loaderDoc = {
+    createElement() { return {}; },
+    head: { appendChild(script) { appended.push(script); setTimeout(() => script.onload(), 0); } },
+  };
+  loader.loadCheatsheetData(loaderDoc, ["good-tool"]).then(() => {
+    assert.strictEqual(appended.length, 1, "valid tool ids should be injected");
+    assert.strictEqual(appended[0].src, "data/good-tool.js", "script src should come from the whitelisted id");
+  });
+  loader.loadCheatsheetData(loaderDoc, ["../evil"]).then(
+    () => { throw new Error("path-traversal ids must be rejected"); },
+    (error) => assert(/非法数据文件 ID/.test(error.message), "invalid ids should reject with a clear error")
+  );
+  loader.loadCheatsheetData(loaderDoc, undefined).then((results) =>
+    assert.strictEqual(results.length, 0, "a missing file list should load nothing"));
+}
+
 // Toast 工厂：显示/隐藏与计时器行为
 {
   const toastElement = {
@@ -578,6 +600,7 @@ const context = {
     CHEATSHEET_POPUP_RENDER: render,
     CHEATSHEET_POPUP_TOAST: toast,
     CHEATSHEET_POPUP_DIALOGS: dialogs,
+    CHEATSHEET_POPUP_LOADER: loader,
     CHEATSHEET_POPUP_TASKS: taskMessages,
     CHEATSHEET_ENABLE_TEST_HOOKS: true,
     CHEATSHEET_DATA: {},
@@ -640,6 +663,7 @@ const dialogContext = {
     CHEATSHEET_POPUP_RENDER: render,
     CHEATSHEET_POPUP_TOAST: toast,
     CHEATSHEET_POPUP_DIALOGS: dialogs,
+    CHEATSHEET_POPUP_LOADER: loader,
     CHEATSHEET_POPUP_TASKS: taskMessages,
     CHEATSHEET_ENABLE_TEST_HOOKS: true,
     CHEATSHEET_DATA: {},

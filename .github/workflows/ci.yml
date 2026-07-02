@@ -20,6 +20,9 @@ jobs:
           node --check popup.js
           node --check popup-state.js
           node --check popup-render.js
+          node --check popup-toast.js
+          node --check popup-dialogs.js
+          node --check popup-loader.js
           node --check popup-tasks.js
           node --check pinyin-initials.js
           node --check background.js

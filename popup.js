@@ -202,15 +202,7 @@ async function copyText(value, successMessage) {
 }
 
 function loadCheatsheetData() {
-  const files = Array.isArray(window.CHEATSHEET_FILES) ? window.CHEATSHEET_FILES : [];
-  return Promise.all(files.map((toolId) => new Promise((resolve, reject) => {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(toolId)) return reject(new Error(`非法数据文件 ID：${toolId}`));
-    const script = document.createElement("script");
-    script.src = `data/${toolId}.js`;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error(`加载 data/${toolId}.js 失败`));
-    document.head.appendChild(script);
-  })));
+  return window.CHEATSHEET_POPUP_LOADER.loadCheatsheetData(document, window.CHEATSHEET_FILES);
 }
 
 function showView(name) {
