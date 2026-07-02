@@ -1337,6 +1337,70 @@ class HostFileTests(unittest.TestCase):
         self.assertTrue(applied["changed"])
 
 
+class HostErrorSanitizationTests(unittest.TestCase):
+    # 面向 UI 的错误文本必须脱敏：本机绝对路径替换为占位符并截断，
+    # 完整细节只进本地日志（host.log）。
+
+    def test_sanitize_error_text_strips_home_and_project_paths(self):
+        home = os.path.expanduser("~")
+        project = os.path.realpath(host.PROJECT_DIR)
+        raw = f"Error at {project}/data/x.js under {home}/secret/creds"
+        cleaned = host.sanitize_error_text(raw)
+        self.assertNotIn(home, cleaned)
+        self.assertIn("<project>/data/x.js", cleaned)
+        self.assertIn("~/secret/creds", cleaned)
+
+    def test_sanitize_error_text_truncates_long_messages(self):
+        cleaned = host.sanitize_error_text("x" * 2000)
+        self.assertLessEqual(len(cleaned), 501)
+
+    def test_sanitize_error_text_handles_empty_input(self):
+        self.assertEqual(host.sanitize_error_text(None), "")
+        self.assertEqual(host.sanitize_error_text(""), "")
+
+    def test_cli_stderr_is_sanitized_before_reaching_ui(self):
+        home = os.path.expanduser("~")
+        mock_proc = mock.MagicMock()
+        mock_proc.communicate.return_value = ("", f"failure while reading {home}/private/config")
+        mock_proc.returncode = 1
+        with mock.patch.object(host, "CLAUDE_BIN", "/usr/bin/claude"), mock.patch.object(
+            host.subprocess, "Popen", return_value=mock_proc
+        ):
+            with self.assertRaises(host.ValidationError) as ctx:
+                host._call_claude_cli("prompt")
+        message = str(ctx.exception)
+        self.assertNotIn(home, message)
+        self.assertIn("~/private/config", message)
+
+    def test_main_unexpected_exception_is_sanitized(self):
+        home = os.path.expanduser("~")
+        sent = []
+        with mock.patch.object(
+            host, "read_message", side_effect=RuntimeError(f"boom at {home}/hidden/token-cache")
+        ), mock.patch.object(host, "send_message", side_effect=lambda payload: sent.append(payload)):
+            host.main()
+        self.assertEqual(len(sent), 1)
+        self.assertFalse(sent[0]["ok"])
+        self.assertNotIn(home, sent[0]["error"])
+        self.assertIn("~/hidden/token-cache", sent[0]["error"])
+
+    def test_api_error_body_is_sanitized(self):
+        home = os.path.expanduser("~")
+        conn = mock.MagicMock()
+        resp = mock.MagicMock()
+        resp.status = 500
+        resp.read.return_value = f"server error touching {home}/leak".encode("utf-8")
+        conn.getresponse.return_value = resp
+        with mock.patch.dict(os.environ, {"ANTHROPIC_AUTH_TOKEN": "tok"}, clear=True), mock.patch.object(
+            host.http.client, "HTTPSConnection", return_value=conn
+        ):
+            with self.assertRaises(host.ValidationError) as ctx:
+                host._call_api_direct("prompt")
+        message = str(ctx.exception)
+        self.assertNotIn(home, message)
+        self.assertIn("~/leak", message)
+
+
 class HostApiTests(unittest.TestCase):
     def _fake_conn(self, status, body):
         conn = mock.MagicMock()
