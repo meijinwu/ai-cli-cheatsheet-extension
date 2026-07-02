@@ -24,12 +24,14 @@ function createChromeMock() {
     sessionGetResult: {},
     connectNativeCalls: [],
     ports: [],
+    alarmCreates: [],
+    alarmClears: [],
   };
   const chrome = {
     alarms: {
-      create() {},
-      clear() {},
-      onAlarm: { addListener() {} },
+      create(name, info) { state.alarmCreates.push({ name, info }); },
+      clear(name) { state.alarmClears.push(name); },
+      onAlarm: { listener: null, addListener(fn) { chrome.alarms.onAlarm.listener = fn; } },
     },
     storage: {
       session: {
@@ -279,6 +281,62 @@ const VALID_TOKEN = "a".repeat(32);
 
     const retry = dispatch(chrome, { action: "startTask", mode: "add_tool", tool: "git", display_name: "Git" });
     assert.strictEqual(retry.getResponse().ok, true, "task slot should be free again after disconnect handling");
+  }
+
+  // 看门狗：startTask 创建 taskTimeout alarm，任务完成时清除
+  {
+    const { chrome, state } = loadBackground();
+    dispatch(chrome, { action: "startTask", mode: "add_tool", tool: "git", display_name: "Git" });
+    assert(state.alarmCreates.some((a) => a.name === "taskTimeout"), "startTask should arm the watchdog alarm");
+    state.ports[0].onMessage.listener({ ok: true, output: "done" });
+    assert(state.alarmClears.includes("taskTimeout"), "task completion should clear the watchdog alarm");
+  }
+
+  // 看门狗触发：Native 进程既不回消息也不断开时，任务被超时终止、槽位释放
+  {
+    const { chrome, state } = loadBackground();
+    dispatch(chrome, { action: "startTask", mode: "add_tool", tool: "git", display_name: "Git" });
+    chrome.alarms.onAlarm.listener({ name: "taskTimeout" });
+    await flushMicrotasks();
+    assert(
+      state.sentMessages.some((m) => m.action === "taskComplete" && m.response.ok === false && /无响应/.test(m.response.error)),
+      "watchdog should broadcast a timeout failure"
+    );
+    assert.strictEqual(state.ports[0].disconnected, true, "watchdog should disconnect the hung native port");
+    assert(
+      state.sessionSets.some((s) => s.taskStatus && s.taskStatus.running === false && s.taskStatus.result?.ok === false),
+      "watchdog should persist the failed status to session storage"
+    );
+    const retry = dispatch(chrome, { action: "startTask", mode: "add_tool", tool: "git", display_name: "Git" });
+    assert.strictEqual(retry.getResponse().ok, true, "task slot should be free again after a watchdog timeout");
+  }
+
+  // 看门狗冷启动路径：SW 被回收后 taskActive 丢失，但 session 记录任务仍在运行时也要收尾
+  {
+    const { chrome, state } = loadBackground();
+    state.sessionGetResult = { taskStatus: { running: true, mode: "add_tool", startedAt: 1 } };
+    chrome.alarms.onAlarm.listener({ name: "taskTimeout" });
+    await flushMicrotasks();
+    assert(
+      state.sentMessages.some((m) => m.action === "taskComplete" && m.response.ok === false),
+      "cold-start watchdog should still fail the orphaned task"
+    );
+    assert(
+      state.sessionSets.some((s) => s.taskStatus && s.taskStatus.running === false),
+      "cold-start watchdog should persist running:false"
+    );
+  }
+
+  // 看门狗误触发防护：任务已完成后 alarm 再触发必须是 no-op
+  {
+    const { chrome, state } = loadBackground();
+    dispatch(chrome, { action: "startTask", mode: "add_tool", tool: "git", display_name: "Git" });
+    state.ports[0].onMessage.listener({ ok: true, output: "done" });
+    state.sessionGetResult = { taskStatus: { running: false } };
+    const sentBefore = state.sentMessages.length;
+    chrome.alarms.onAlarm.listener({ name: "taskTimeout" });
+    await flushMicrotasks();
+    assert.strictEqual(state.sentMessages.length, sentBefore, "a stale watchdog alarm must not broadcast anything");
   }
 
   console.log("Background message handler tests passed.");
