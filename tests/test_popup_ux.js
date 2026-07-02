@@ -577,9 +577,65 @@ const context = {
   },
   confirmCalls: 0,
 };
+const popupSource = fs.readFileSync(path.join(root, "popup.js"), "utf8");
 vm.createContext(context);
-vm.runInContext(fs.readFileSync(path.join(root, "popup.js"), "utf8"), context, { filename: "popup.js" });
+vm.runInContext(popupSource, context, { filename: "popup.js" });
 assert(context.window.CHEATSHEET_POPUP_TESTS, "popup test hooks should be available only when enabled");
+
+// 第二个沙箱：带 riskDialog/toast 元素桩，测试对话框路径的并发防护与焦点陷阱。
+function stubElement() {
+  return {
+    textContent: "",
+    innerHTML: "",
+    className: "",
+    value: "",
+    disabled: false,
+    hidden: false,
+    dataset: {},
+    classList: {
+      classes: new Set(),
+      add(name) { this.classes.add(name); },
+      remove(name) { this.classes.delete(name); },
+      contains(name) { return this.classes.has(name); },
+    },
+    focus() {},
+    addEventListener() {},
+    append() {},
+  };
+}
+const dialogElements = new Map();
+const dialogContext = {
+  window: {
+    CHEATSHEET_CORE: core,
+    CHEATSHEET_POPUP_STATE: state,
+    CHEATSHEET_POPUP_RENDER: render,
+    CHEATSHEET_POPUP_TASKS: taskMessages,
+    CHEATSHEET_ENABLE_TEST_HOOKS: true,
+    CHEATSHEET_DATA: {},
+  },
+  document: {
+    addEventListener() {},
+    activeElement: null,
+    getElementById(id) {
+      if (!dialogElements.has(id)) dialogElements.set(id, stubElement());
+      return dialogElements.get(id);
+    },
+    querySelectorAll() { return []; },
+  },
+  navigator: { platform: "MacIntel" },
+  chrome: {
+    runtime: { lastError: null, reload() {}, sendMessage() {}, onMessage: { addListener() {} } },
+    storage: { local: { get() {}, set() {} }, session: { set() {} } },
+  },
+  setTimeout,
+  clearTimeout,
+  setInterval,
+  clearInterval,
+  confirm() { return false; },
+};
+vm.createContext(dialogContext);
+vm.runInContext(popupSource, dialogContext, { filename: "popup.js" });
+const dialogHooks = dialogContext.window.CHEATSHEET_POPUP_TESTS;
 (async () => {
   assert.strictEqual(
     await context.window.CHEATSHEET_POPUP_TESTS.confirmRiskCopy("git status", { requiresConfirmation: false }),
@@ -609,6 +665,41 @@ assert(context.window.CHEATSHEET_POPUP_TESTS, "popup test hooks should be availa
     "already collected recommendations should not start add tasks"
   );
   assert(context.window.CHEATSHEET_POPUP_TESTS.addToolPayload("CLI", true).error.includes("范围过大"), "broad recommendation names should stay blocked");
+
+  // 风险确认并发防护：确认框未决时的第二次复制直接按"未确认"处理，
+  // 前一个 Promise 仍由用户操作决议，不会永久挂起。
+  const risk = core.classifyCommandRisk("rm -rf ./tmp");
+  const firstPending = dialogHooks.confirmRiskCopy("rm -rf ./tmp", risk);
+  assert.strictEqual(
+    await dialogHooks.confirmRiskCopy("rm -rf /var", risk),
+    false,
+    "a second risk confirmation while one is pending must resolve to false immediately"
+  );
+  assert(typeof dialogHooks.closeRiskDialog === "function", "closeRiskDialog should be exposed for tests");
+  dialogHooks.closeRiskDialog(true);
+  assert.strictEqual(await firstPending, true, "the original pending confirmation must still resolve with the user's choice");
+  const thirdPending = dialogHooks.confirmRiskCopy("rm -rf ./x", risk);
+  dialogHooks.closeRiskDialog(false);
+  assert.strictEqual(await thirdPending, false, "the dialog must be usable again after the pending confirmation closes");
+
+  // 焦点陷阱：Tab 在对话框内循环，其它按键不拦截。
+  const focusCalls = [];
+  const firstFocusable = { focus() { focusCalls.push("first"); }, disabled: false, hidden: false };
+  const lastFocusable = { focus() { focusCalls.push("last"); }, disabled: false, hidden: false };
+  const trapDialog = { querySelectorAll() { return [firstFocusable, lastFocusable]; } };
+  dialogContext.document.activeElement = lastFocusable;
+  let trapPrevented = false;
+  dialogHooks.trapDialogFocus(trapDialog, { key: "Tab", shiftKey: false, preventDefault() { trapPrevented = true; } });
+  assert(focusCalls.includes("first") && trapPrevented, "Tab on the last focusable element should wrap to the first");
+  focusCalls.length = 0;
+  trapPrevented = false;
+  dialogContext.document.activeElement = firstFocusable;
+  dialogHooks.trapDialogFocus(trapDialog, { key: "Tab", shiftKey: true, preventDefault() { trapPrevented = true; } });
+  assert(focusCalls.includes("last") && trapPrevented, "Shift+Tab on the first focusable element should wrap to the last");
+  focusCalls.length = 0;
+  dialogHooks.trapDialogFocus(trapDialog, { key: "a", preventDefault() { throw new Error("non-Tab keys must not be intercepted"); } });
+  assert.strictEqual(focusCalls.length, 0, "non-Tab keys must not move focus");
+  assert(/function bindRiskDialog[\s\S]{0,400}trapDialogFocus/.test(popupSource), "bindRiskDialog should wire the shared focus trap");
 
   await failingController.finishTask({ ok: false, error: "连接本地更新程序失败。请确认已运行安装脚本并完全重启浏览器。" });
   assert.strictEqual(failedStatus.length, 1, "a failed task should surface exactly one status message");

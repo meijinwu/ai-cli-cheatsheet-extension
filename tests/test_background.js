@@ -113,7 +113,10 @@ const VALID_TOKEN = "a".repeat(32);
       action: "startTask", mode: "bogus", tool: "git", display_name: "Git",
     });
     assert.strictEqual(async_, false);
-    assert.deepStrictEqual(getResponse(), { ok: false, error: "任务参数无效。" });
+    const invalidResponse = getResponse();
+    assert.strictEqual(invalidResponse.ok, false);
+    assert(/任务参数无效/.test(invalidResponse.error), "invalid params should be named as the failure reason");
+    assert(/重新打开|重试/.test(invalidResponse.error), "the error should tell the user what to do next");
     assert.strictEqual(state.connectNativeCalls.length, 0, "invalid mode must not reach the native host");
   }
 
