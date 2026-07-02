@@ -2,7 +2,7 @@
 
 一个面向 Chrome / Edge 的本地速查扩展，用于查询 AI CLI、编辑器和常用开发工具的命令、参数与快捷键。
 
-当前包含 **12 个工具、888 条数据**，每条均提供语义关键词、用法示例和明确核验状态，并支持平台适配、收藏、最近使用和工具筛选。基础查询完全在浏览器本地完成，不上传搜索词或使用记录；只有可选的“新增工具 / 检查更新”功能会调用本机 Claude Code 或配置的 Anthropic 兼容 API。
+当前包含 **16 个工具、1000 余条数据**（准确数字以 `node tools/validate-data.js` 的输出为准），每条均提供语义关键词、用法示例和明确核验状态，并支持平台适配、收藏、最近使用和工具筛选。基础查询完全在浏览器本地完成，不上传搜索词或使用记录；只有可选的“新增工具 / 检查更新”功能会调用本机 Claude Code 或配置的 Anthropic 兼容 API。
 
 ## 支持内容
 
@@ -10,7 +10,8 @@
 |------|------|
 | AI CLI | Claude Code、Codex CLI、Gemini CLI、Antigravity CLI、OpenCode、OpenClaw |
 | 编辑器与写作工具 | Cursor、Visual Studio Code、IntelliJ IDEA、Typora |
-| 通用开发工具 | Git、Linux 常用命令 |
+| 终端与 Shell | Shell（sh/POSIX、bash、zsh 聚合）、iTerm2 |
+| 通用开发工具 | Git、Linux 常用命令、Docker、Homebrew |
 
 数据覆盖范围因工具而异：CLI 通常包含交互命令、启动参数和快捷键；IDE 类工具主要收录默认键位下的常用快捷键。
 
@@ -23,7 +24,7 @@
 - **本地偏好**：保存平台、启用工具、搜索词、收藏和最近使用记录。
 - **可选数据维护**：通过 Native Messaging 调用本机更新程序，新增工具或检查已有数据。
 - **证据化更新**：先发现来源再生成内容；应用前展示条目、来源、证据等级和冲突变化，来源新增、移除或证据降级时要求再次确认。
-- **全量用法示例**：874 条数据全部提供用法；人工整理与 AI 推导内容会明确标注来源。
+- **全量用法示例**：每条数据都提供用法（数据自带或由人工核验的富化层补齐）；人工整理与 AI 推导内容会明确标注来源与证据等级。
 
 ## 快速安装
 
@@ -109,19 +110,27 @@ powershell -ExecutionPolicy Bypass -File native-host\install.ps1
 ## 项目架构
 
 ```text
-popup.html / popup.js       弹窗界面、筛选、复制和本地偏好
+popup.html / popup.js       弹窗入口与控制器（状态、事件、渲染协调）
+popup-state.js              存储访问、条目索引、推荐引擎与收藏/最近逻辑
+popup-render.js             HTML 渲染、转义与来源证据展示
+popup-toast.js              Toast 提示（工厂注入 document）
+popup-dialogs.js            高风险确认对话框、首次引导与共享焦点陷阱
+popup-loader.js             按 data/index.js 清单白名单注入数据脚本
+popup-tasks.js              Native Host 任务状态机（进度、完成分发）
+pinyin-initials.js          拼音首字母表（由 tools/gen-pinyin-initials.py 生成）
 product-core.js             搜索排序、同义词和平台命令逻辑
 data/*.js                   各工具数据
 data/index.js               数据文件索引
 usage-examples.js           公共示例派生、风险分类与兼容富化
 enrichments/                按工具拆分、以稳定 item.id 关联的人工核验示例
 shared/source-registry.json  内置工具来源、URL 范围与适用工具的单一登记表
-background.js               弹窗与 Native Host 的任务桥接
+shared/validation-rules.json 双端校验规则（正则、枚举、上下限）的单一来源
+background.js               弹窗与 Native Host 的任务桥接（含超时看门狗）
 native-host/host.py         模型调用、数据校验、差异计算和原子写入
 tools/validate-data.js      数据文件静态校验
 tools/migrate-built-in-evidence.js  可重复运行的内置数据证据迁移脚本
 tools/verify-source-urls.js  联网检查来源最终 URL、HTTP 状态和页面标题
-tests/                      搜索核心与 Native Host 单元测试
+tests/                      弹窗、后台、搜索核心与 Native Host 测试
 ```
 
 新增或更新工具时：
@@ -146,13 +155,13 @@ tests/                      搜索核心与 Native Host 单元测试
 需要 Node.js 和 Python 3：
 
 ```bash
-node --check popup.js
-node --check background.js
-node --check product-core.js
+node --check popup.js popup-state.js popup-render.js popup-toast.js popup-dialogs.js popup-loader.js popup-tasks.js pinyin-initials.js background.js product-core.js usage-examples.js
 node tools/validate-data.js
+node tests/test_validation_consistency.js
 node tests/test_product_core.js
 node tests/test_usage_examples.js
 node tests/test_popup_ux.js
+node tests/test_background.js
 python3 -m unittest discover -s tests -v
 ```
 

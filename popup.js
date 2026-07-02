@@ -305,6 +305,13 @@ function bindHomeEvents() {
     storageSet({ lastQuery: event.target.value });
     debouncedRender();
   });
+  document.getElementById("search").addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown") return;
+    const firstRow = document.querySelector("#main .row-main:not(:disabled)");
+    if (!firstRow) return;
+    firstRow.focus();
+    event.preventDefault();
+  });
   document.getElementById("clearSearch").addEventListener("click", () => {
     getDOM().search.value = "";
     resetResultLimits();

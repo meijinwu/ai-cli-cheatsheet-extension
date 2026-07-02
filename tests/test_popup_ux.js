@@ -24,6 +24,8 @@ assert(html.includes('id="showDismissedRecommendations"'), "dismissed recommenda
 assert(html.includes(":focus-visible"), "interactive controls need visible keyboard focus");
 assert(state.STORAGE_KEYS.includes("dismissedRecommendations"), "dismissed recommendations should be persisted");
 assert(html.includes("prefers-reduced-motion"), "motion must respect the reduced-motion preference");
+assert(/id="countBar"[^>]*aria-live="polite"/.test(html), "result count must be announced to screen readers");
+assert(/id="countBar"[^>]*role="status"/.test(html), "count bar should be a status region");
 assert(
   html.includes('<script src="popup-state.js"></script>')
     && html.includes('<script src="popup-render.js"></script>')
@@ -630,6 +632,11 @@ const context = {
   confirmCalls: 0,
 };
 const popupSource = fs.readFileSync(path.join(root, "popup.js"), "utf8");
+// 搜索框按 ↓ 应直达第一条结果（README 宣称的键盘路径）。
+assert(
+  /search"\)\.addEventListener\("keydown"[\s\S]{0,300}ArrowDown[\s\S]{0,300}\.row-main/.test(popupSource),
+  "the search box must wire ArrowDown to focus the first result row"
+);
 vm.createContext(context);
 vm.runInContext(popupSource, context, { filename: "popup.js" });
 assert(context.window.CHEATSHEET_POPUP_TESTS, "popup test hooks should be available only when enabled");

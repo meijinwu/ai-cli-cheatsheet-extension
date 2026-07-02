@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "AI CLI 速查表",
   "short_name": "AI CLI速查",
-  "description": "Claude Code / Codex CLI / Gemini CLI / Antigravity CLI 命令与快捷键中英对照速查，点击图标即可查询，纯本地无需联网",
+  "description": "AI CLI、编辑器、终端与常用开发工具的命令、参数与快捷键中英对照速查（Claude Code、Codex、Gemini CLI、Git、Docker、Homebrew 等 16 个工具）。基础查询纯本地完成；新增/更新数据为可选功能。",
   "version": "1.6.0",
   "background": { "service_worker": "background.js" },
   "permissions": ["nativeMessaging", "storage", "alarms"],

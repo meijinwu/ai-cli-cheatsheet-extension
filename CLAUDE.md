@@ -18,8 +18,8 @@
 
 ```bash
 # JS 语法检查（无编译器/打包器）
-node --check popup.js          # background.js、product-core.js、usage-examples.js 同理
-find data -name '*.js' -print0 | xargs -0 -n1 node --check
+node --check popup.js popup-state.js popup-render.js popup-toast.js popup-dialogs.js popup-loader.js popup-tasks.js pinyin-initials.js background.js product-core.js usage-examples.js
+find data enrichments -name '*.js' -print0 | xargs -0 -n1 node --check
 
 # 数据 + JS 测试套件（每个测试文件是独立脚本——整文件运行，没有单测运行器）
 node tools/validate-data.js              # 静态校验每个已提交的 data/*.js
